@@ -1,0 +1,71 @@
+// compbird — standalone consumer app. Deliberately mirrors the SHAPE of the
+// platform's auth trio (AuthUser / Account / Membership) so the ported server
+// code (session context, usage metering, Stripe webhook) runs unchanged — but
+// this is compbird's OWN database: no compliance models, no multi-seat teams,
+// and a two-rung tier ladder (FREE trial → SOLO "Pro" $20/mo).
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum AccountTier {
+  FREE
+  SOLO
+  ADMIN
+}
+
+model AuthUser {
+  id              String       @id @default(cuid())
+  email           String       @unique
+  passwordHash    String?
+  name            String?
+  isSuperAdmin    Boolean      @default(false)
+  emailVerifiedAt DateTime?
+  lastLoginAt     DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  memberships     Membership[]
+}
+
+model Account {
+  id                   String       @id @default(cuid())
+  name                 String
+  tier                 AccountTier  @default(FREE)
+  /// JSON per-account entitlement override map (admin escape hatch).
+  entitlementOverrides String       @default("{}")
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  subscriptionStatus   String?
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+  memberships          Membership[]
+  usageEvents          UsageEvent[]
+}
+
+model Membership {
+  id        String   @id @default(cuid())
+  userId    String
+  accountId String
+  role      String   @default("OWNER")
+  createdAt DateTime @default(now())
+  user      AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, accountId])
+}
+
+model UsageEvent {
+  id        String   @id @default(cuid())
+  accountId String
+  feature   String
+  createdAt DateTime @default(now())
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, feature, createdAt])
+}

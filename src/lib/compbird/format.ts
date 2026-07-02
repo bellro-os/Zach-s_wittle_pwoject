@@ -1,0 +1,134 @@
+/**
+ * compbird formatting helpers — all numeric output goes through here so figures
+ * read consistently (tabular mono, sensible rounding) across the site.
+ */
+
+export function usd(n: number | null | undefined, fallback = "—"): string {
+  if (n == null || !Number.isFinite(n)) return fallback;
+  return n.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  });
+}
+
+export function ppsf(n: number | null | undefined, fallback = "—"): string {
+  if (n == null || !Number.isFinite(n)) return fallback;
+  return `$${Math.round(n)}`;
+}
+
+export function num(n: number | null | undefined, fallback = "—"): string {
+  if (n == null || !Number.isFinite(n)) return fallback;
+  return Math.round(n).toLocaleString("en-US");
+}
+
+export function num1(n: number | null | undefined, fallback = "—"): string {
+  if (n == null || !Number.isFinite(n)) return fallback;
+  return n.toLocaleString("en-US", { maximumFractionDigits: 1 });
+}
+
+/** Signed percent, e.g. +6.3% / -1.2%. */
+export function pctDelta(n: number | null | undefined, fallback = "—"): string {
+  if (n == null || !Number.isFinite(n)) return fallback;
+  const v = n.toFixed(1);
+  return `${n > 0 ? "+" : ""}${v}%`;
+}
+
+export function pct(n: number | null | undefined, fallback = "—"): string {
+  if (n == null || !Number.isFinite(n)) return fallback;
+  return `${n.toFixed(1)}%`;
+}
+
+export function miles(n: number | null | undefined, fallback = "—"): string {
+  if (n == null || !Number.isFinite(n)) return fallback;
+  return `${n.toFixed(1)} mi`;
+}
+
+export function sqft(n: number | null | undefined, fallback = "—"): string {
+  if (n == null || !Number.isFinite(n)) return fallback;
+  return `${Math.round(n).toLocaleString("en-US")} sqft`;
+}
+
+export function acres(n: number | null | undefined, fallback = "—"): string {
+  if (n == null || !Number.isFinite(n)) return fallback;
+  return `${n.toFixed(2)} ac`;
+}
+
+/**
+ * Parse a feed date. A bare `YYYY-MM-DD` is parsed in LOCAL time so a close
+ * date never slips a day west of UTC; full ISO timestamps pass through to the
+ * native parser untouched.
+ */
+function parseFeedDate(d: string): Date {
+  const m = d.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) {
+    const [, y, mo, day] = m;
+    return new Date(Number(y), Number(mo) - 1, Number(day));
+  }
+  return new Date(d);
+}
+
+/** "Mar 2025" from an ISO-ish date string. */
+export function monthYear(d: string | null | undefined, fallback = "—"): string {
+  if (!d) return fallback;
+  const date = parseFeedDate(d);
+  if (Number.isNaN(date.getTime())) return fallback;
+  return date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+}
+
+/** "Mar 14, 2025". */
+export function dateLong(d: string | null | undefined, fallback = "—"): string {
+  if (!d) return fallback;
+  const date = parseFeedDate(d);
+  if (Number.isNaN(date.getTime())) return fallback;
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+/** Strip the inline <b>…</b> the engine may emit in valuation rationales. */
+export function stripTags(s: string | null | undefined): string {
+  return (s ?? "").replace(/<[^>]+>/g, "");
+}
+
+/** Title-case a county/city token from the data feed. */
+export function titleCase(s: string | null | undefined, fallback = ""): string {
+  if (!s) return fallback;
+  return s
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .trim();
+}
+
+/**
+ * Join a place and its county into one label without doubling "County" — the
+ * feed sometimes hands us a county string that already carries the suffix.
+ * "Palmyra" + "Fluvanna County" → "Palmyra, Fluvanna County".
+ * "" + "Fluvanna County" → "Fluvanna County" (no leading comma).
+ */
+export function placeLabel(
+  name?: string | null,
+  county?: string | null,
+): string {
+  const place = titleCase(name);
+  const rawCounty = titleCase(county).replace(/\s+County$/i, "").trim();
+  const countyLabel = rawCounty ? `${rawCounty} County` : "";
+  if (place && countyLabel) return `${place}, ${countyLabel}`;
+  return place || countyLabel;
+}
+
+export function bedsBaths(
+  beds: number | null | undefined,
+  full: number | null | undefined,
+  half: number | null | undefined,
+): string {
+  const parts: string[] = [];
+  if (beds != null) parts.push(`${beds} bd`);
+  if (full != null) {
+    const total = full + (half ? half * 0.5 : 0);
+    parts.push(`${total % 1 === 0 ? total : total.toFixed(1)} ba`);
+  }
+  return parts.join(" · ") || "—";
+}

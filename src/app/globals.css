@@ -1,0 +1,413 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ─────────────────────────────────────────────────────────────
+   "Paper & Emerald" — the Ratified design language applied to the
+   transaction-compliance desk. LIGHT (token-driven).
+
+   Palette (named):
+     Ink     — the deep blue-black surface ramp (950/900/800/700).
+     Emerald — the single accent. #34d399 / emerald-300 on hover.
+               Used ONLY for primary actions, active states, the
+               ledger tick, and highlights.
+     Semantics — emerald (positive), rose (negative), amber
+               (warning), sky (info). Each ships a -tint
+               background and a -foreground text shade.
+
+   Signature element: the ledger tick — a hairline rule with a
+   short EMERALD segment at its left end (.ledger-rule).
+
+   Type: Inter (UI/body) + Instrument Serif (1-3 word emphasis).
+   Depth = neutral slate-alpha shadows (--elev-*) for card elevation
+   on paper; emerald glow utilities (.spot-card, .edge-light,
+   .glow-ring) are reserved for INTENTIONAL accents, not default
+   card depth (green glow smears on white).
+   ───────────────────────────────────────────────────────────── */
+
+/* Ratified ink scale + signature animations (verbatim). */
+@theme {
+  /* "Lifted" graphite ramp — off near-black, with clear elevation steps so
+     cards read as objects on a surface, not outlines in a void. */
+  --color-ink-950: #131922;
+  --color-ink-900: #1c2531;
+  --color-ink-800: #25303d;
+  --color-ink-700: #313e4d;
+  --animate-marquee: marquee 45s linear infinite;
+  --animate-float: float 7s ease-in-out infinite;
+  --animate-float-slow: float 10s ease-in-out infinite;
+
+  @keyframes marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0px);
+    }
+    50% {
+      transform: translateY(-14px);
+    }
+  }
+}
+
+/* LIGHT — "Paper & Emerald": the app now matches the landing's light brand.
+   :root and .dark carry the SAME light values (the app ships light; any code
+   still gating on the dark class stays light too). Compbird + marketing scopes
+   re-declare their own tokens and are unaffected. */
+:root,
+.dark {
+  /* Surfaces — white paper (page = card), slate ink text. */
+  --background: #ffffff;
+  --foreground: #0b1220;
+  --card: #ffffff;
+  --card-foreground: #0b1220;
+  --popover: #ffffff;
+  --popover-foreground: #0b1220;
+
+  /* Emerald accent — emerald-600 so white text on a filled pill hits WCAG AA
+     (#059669 vs #fff ≈ 4.5:1; emerald-500 #10b981 was only ~2.5:1). */
+  --primary: #059669;
+  --primary-foreground: #ffffff;
+  --brand-tint: rgba(16, 185, 129, 0.08);
+  --brand-tint-strong: rgba(16, 185, 129, 0.16);
+  --brand-ring: rgba(5, 150, 105, 0.55);
+
+  /* Slate neutrals + muted text */
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0b1220;
+  --muted: #f7faf9;
+  --muted-foreground: #64748b;
+  --accent: #ecfdf5;
+  --accent-foreground: #065f46;
+  --border: rgba(15, 23, 42, 0.08);
+  --input: rgba(15, 23, 42, 0.12);
+  /* Focus ring — emerald-600 for ≥3:1 non-text contrast on white
+     (#10b981 was ~2.5:1). */
+  --ring: #059669;
+
+  /* Neutral slate-alpha elevation ramp — card depth on paper.
+     Emerald glow utilities are for accents only, never default depth. */
+  --elev-1: 0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 1px rgba(15, 23, 42, 0.04);
+  --elev-2: 0 2px 4px rgba(15, 23, 42, 0.06), 0 4px 12px rgba(15, 23, 42, 0.08);
+  --elev-3: 0 8px 24px rgba(15, 23, 42, 0.10), 0 2px 6px rgba(15, 23, 42, 0.06);
+
+  /* Semantics — emerald / rose / amber / sky, darkened for contrast on white. */
+  --positive: #059669;
+  --positive-foreground: #047857;
+  --positive-tint: rgba(16, 185, 129, 0.12);
+  --negative: #e11d48;
+  --negative-foreground: #be123c;
+  --negative-tint: rgba(244, 63, 94, 0.10);
+  --warning: #d97706;
+  --warning-foreground: #b45309;
+  --warning-tint: rgba(245, 158, 11, 0.12);
+  --info: #0284c7;
+  --info-foreground: #0369a1;
+  --info-tint: rgba(56, 189, 248, 0.12);
+  --destructive: #e11d48;
+  --destructive-foreground: #ffffff;
+
+  /* Hairline rule */
+  --rule: rgba(15, 23, 42, 0.08);
+
+  --radius: 0.375rem;
+}
+
+@theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-instrument), Georgia, serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-positive: var(--positive);
+  --color-positive-foreground: var(--positive-foreground);
+  --color-positive-tint: var(--positive-tint);
+  --color-negative: var(--negative);
+  --color-negative-foreground: var(--negative-foreground);
+  --color-negative-tint: var(--negative-tint);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-tint: var(--warning-tint);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-info-tint: var(--info-tint);
+  --color-brand-tint: var(--brand-tint);
+  --color-brand-tint-strong: var(--brand-tint-strong);
+  --color-brand-ring: var(--brand-ring);
+  --color-rule: var(--rule);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --animate-shimmer: shimmer 1.8s linear infinite;
+  --animate-progress-indeterminate: progress-indeterminate 1.4s ease-in-out infinite;
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  background: var(--background);
+  scroll-behavior: smooth;
+}
+
+body {
+  color: var(--foreground);
+  background-color: var(--background);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Emerald selection — legible dark-on-light-emerald on paper. White text on a
+   35%-alpha emerald wash was invisible; use a solid pale-emerald ground with
+   deep emerald ink so selected text stays readable. */
+::selection {
+  background: #a7f3d0;
+  color: #064e3b;
+}
+
+/* Headings carry the hierarchy: tighter tracking at display sizes. */
+h1, h2 {
+  letter-spacing: -0.02em;
+}
+h3, h4 {
+  letter-spacing: -0.01em;
+}
+
+/* Tabular numerals on all financial / count surfaces */
+.tabular,
+[data-tabular],
+.tabular-nums {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum", "lnum";
+}
+
+/* Mono figure helper — amounts, account/routing/trace numbers */
+.figure {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum", "lnum";
+}
+
+/* Uppercase, wide-tracked micro-label for section headers */
+.label-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+
+/* Hairline rule */
+.rule {
+  border-top: 1px solid var(--rule);
+}
+
+/* Signature: the ledger tick — hairline rule with a short EMERALD
+   segment at its left end. Apply to section/page-header
+   separators: <div class="ledger-rule" />  */
+.ledger-rule {
+  position: relative;
+  border-top: 1px solid var(--rule);
+}
+.ledger-rule::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 0;
+  width: 28px;
+  height: 2px;
+  background: var(--primary);
+}
+
+/* Visible keyboard focus for hand-rolled links/rows (parity with Button) */
+.focus-ring:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Ratified signature utilities (verbatim).
+   Depth comes from glow, not shadow.
+   ───────────────────────────────────────────────────────────── */
+
+/* Faint blueprint grid that fades out radially */
+/* Blueprint grid that fades out radially. The grid + its mask live on a
+   ::before layer (not the element itself) so the radial fade only masks the
+   GRID — never the header's eyebrow/title/content painted above it. Elements
+   using .bg-grid-fade may safely contain content. */
+.bg-grid-fade {
+  position: relative;
+  isolation: isolate;
+}
+
+.bg-grid-fade::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: linear-gradient(to right, rgba(148, 163, 184, 0.07) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(148, 163, 184, 0.07) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 35%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 35%, transparent 75%);
+}
+
+.bg-grid-soft {
+  background-image: linear-gradient(to right, rgba(148, 163, 184, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(148, 163, 184, 0.06) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+
+/* Thin conic ring used behind the CTA panel */
+.glow-ring {
+  background: conic-gradient(
+    from 180deg at 50% 50%,
+    rgba(16, 185, 129, 0) 0deg,
+    rgba(16, 185, 129, 0.35) 120deg,
+    rgba(56, 189, 248, 0.25) 200deg,
+    rgba(16, 185, 129, 0) 360deg
+  );
+  filter: blur(48px);
+}
+
+/* Spotlight cards: radial highlight follows the cursor via --mx / --my */
+.spot-card {
+  position: relative;
+}
+
+.spot-card::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  background: radial-gradient(
+    420px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(16, 185, 129, 0.09),
+    transparent 65%
+  );
+}
+
+.spot-card:hover::after {
+  opacity: 1;
+}
+
+/* Subtle top edge light on dark panels */
+.edge-light {
+  position: relative;
+}
+
+.edge-light::before {
+  content: "";
+  position: absolute;
+  inset: 0 10% auto 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.55), transparent);
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+/* Neutral elevation utilities — card depth on paper (use instead of the
+   emerald glow utilities, which are for intentional accents only). */
+.elev-1 {
+  box-shadow: var(--elev-1);
+}
+.elev-2 {
+  box-shadow: var(--elev-2);
+}
+.elev-3 {
+  box-shadow: var(--elev-3);
+}
+
+/* ── Loading: shimmer skeleton + indeterminate progress ───── */
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Token-driven skeleton shimmer — a dark slate-alpha sweep that is VISIBLE on
+   white paper (the old white-alpha gradient vanished on light surfaces). Apply
+   .skeleton-shimmer for a self-contained loading placeholder. */
+.skeleton-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    rgba(15, 23, 42, 0.05),
+    rgba(15, 23, 42, 0.11),
+    rgba(15, 23, 42, 0.05)
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s linear infinite;
+}
+
+@keyframes progress-indeterminate {
+  0% {
+    left: -40%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+/* Subtle scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--muted-foreground);
+  background-clip: content-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-shimmer,
+  .animate-progress-indeterminate,
+  .animate-spin {
+    animation: none;
+  }
+}

@@ -1,0 +1,283 @@
+/**
+ * High-fidelity sample data — powers the studio's instant first paint and the
+ * landing's market showcase, and is the graceful fallback when a live engine
+ * call fails or the MLS Bot data isn't present locally. Numbers are internally
+ * consistent (ppsf × sqft ≈ price) and modeled on the New River Valley, VA.
+ */
+import type { ProfileResult, NeighborhoodMarket, PropertyMatch } from "./types";
+
+export const SAMPLE_PROFILE: ProfileResult = {
+  ok: true,
+  facts: {
+    address: "509 Jefferson St, Blacksburg, VA 24060",
+    city: "Blacksburg",
+    county: "Montgomery",
+    parcel_id: "035471",
+    subdivision: "Old Town",
+    property_type: "Single Family",
+    status: "Off-Market",
+    sqft: 2420,
+    acres: 0.31,
+    beds: 4,
+    full_baths: 2,
+    half_baths: 1,
+    year_built: 1998,
+    assessed_value: 437500,
+    lat: 37.2296,
+    lng: -80.4139,
+    list_price: null,
+  },
+  valuation: {
+    mid: 528000,
+    low: 502000,
+    high: 551000,
+    comp_ppsf: 221,
+    implied_subject_ppsf: 218,
+    divergence_pct: 4.2,
+    methods: [
+      {
+        name: "Direct comp + acreage",
+        value: 531000,
+        rationale:
+          "Six closed comps within 1.1 mi, recency-weighted to the last 7 months, with a <b>0.31 ac</b> lot adjustment.",
+      },
+      {
+        name: "$/sqft",
+        value: 522000,
+        rationale:
+          "Cohort median <b>$221/sqft</b> applied straight to the subject's 2,420 sqft of living area.",
+      },
+      {
+        name: "Acreage residual",
+        value: 529000,
+        rationale:
+          "Structure value backed out from the comps, then the <b>0.31 ac</b> land residual added at the local per-acre rate.",
+      },
+    ],
+  },
+  comps: [
+    {
+      address: "412 Clay St SW",
+      city: "Blacksburg",
+      subdivision: "Old Town",
+      sold_price: 544000,
+      ppsf: 228,
+      sqft: 2386,
+      acres: 0.28,
+      beds: 4,
+      baths: 3,
+      year_built: 2001,
+      close_date: "2025-04-18",
+      dom: 9,
+      distance_mi: 0.3,
+      lat: 37.2272,
+      lng: -80.4166,
+      pending: false,
+      atypical: false,
+    },
+    {
+      address: "703 Draper Rd NW",
+      city: "Blacksburg",
+      subdivision: "Old Town",
+      sold_price: 519000,
+      ppsf: 224,
+      sqft: 2317,
+      acres: 0.26,
+      beds: 4,
+      baths: 2.5,
+      year_built: 1996,
+      close_date: "2025-03-02",
+      dom: 14,
+      distance_mi: 0.5,
+      lat: 37.2331,
+      lng: -80.4178,
+      pending: false,
+      atypical: false,
+    },
+    {
+      address: "1105 Highland Cir",
+      city: "Blacksburg",
+      subdivision: "Highland Park",
+      sold_price: 565000,
+      ppsf: 219,
+      sqft: 2580,
+      acres: 0.34,
+      beds: 5,
+      baths: 3,
+      year_built: 2004,
+      close_date: "2025-02-21",
+      dom: 6,
+      distance_mi: 0.8,
+      lat: 37.2348,
+      lng: -80.4061,
+      pending: false,
+      atypical: false,
+    },
+    {
+      address: "208 Wharton St",
+      city: "Blacksburg",
+      subdivision: "Old Town",
+      sold_price: 498000,
+      ppsf: 214,
+      sqft: 2327,
+      acres: 0.22,
+      beds: 4,
+      baths: 2,
+      year_built: 1992,
+      close_date: "2024-12-12",
+      dom: 27,
+      distance_mi: 0.6,
+      lat: 37.2256,
+      lng: -80.4123,
+      pending: false,
+      atypical: false,
+    },
+    {
+      address: "640 Lucas Dr",
+      city: "Blacksburg",
+      subdivision: "Hethwood",
+      sold_price: 489000,
+      ppsf: 207,
+      sqft: 2362,
+      acres: 0.3,
+      beds: 4,
+      baths: 2.5,
+      year_built: 1999,
+      close_date: "2025-01-30",
+      dom: 19,
+      distance_mi: 1.1,
+      lat: 37.2389,
+      lng: -80.4302,
+      pending: false,
+      atypical: false,
+    },
+    {
+      address: "915 Preston Ave",
+      city: "Blacksburg",
+      subdivision: "Old Town",
+      sold_price: 612000,
+      ppsf: 248,
+      sqft: 2468,
+      acres: 0.29,
+      beds: 4,
+      baths: 3,
+      year_built: 2019,
+      close_date: "2025-05-09",
+      dom: 4,
+      distance_mi: 0.4,
+      lat: 37.2309,
+      lng: -80.4151,
+      pending: false,
+      atypical: true,
+    },
+  ],
+  saleHistory: [
+    { price: 372000, date: "2016-05-20" },
+    { price: 268000, date: "2009-08-14" },
+  ],
+  marketContext: {
+    ppsf_median: 221,
+    ppsf_trend: 6.3,
+    median_dom: 14,
+    active_count: 38,
+    sold_count: 61,
+    months_of_inventory: 2.1,
+    scope: "Old Town · Blacksburg",
+  },
+  meta: {
+    generated: "2026-06-18T00:00:00Z",
+    as_of: "2026-06-15T00:00:00Z",
+    flags: null,
+  },
+};
+
+/**
+ * One-tap demo presets — REAL, engine-resolvable properties (verified: each
+ * parcel_id resolves to its own address and produces a live CMA with comps). The
+ * chips do a live fetch, so they MUST be real records; fabricated addresses
+ * fuzzy-resolve to an unrelated home (the label would lie). Re-verify with
+ * build_preview(parcel_id=…) before changing these.
+ */
+export const SAMPLE_PRESETS: PropertyMatch[] = [
+  {
+    source: "mls",
+    address: "1203 Walnut Ridge Road, Christiansburg, VA 24073",
+    city: "Christiansburg",
+    county: "Montgomery",
+    parcel_id: "230322",
+    sqft: 2096,
+    bedrooms: 4,
+    status: "Closed",
+  },
+  {
+    source: "mls",
+    address: "114 Orchard Drive, Narrows, VA 24124",
+    city: "Narrows",
+    county: "Giles",
+    parcel_id: "8247",
+    sqft: 2433,
+    bedrooms: 3,
+    status: "Closed",
+  },
+  {
+    source: "mls",
+    address: "680 Liberty Viaduct, Christiansburg, VA 24073",
+    city: "Christiansburg",
+    county: "Montgomery",
+    parcel_id: "027172",
+    sqft: 1404,
+    bedrooms: 3,
+    status: "Closed",
+  },
+];
+
+export const SAMPLE_MARKETS: NeighborhoodMarket[] = [
+  {
+    name: "Old Town",
+    area: "Blacksburg, VA",
+    medianPrice: 615000,
+    ppsf: 268,
+    ppsfTrendPct: 7.8,
+    medianDom: 12,
+    monthsOfInventory: 1.4,
+    soldCount: 33,
+    activeCount: 18,
+    trend: [548, 552, 559, 561, 570, 575, 583, 590, 596, 604, 609, 615],
+    note: "Walkable core; sub-2-week sales and the tightest inventory in the valley.",
+  },
+  {
+    name: "Hethwood",
+    area: "Blacksburg, VA",
+    medianPrice: 412000,
+    ppsf: 198,
+    ppsfTrendPct: 4.1,
+    medianDom: 21,
+    monthsOfInventory: 2.6,
+    soldCount: 44,
+    activeCount: 29,
+    trend: [392, 395, 398, 399, 401, 403, 404, 406, 407, 409, 411, 412],
+    note: "Steady family demand; the value entry point for the school district.",
+  },
+  {
+    name: "Toms Creek",
+    area: "Montgomery County, VA",
+    medianPrice: 489000,
+    ppsf: 212,
+    ppsfTrendPct: 5.2,
+    medianDom: 18,
+    monthsOfInventory: 2.2,
+    soldCount: 27,
+    activeCount: 21,
+    trend: [462, 465, 468, 470, 473, 476, 479, 481, 483, 485, 487, 489],
+    note: "Newer construction skews the mix; $/sqft climbing faster than list prices.",
+  },
+];
+
+/** A clone of the sample profile re-keyed to an arbitrary address (demo presets). */
+export function sampleProfileFor(address: string): ProfileResult {
+  if (!SAMPLE_PROFILE.facts) return SAMPLE_PROFILE;
+  return {
+    ...SAMPLE_PROFILE,
+    facts: { ...SAMPLE_PROFILE.facts, address },
+  };
+}

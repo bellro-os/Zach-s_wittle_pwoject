@@ -1,0 +1,127 @@
+import Link from "next/link";
+import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { Wordmark } from "@/components/compbird/brand";
+import { GrainOverlay } from "@/components/compbird/ui";
+import { CompStudio } from "@/components/compbird/studio/comp-studio";
+import { StudioAccountMenu, QuotaBanner } from "@/components/compbird/studio/account-menu";
+import { getActiveContext, quotaFor } from "@/lib/session";
+import { monthStart } from "@/lib/usage";
+import { systemDb } from "@/lib/db";
+
+export const metadata: Metadata = {
+  title: "Comp studio",
+  description:
+    "Price any home with appraisal-grade comparables and a live neighborhood market read — a bird's-eye view of value.",
+};
+
+// Resolves the account (tier + subscription) per-request, so it renders dynamically.
+export const dynamic = "force-dynamic";
+
+/** Compact plan label for the studio header chip. */
+const PLAN_LABEL: Record<string, string> = {
+  FREE: "Free plan",
+  BETA: "Beta",
+  SOLO: "Pro",
+  TEAM: "Team",
+  BROKERAGE: "Brokerage",
+  ADMIN: "Admin",
+};
+
+/**
+ * The live comp studio — compbird's working tool on the dark "instrument"
+ * surface. A slim header brackets the studio; everything else is driven by the
+ * client <CompStudio/>, which paints a sample dossier instantly and runs live
+ * on demand.
+ */
+export default async function CompStudioPage() {
+  // A free account is required to use the studio. The proxy already walls this
+  // route; this is defense-in-depth so it never renders for an anonymous visitor
+  // even if the middleware matcher is bypassed.
+  const ctx = await getActiveContext();
+  if (!ctx) redirect("/join?redirect=%2Fcomps");
+  // ctx.account is the full Prisma row at runtime (the ActiveContext type narrows
+  // it); the Stripe subscription id decides Upgrade vs. Manage-billing.
+  const acct = ctx.account as unknown as { tier: string; stripeSubscriptionId?: string | null };
+  const plan = PLAN_LABEL[acct.tier] ?? "Account";
+  const subscribed = Boolean(acct.stripeSubscriptionId);
+
+  // Metered plans see their remaining report-download allowance UP FRONT, so a
+  // free user learns about the 2/month cap before burning a 2-minute render on
+  // the paywall. quota === null ⇒ unlimited (no banner). systemDb + explicit
+  // accountId: this page runs outside the host's tenancy ALS scope.
+  const quota = quotaFor(ctx.ent, "cma.generate");
+  const used =
+    quota == null
+      ? 0
+      : await systemDb.usageEvent.count({
+          where: {
+            accountId: ctx.account.id,
+            feature: "cma.generate",
+            createdAt: { gte: monthStart() },
+          },
+        });
+  return (
+    <div className="cb-dark cb-shell-night min-h-screen bg-background text-foreground">
+      {/* studio header */}
+      <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-md">
+        <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-5 sm:px-8">
+          <Link
+            href="/"
+            className="rounded-md outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--cb-ember)]"
+            aria-label="compbird home"
+          >
+            <Wordmark />
+          </Link>
+          <div className="flex items-center gap-4 sm:gap-5">
+            <Link
+              href="/"
+              className="hidden items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
+            >
+              <svg viewBox="0 0 16 16" fill="none" className="h-4 w-4" aria-hidden>
+                <path
+                  d="M13 8H3m0 0 4 4M3 8l4-4"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              Back to compbird
+            </Link>
+            <StudioAccountMenu plan={plan} subscribed={subscribed} />
+          </div>
+        </div>
+      </header>
+
+      {/* studio body */}
+      <main className="relative overflow-hidden">
+        <GrainOverlay className="opacity-[0.3]" />
+        <div
+          aria-hidden
+          className="cb-glow-ring pointer-events-none absolute -right-48 -top-56 h-[36rem] w-[36rem] opacity-50"
+        />
+        <div className="relative mx-auto w-full max-w-6xl px-5 py-12 sm:px-8 sm:py-16">
+          {quota != null ? (
+            <div className="mb-8">
+              <QuotaBanner
+                used={used}
+                limit={quota}
+                subscribed={subscribed}
+                plan={plan}
+                showUpsell={acct.tier === "FREE"}
+              />
+            </div>
+          ) : null}
+          <CompStudio />
+          <p className="mt-12 border-t border-border pt-6 text-xs leading-relaxed text-muted-foreground">
+            compbird estimates are model-driven opinions of value based on public
+            records and recent comparable sales — they are not appraisals, and no
+            estimate here should be relied on as one. Verify property details
+            independently before making decisions.
+          </p>
+        </div>
+      </main>
+    </div>
+  );
+}
