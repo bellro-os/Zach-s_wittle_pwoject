@@ -118,7 +118,21 @@ export const CompsTable = memo(function CompsTable({
             return (
               <tr
                 key={`${key}-${i}`}
-                className={`border-b border-border/60 transition-colors last:border-0 hover:bg-secondary/40 ${
+                // Keyboard path: focus a row, press Space or X to toggle it in/out
+                // of the valuation — no mouse trip to the Use column required.
+                tabIndex={tunable ? 0 : undefined}
+                onKeyDown={
+                  tunable
+                    ? (e) => {
+                        if (e.key === " " || e.key.toLowerCase() === "x") {
+                          e.preventDefault();
+                          if (!busy) onToggle!(key, !isExcluded);
+                        }
+                      }
+                    : undefined
+                }
+                aria-label={tunable ? `${c.address} — press Space to ${isExcluded ? "include" : "exclude"}` : undefined}
+                className={`border-b border-border/60 transition-colors last:border-0 hover:bg-secondary/40 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--cb-ember)] ${
                   isExcluded ? "opacity-45" : ""
                 } ${isForced && !isExcluded ? "bg-[var(--cb-tint)]/25" : ""}`}
               >
@@ -138,9 +152,18 @@ export const CompsTable = memo(function CompsTable({
                       </Pill>
                     ) : null}
                     {c.atypical ? (
-                      <Pill tone="negative" className="shrink-0">
-                        Atypical
-                      </Pill>
+                      <span
+                        className="shrink-0"
+                        title={
+                          c.atypical_reason
+                            ? `Down-weighted by the engine: ${c.atypical_reason}`
+                            : "Flagged atypical — down-weighted in the valuation"
+                        }
+                      >
+                        <Pill tone="negative" className="shrink-0">
+                          Atypical
+                        </Pill>
+                      </span>
                     ) : null}
                     {c.pending ? (
                       <Pill tone="neutral" className="shrink-0">
@@ -148,8 +171,13 @@ export const CompsTable = memo(function CompsTable({
                       </Pill>
                     ) : null}
                   </div>
-                  {c.subdivision ? (
-                    <span className="text-xs text-muted-foreground">{c.subdivision}</span>
+                  {c.subdivision || c.cohort ? (
+                    <span
+                      className="text-xs text-muted-foreground"
+                      title={c.cohort ? `Comp cohort: ${c.cohort}` : undefined}
+                    >
+                      {c.subdivision ?? c.cohort}
+                    </span>
                   ) : null}
                 </td>
                 <td className="whitespace-nowrap py-3 pl-4 text-right align-middle font-data text-foreground">

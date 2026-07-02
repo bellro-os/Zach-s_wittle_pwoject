@@ -49,6 +49,13 @@ export function Hero() {
             </div>
           </Reveal>
 
+          <Reveal delay={0.22}>
+            <p className="mt-4 text-sm text-muted-foreground">
+              Free account · 2 full reports a month · no card required.{" "}
+              <span className="text-muted-foreground/80">Pro is $20/mo, unlimited.</span>
+            </p>
+          </Reveal>
+
           <Reveal delay={0.26}>
             <dl className="mt-12 grid max-w-lg grid-cols-1 gap-5 border-t border-border pt-7 min-[420px]:grid-cols-3 min-[420px]:gap-6">
               {[

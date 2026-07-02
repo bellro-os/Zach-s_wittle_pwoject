@@ -90,6 +90,10 @@ export interface ProfileComp {
   lng: number | null;
   pending: boolean;
   atypical: boolean;
+  /** Engine reasoning, when the wire carries it (preview always; profile may not). */
+  cohort?: string | null;
+  atypical_reason?: string | null;
+  appearance_tier?: number | null;
 }
 
 export interface MarketContext {

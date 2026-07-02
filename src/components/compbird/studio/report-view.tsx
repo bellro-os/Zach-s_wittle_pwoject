@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "sonner";
 import { Pill } from "@/components/compbird/ui";
 import { LeafletMap, type GeoMapPoint } from "@/components/geo/leaflet-map";
 import { AerialMap } from "@/components/compbird/graphics";
@@ -394,6 +395,27 @@ export function ReportView({
         </PanelCard>
       ) : null}
 
+      {/* paste-able executive summary — listing-consultation talking points */}
+      <PanelCard className="flex flex-col gap-2">
+        <div className="flex items-start justify-between gap-3">
+          <span className="cb-eyebrow text-muted-foreground">Talking points</span>
+          <button
+            type="button"
+            onClick={() => {
+              void navigator.clipboard
+                .writeText(dossierSummary(profile, nearestMi))
+                .then(() => toast.success("Summary copied"));
+            }}
+            className="rounded-full border border-border px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-[var(--cb-ember)]/40 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]"
+          >
+            Copy
+          </button>
+        </div>
+        <p className="text-sm leading-relaxed text-foreground">
+          {dossierSummary(profile, nearestMi)}
+        </p>
+      </PanelCard>
+
       {/* actions */}
       <PanelCard className="flex flex-col gap-1">
         <ReportActions
@@ -420,3 +442,32 @@ export function ReportView({
 const EMPTY_SET: Set<string> = new Set();
 const EMPTY_OVERRIDES: SubjectOverrides = {};
 const EMPTY_CONFIG: ReportConfig = {};
+
+/** One paste-able paragraph an agent can read aloud or drop into a text. */
+function dossierSummary(profile: ProfileResult, nearestMi: number | null): string {
+  const f = profile.facts;
+  const v = profile.valuation;
+  const n = (profile.comps ?? []).length;
+  const m = profile.marketContext;
+  const parts: string[] = [];
+  if (f?.address && v?.mid != null) parts.push(`${f.address} — estimated ${usd(v.mid)}`);
+  if (v?.low != null && v?.high != null) parts.push(`range ${usd(v.low)} to ${usd(v.high)}`);
+  if (n > 0) {
+    // "within X mi" must bound ALL comps — use the farthest, not the nearest.
+    const far = (profile.comps ?? []).reduce<number | null>((mx, c) => {
+      const d = c.distance_mi;
+      if (d == null || !Number.isFinite(d)) return mx;
+      return mx == null || d > mx ? d : mx;
+    }, null);
+    parts.push(
+      `${n} closed comparable${n === 1 ? "" : "s"}${
+        far != null ? ` within ${far < 1 ? far.toFixed(1) : far.toFixed(1)} mi` : ""
+      }`,
+    );
+  }
+  if (m?.months_of_inventory != null)
+    parts.push(
+      `${m.months_of_inventory < 3 ? "seller's" : m.months_of_inventory < 6 ? "balanced" : "buyer's"} market at ${m.months_of_inventory.toFixed(1)} months of inventory`,
+    );
+  return parts.join(" · ") + ".";
+}

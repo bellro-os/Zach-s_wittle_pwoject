@@ -83,6 +83,9 @@ function previewCompToProfile(
     lng: c.longitude ?? xy?.lng ?? null,
     pending: c.pending,
     atypical: c.atypical_sale,
+    cohort: c.cohort,
+    atypical_reason: c.atypical_reason,
+    appearance_tier: c.appearance_tier,
   };
 }
 

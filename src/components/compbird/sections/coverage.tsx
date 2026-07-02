@@ -73,8 +73,10 @@ export function Coverage() {
             <p className="mt-5 max-w-xl leading-relaxed text-muted-foreground">
               Deep live MLS runs in about nine jurisdictions today — the New River
               Valley core — and widens as each market&rsquo;s feed comes online.
-              Listings sync hourly and county records refresh daily, so new closings,
-              status changes, and reassessments land fast.
+              Recorded closed sales from public records back the comp pool across
+              130 Virginia and D.C. localities, so rural valuations lean on nearby
+              sales even before a market&rsquo;s feed lands. Listings sync hourly and
+              county records refresh daily.
             </p>
           </Reveal>
         </div>
