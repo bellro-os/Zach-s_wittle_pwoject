@@ -151,6 +151,16 @@ export const CompsTable = memo(function CompsTable({
                         Pinned
                       </Pill>
                     ) : null}
+                    {c.source === "supplemental" ? (
+                      <span
+                        className="shrink-0"
+                        title="Sale sourced from public records, not an MLS feed — sold price and location verified; list price and days-on-market unavailable."
+                      >
+                        <Pill tone="neutral" className="shrink-0">
+                          Public records
+                        </Pill>
+                      </span>
+                    ) : null}
                     {c.atypical ? (
                       <span
                         className="shrink-0"

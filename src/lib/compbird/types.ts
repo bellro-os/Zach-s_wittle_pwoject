@@ -90,7 +90,9 @@ export interface ProfileComp {
   lng: number | null;
   pending: boolean;
   atypical: boolean;
-  /** Engine reasoning, when the wire carries it (preview always; profile may not). */
+  /** Comp provenance: "mls" | "supplemental" (public records). */
+  source?: string | null;
+  /** Engine reasoning, when the wire carries it. */
   cohort?: string | null;
   atypical_reason?: string | null;
   appearance_tier?: number | null;
@@ -182,6 +184,8 @@ export interface PreviewComp {
   atypical_sale: boolean;
   atypical_reason: string | null;
   appearance_tier: number | null;
+  /** Comp provenance: which pool the sale came from ("mls" | "supplemental"). */
+  source?: string | null;
   pending: boolean;
   status: string;
   forced: boolean;
