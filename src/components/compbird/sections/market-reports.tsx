@@ -52,13 +52,22 @@ export function MarketReports() {
           {/* ── header ── */}
           <div className="max-w-2xl">
             <Reveal>
-              <Eyebrow>Neighborhood market reports</Eyebrow>
+              <span className="inline-flex flex-wrap items-center gap-3">
+                <Eyebrow>Neighborhood market reports</Eyebrow>
+                {/* Live/sample state lives HERE as a stable badge — the heading
+                    below never swaps copy mid-scroll. */}
+                <Pill tone={live ? "ember" : "neutral"}>
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${live ? "bg-[var(--cb-ember)]" : "bg-muted-foreground"}`}
+                    aria-hidden
+                  />
+                  {live ? "Live data" : "Sample data"}
+                </Pill>
+              </span>
             </Reveal>
             <Reveal delay={0.05}>
               <h2 className="font-display mt-6 text-4xl font-bold tracking-tight text-foreground text-balance sm:text-5xl">
-                {live
-                  ? "Live where listings are dense — New River Valley today."
-                  : "Read any neighborhood like a local."}
+                Read any neighborhood like a local.
               </h2>
             </Reveal>
             <Reveal delay={0.12}>

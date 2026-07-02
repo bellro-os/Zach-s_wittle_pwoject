@@ -28,6 +28,7 @@ function confidence(
   agreeingMethods: number,
   divergence: number | null,
   nearestMi: number | null,
+  supplementalShare = 0,
 ): Confidence {
   if (mid == null || mid <= 0) return { kind: "none" };
   // Non-local comps can never read as high confidence — when the nearest
@@ -54,6 +55,14 @@ function confidence(
         : `${pct(divergence)} spread · Moderate confidence`,
       tone: "neutral",
     };
+  // A pool dominated by public-records sales (no list-side fields, coarser
+  // attributes) can corroborate — but it can't push the read to "high".
+  if (supplementalShare > 0.5)
+    return {
+      kind: "pill",
+      label: `${pct(divergence)} spread · Public-records comps · Moderate confidence`,
+      tone: "neutral",
+    };
   return { kind: "pill", label: `${pct(divergence)} spread · High confidence`, tone: "positive" };
 }
 
@@ -67,10 +76,13 @@ const NON_COMP_METHODS = new Set(["Prior sale + trend", "AVM (model)"]);
 function ValuationPanelImpl({
   valuation,
   nearestMi,
+  supplementalShare = 0,
 }: {
   valuation: Valuation;
   /** Distance (mi) of the closest comp — caps confidence when comps aren't local. */
   nearestMi?: number | null;
+  /** Share (0–1) of comps sourced from public records — caps confidence at moderate past 50%. */
+  supplementalShare?: number;
 }) {
   const mid = valuation.mid ?? null;
   const hasMid = mid != null && mid > 0;
@@ -78,7 +90,7 @@ function ValuationPanelImpl({
   const agreeingMethods = methods.filter(
     (m) => m.value != null && !NON_COMP_METHODS.has(m.name),
   ).length;
-  const conf = confidence(mid, agreeingMethods, valuation.divergence_pct, nearestMi ?? null);
+  const conf = confidence(mid, agreeingMethods, valuation.divergence_pct, nearestMi ?? null, supplementalShare);
 
   return (
     <div className="flex flex-col gap-7">

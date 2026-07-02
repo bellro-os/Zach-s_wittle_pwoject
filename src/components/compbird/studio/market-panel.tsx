@@ -59,6 +59,15 @@ function MarketPanelImpl({
         })()}
       </div>
 
+      {/* Honesty gate: medians from a handful of closings are noise — say so
+          up front instead of letting a thin market wear confident numbers. */}
+      {market.sold_count != null && market.sold_count < 6 ? (
+        <p className="rounded-lg border border-border bg-secondary/40 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+          Only {market.sold_count} closed sale{market.sold_count === 1 ? "" : "s"} in this
+          window — read these medians as indicative, not definitive.
+        </p>
+      ) : null}
+
       <div className="grid grid-cols-1 gap-x-6 gap-y-6 min-[420px]:grid-cols-2 min-[420px]:gap-y-7 sm:grid-cols-3">
         <Metric
           label="Median $/sqft"

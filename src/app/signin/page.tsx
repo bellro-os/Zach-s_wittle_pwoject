@@ -42,6 +42,8 @@ export default async function CompbirdSignInPage({
   const redirectTo = safeRedirect(sp.redirect);
   const errorCode = typeof sp.error === "string" ? sp.error : "";
   const errorMsg = errorCode ? (LOGIN_ERROR[errorCode] ?? "Couldn't sign you in — try again.") : "";
+  const resetDone = sp.reset === "1";
+  const resetError = sp.resetError === "1";
   const joinHref = `/join?redirect=${encodeURIComponent(redirectTo)}`;
 
   return (
@@ -71,6 +73,28 @@ export default async function CompbirdSignInPage({
           </div>
         ) : null}
 
+        {resetDone ? (
+          <div
+            role="status"
+            className="mt-6 rounded-lg border border-border bg-card px-3.5 py-2.5 text-sm text-foreground"
+          >
+            Password updated — sign in.
+          </div>
+        ) : null}
+
+        {resetError ? (
+          <div
+            role="alert"
+            className="mt-6 rounded-lg border border-[var(--negative)]/40 bg-[var(--negative)]/10 px-3.5 py-2.5 text-sm text-foreground"
+          >
+            That reset link is invalid or expired.{" "}
+            <Link href="/forgot-password" className="font-medium underline">
+              Request a new one
+            </Link>
+            .
+          </div>
+        ) : null}
+
         <form action={login} className="mt-6 flex flex-col gap-4">
           <input type="hidden" name="redirect" value={redirectTo} />
 
@@ -86,9 +110,9 @@ export default async function CompbirdSignInPage({
               <label htmlFor="password" className="text-xs font-medium text-muted-foreground">
                 Password
               </label>
-              <a href={`mailto:${CONTACT_EMAIL}`} className="text-xs text-muted-foreground hover:text-foreground">
-                Forgot? Email us
-              </a>
+              <Link href="/forgot-password" className="text-xs text-muted-foreground hover:text-foreground">
+                Forgot?
+              </Link>
             </div>
             <input
               id="password"

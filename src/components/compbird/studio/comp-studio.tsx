@@ -18,6 +18,8 @@ import type {
   Valuation,
 } from "@/lib/compbird/types";
 import { SearchBar } from "./search-bar";
+import { FirstRun } from "./first-run";
+import { Recents, pushRecent } from "./recents";
 import { ReportView } from "./report-view";
 import { ReportSkeleton } from "./report-skeleton";
 
@@ -199,6 +201,12 @@ export function CompStudio() {
           const coords = new Map<string, { lat: number | null; lng: number | null }>();
           for (const c of result.comps ?? []) coords.set(c.address, { lat: c.lat, lng: c.lng });
           coordsRef.current = coords;
+          // Session recents: record the RESOLVED subject (canonical address +
+          // parcel), so a chip / Cmd-K re-select hits the same record.
+          pushRecent({
+            address: result.facts.address,
+            parcel_id: result.facts.parcel_id,
+          });
         } else {
           throw new Error(result?.error || "no profile");
         }
@@ -444,6 +452,9 @@ export function CompStudio() {
 
   return (
     <div className="flex flex-col gap-10">
+      {/* first-run onboarding — an overlay; the studio paints beneath it */}
+      <FirstRun />
+
       {/* search console */}
       <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-3">
@@ -470,7 +481,12 @@ export function CompStudio() {
           </div>
         </div>
 
-        <SearchBar presets={SAMPLE_PRESETS} onSelect={select} busy={loading} />
+        <div>
+          <SearchBar presets={SAMPLE_PRESETS} onSelect={select} busy={loading} />
+          {/* session recents: chip row under the "Try" presets + the Cmd/Ctrl-K
+              switcher — both re-run select() on a stored subject */}
+          <Recents onPick={select} busy={loading} />
+        </div>
       </div>
 
       {/* live-lookup failure notice — persists until the next search, so the

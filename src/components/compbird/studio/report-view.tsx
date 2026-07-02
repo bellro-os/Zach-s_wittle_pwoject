@@ -256,7 +256,15 @@ export function ReportView({
                   }
                   aria-busy={tuning}
                 >
-                  <ValuationPanel valuation={valuation} nearestMi={nearestMi} />
+                  <ValuationPanel
+                    valuation={valuation}
+                    nearestMi={nearestMi}
+                    supplementalShare={
+                      comps.length
+                        ? comps.filter((c) => c.source === "supplemental").length / comps.length
+                        : 0
+                    }
+                  />
                 </div>
               ) : null}
               {profile.overrideDiff ? (

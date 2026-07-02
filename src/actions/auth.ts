@@ -10,6 +10,12 @@ import {
   type AppRole,
 } from "@/lib/auth";
 import { hashPassword, verifyPassword } from "@/lib/auth-server";
+import {
+  consumeResetToken,
+  hashResetToken,
+  issueResetToken,
+  sendResetLink,
+} from "@/lib/auth-verification";
 import { db } from "@/lib/db";
 import { createLogger } from "@/lib/utils/logger";
 import {
@@ -178,4 +184,85 @@ export async function logout(): Promise<void> {
   const jar = await cookies();
   jar.delete(SESSION_COOKIE);
   redirect("/");
+}
+
+/** Self-serve password reset, step 1: request a reset link by email.
+ *  ALWAYS lands on /forgot-password?sent=1 whether or not the account exists —
+ *  the response must not leak account existence. Throttled on the SAME buckets
+ *  as login (per-IP + per-email), and every attempt records a failure so
+ *  address probing throttles itself. */
+export async function requestPasswordReset(formData: FormData): Promise<void> {
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+
+  const ip = await getClientIp();
+  const emailKey = email ? loginEmailKey(email) : null;
+  if (checkThrottle("login", ip).limited) redirect("/forgot-password?error=throttled");
+  if (emailKey && checkThrottleKey(emailKey).limited) redirect("/forgot-password?error=throttled");
+
+  // Every request counts as a "failure" — there is no success signal that
+  // should clear the bucket, and probing many addresses must hit the limiter.
+  recordFailure("login", ip);
+  if (emailKey) recordFailureKey(emailKey);
+
+  if (email && email.includes("@")) {
+    const user = await db.authUser.findUnique({ where: { email } });
+    if (user) {
+      // Best-effort: a delivery hiccup must not turn into an existence oracle.
+      try {
+        const rawToken = await issueResetToken(user.id);
+        await sendResetLink(email, rawToken);
+      } catch (err) {
+        log.error("Password-reset issue/send failed", err, { userId: user.id });
+      }
+    }
+  }
+
+  redirect("/forgot-password?sent=1");
+}
+
+/** Self-serve password reset, step 2: set the new password with a valid token.
+ *  The token is spent in the SAME transaction as the password update. */
+export async function resetPassword(formData: FormData): Promise<void> {
+  const token = String(formData.get("token") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
+  const confirm = String(formData.get("confirm") ?? "");
+
+  if (!token) redirect("/signin?resetError=1");
+
+  // Form-shape errors bounce back to the reset form (token still in the URL);
+  // token errors dead-end to signin — the link is unusable, retrying won't help.
+  const back = (errorCode: string): never =>
+    redirect(`/reset-password/${encodeURIComponent(token)}?error=${errorCode}`);
+  if (password.length < 8) back("weak");
+  if (password !== confirm) back("mismatch");
+
+  const resolved = await consumeResetToken(token);
+  if (!resolved) redirect("/signin?resetError=1");
+
+  let passwordHash: string;
+  try {
+    passwordHash = await hashPassword(password);
+  } catch {
+    back("weak");
+  }
+
+  // Spend the token and set the password atomically — updateMany's usedAt:null
+  // guard makes a concurrent double-submit a no-op on the second run.
+  const tokenHash = hashResetToken(token);
+  const spent = await db.$transaction(async (tx) => {
+    const marked = await tx.verificationToken.updateMany({
+      where: { tokenHash, usedAt: null },
+      data: { usedAt: new Date() },
+    });
+    if (marked.count === 0) return false;
+    await tx.authUser.update({
+      where: { id: resolved.userId },
+      data: { passwordHash },
+    });
+    return true;
+  });
+  if (!spent) redirect("/signin?resetError=1");
+
+  log.info("Password reset completed", { userId: resolved.userId });
+  redirect("/signin?reset=1");
 }

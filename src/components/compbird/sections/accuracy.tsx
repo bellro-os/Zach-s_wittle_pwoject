@@ -193,8 +193,14 @@ export function Accuracy() {
               </div>
             </div>
 
-            {/* confidence readout */}
-            <div className="mt-7 flex items-center gap-5 border-t border-border pt-6">
+            {/* confidence readout — the dashed stub continues the consensus guide
+                across the divider so convergence and confidence read as one argument */}
+            <div className="relative mt-7 flex items-center gap-5 border-t border-border pt-6">
+              <span
+                aria-hidden
+                className="pointer-events-none absolute -top-7 h-7 w-px border-l border-dashed border-[var(--cb-ember)]/25"
+                style={{ left: `${consensusPos}%` }}
+              />
               <RadialGauge
                 value={confidence}
                 size={88}

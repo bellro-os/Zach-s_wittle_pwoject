@@ -21,16 +21,34 @@ enum AccountTier {
 }
 
 model AuthUser {
-  id              String       @id @default(cuid())
-  email           String       @unique
-  passwordHash    String?
-  name            String?
-  isSuperAdmin    Boolean      @default(false)
-  emailVerifiedAt DateTime?
-  lastLoginAt     DateTime?
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  memberships     Membership[]
+  id                 String              @id @default(cuid())
+  email              String              @unique
+  passwordHash       String?
+  name               String?
+  isSuperAdmin       Boolean             @default(false)
+  emailVerifiedAt    DateTime?
+  lastLoginAt        DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  memberships        Membership[]
+  verificationTokens VerificationToken[]
+}
+
+/// Single-use, short-lived tokens for out-of-band verification flows
+/// (currently only kind="reset" — self-serve password reset). Only the
+/// sha256 hash of the raw token is stored; the raw value lives solely in
+/// the emailed (or dev-console-logged) link.
+model VerificationToken {
+  id        String    @id @default(cuid())
+  userId    String
+  kind      String    // "reset"
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      AuthUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, kind])
 }
 
 model Account {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Pill } from "@/components/compbird/ui";
 import { startSubscription, openBillingPortal } from "@/lib/compbird/api";
@@ -102,6 +103,14 @@ export function StudioAccountMenu({
             aria-label="Account"
             className="absolute right-0 top-full z-50 mt-2 w-44 rounded-lg border border-border bg-card p-1 shadow-xl"
           >
+            <Link
+              href="/account"
+              role="menuitem"
+              onClick={() => setOpen(false)}
+              className={itemCls}
+            >
+              Account settings
+            </Link>
             {subscribed ? (
               <button
                 type="button"
