@@ -4,8 +4,9 @@
 swapped to the **supplemental public-records sales source** (`data/supplemental_listings.parquet`,
 333,598 sold rows, `source='supplemental'`), head-to-head against the production MLS pool on
 the **same ground-truth subjects** (recently sold properties whose actual sold price is known).
-It reuses the engine's isolated backtest harness (`scratch/zillow_test/accuracy_backtest.py`)
-verbatim: as-of date freezing, temporal leave-one-out, and — for the supplemental arm —
+It reuses the engine's isolated dual-pool backtest harness (`accuracy_backtest.py`, under the
+engine's scratch area) verbatim: as-of date freezing, temporal leave-one-out, and — for the
+supplemental arm —
 spatial (~28 m) plus street-address self-exclusion so the subject's own sale never appears in
 its comp pool. No production file was modified; every run was read-only with in-process
 patches only.
@@ -157,4 +158,4 @@ returned a zero estimate.)
 ---
 *Method artifacts: runner script `regional_accuracy.py`, per-subject detail
 `regional_results_detail.jsonl`, and summary `regional_results_summary.json` in the session
-scratchpad; harness = `scratch/zillow_test/accuracy_backtest.py` (read-only reuse).*
+scratchpad; harness = the engine's isolated `accuracy_backtest.py` (read-only reuse).*
