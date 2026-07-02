@@ -5,6 +5,7 @@ import { Wordmark } from "@/components/compbird/brand";
 import { GrainOverlay } from "@/components/compbird/ui";
 import { CompStudio } from "@/components/compbird/studio/comp-studio";
 import { StudioAccountMenu, QuotaBanner } from "@/components/compbird/studio/account-menu";
+import { SubscribeToast } from "@/components/compbird/studio/subscribe-toast";
 import { getActiveContext, quotaFor } from "@/lib/session";
 import { monthStart } from "@/lib/usage";
 import { systemDb } from "@/lib/db";
@@ -63,6 +64,8 @@ export default async function CompStudioPage() {
         });
   return (
     <div className="cb-dark cb-shell-night min-h-screen bg-background text-foreground">
+      {/* Stripe Checkout return toasts (?subscribed=1 / ?checkout=cancelled) */}
+      <SubscribeToast />
       {/* studio header */}
       <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-md">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-5 sm:px-8">

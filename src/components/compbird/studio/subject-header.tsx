@@ -19,7 +19,14 @@ function Fact({ children }: { children: React.ReactNode }) {
   return <span className="font-data text-foreground">{children}</span>;
 }
 
-function SubjectHeaderImpl({ facts }: { facts: ProfileFacts }) {
+function SubjectHeaderImpl({
+  facts,
+  estimateMid = null,
+}: {
+  facts: ProfileFacts;
+  /** Valuation mid, so the assessed line can show the honest delta. */
+  estimateMid?: number | null;
+}) {
   const factParts: React.ReactNode[] = [];
   const bb = bedsBaths(facts.beds, facts.full_baths, facts.half_baths);
   if (bb !== "—") factParts.push(<Fact key="bb">{bb}</Fact>);
@@ -83,6 +90,18 @@ function SubjectHeaderImpl({ facts }: { facts: ProfileFacts }) {
                 maximumFractionDigits: 0,
               })}
             </span>
+            {/* Honest gap between the tax roll and the market read — genuine
+                listing intel (assessments often trail the market by years). */}
+            {estimateMid != null && facts.assessed_value > 0
+              ? (() => {
+                  const d = Math.round(((estimateMid - facts.assessed_value!) / facts.assessed_value!) * 100);
+                  return Math.abs(d) >= 2 ? (
+                    <span className="font-data text-muted-foreground/90">
+                      {" "}· estimate {d > 0 ? "+" : ""}{d}%
+                    </span>
+                  ) : null;
+                })()
+              : null}
           </span>
         ) : null}
       </div>

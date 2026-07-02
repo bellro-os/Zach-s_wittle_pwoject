@@ -10,6 +10,7 @@ const LINKS = [
   { label: "Market reports", href: "/#markets" },
   { label: "How it works", href: "/#how" },
   { label: "Coverage", href: "/#coverage" },
+  { label: "Pricing", href: "/pricing" },
 ];
 
 const focusRing =

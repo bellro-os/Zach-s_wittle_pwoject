@@ -13,6 +13,7 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
     title: "Product",
     links: [
       { label: "Comp studio", href: "/comps" },
+      { label: "Pricing", href: "/pricing" },
       { label: "Market reports", href: "/#markets" },
       { label: "Accuracy", href: "/#accuracy" },
       { label: "Coverage", href: "/#coverage" },
@@ -22,6 +23,8 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
     title: "Company",
     links: [
       { label: "How it works", href: "/#how" },
+      { label: "Terms", href: "/terms" },
+      { label: "Privacy", href: "/privacy" },
       { label: "Contact", href: `mailto:${CONTACT_EMAIL}` },
     ],
   },

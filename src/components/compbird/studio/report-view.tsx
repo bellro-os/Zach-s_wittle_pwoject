@@ -241,7 +241,7 @@ export function ReportView({
           {/* identity + value, side by side on wide screens */}
           <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
             <PanelCard className="flex flex-col gap-7">
-              <SubjectHeader facts={facts} />
+              <SubjectHeader facts={facts} estimateMid={valuation?.mid ?? null} />
 
               {/* street view — auto-loads from the proxy when coords are present */}
               <div className="flex flex-col gap-2">
@@ -300,7 +300,12 @@ export function ReportView({
                   </span>
                 ) : null}
               </div>
-              {asOf ? (
+              {tuning ? (
+                <Pill tone="neutral" className="shrink-0">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--cb-ember)]" aria-hidden />
+                  Recomputing…
+                </Pill>
+              ) : asOf ? (
                 <span className="font-data text-xs text-muted-foreground">
                   as of {dateLong(asOf)}
                 </span>

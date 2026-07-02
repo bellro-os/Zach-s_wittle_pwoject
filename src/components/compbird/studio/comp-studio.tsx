@@ -141,6 +141,8 @@ export function CompStudio() {
    * returned comps + valuation onto this base so identity/map/market persist.
    */
   const subjectRef = useRef<{ address?: string; parcelId?: string } | null>(null);
+  /** Last attempted selection — powers the failure banner's real Retry. */
+  const lastAttemptRef = useRef<Pick<PropertyMatch, "address" | "parcel_id"> | null>(null);
   const baseRef = useRef<ProfileResult | null>(null);
   const coordsRef = useRef<Map<string, { lat: number | null; lng: number | null }>>(
     new Map(),
@@ -175,6 +177,7 @@ export function CompStudio() {
 
       const ctrl = new AbortController();
       abortRef.current = ctrl;
+      lastAttemptRef.current = { address: match.address, parcel_id: match.parcel_id };
 
       setLoading(true);
       setLiveError(null);
@@ -479,9 +482,18 @@ export function CompStudio() {
         >
           <span className="font-medium text-foreground">{liveError}</span>
           <span className="text-muted-foreground">
-            The report below is a sample — not the address you searched. Try again in
-            a moment.
+            The report below is a sample — not the address you searched.
           </span>
+          <button
+            type="button"
+            onClick={() => {
+              const last = lastAttemptRef.current;
+              if (last) void select(last);
+            }}
+            className="rounded-full border border-border px-3 py-1 text-xs font-medium text-foreground transition-colors hover:border-[var(--cb-ember)]/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]"
+          >
+            Retry search
+          </button>
         </div>
       ) : null}
 
