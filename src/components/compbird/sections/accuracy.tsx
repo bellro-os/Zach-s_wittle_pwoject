@@ -31,6 +31,11 @@ function posOf(value: number | null | undefined): number {
 const methods = v?.methods ?? [];
 const divergence = v?.divergence_pct ?? null;
 
+/** Spelled-out method count so the copy stays truthful if the engine adds or
+ *  drops a method in the baked sample (e.g. "Five"). */
+const COUNT_WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven"];
+const methodCountWord = COUNT_WORDS[methods.length] ?? String(methods.length);
+
 /* Confidence inverts divergence: a tight (<= 5%) spread reads as high agreement.
    The dial stays in a believable 0–100 band even if divergence climbs. */
 const confidence =
@@ -46,13 +51,13 @@ const beats: { n: string; title: string; body: string }[] = [
   },
   {
     n: "02",
-    title: "Three methods, run independently",
-    body: "A direct comp-plus-acreage adjustment, a straight $/sqft read, and an acreage-residual model each estimate the home on their own terms. No method gets to see the others, so they can't quietly agree.",
+    title: `${methodCountWord} independent reads, one subject`,
+    body: "The prior sale trended forward, a direct comp adjustment, a straight $/sqft read, an acreage residual, and a trained valuation model each price the home on their own terms. No method sees the others, so they can't quietly agree.",
   },
   {
     n: "03",
     title: "Their spread is the confidence",
-    body: "When three separate roads arrive at nearly the same address, the estimate holds. The gap between the high and low method becomes a published divergence — tight spread, high confidence.",
+    body: "When independent roads arrive near the same address, the estimate holds. The gap between the high and low method is published as the spread — and the number below is a real engine run, not a mock-up.",
   },
 ];
 
@@ -129,9 +134,12 @@ export function Accuracy() {
               role="img"
               aria-label={`Three valuation methods converging near ${usd(MID)} with a ${pct(divergence)} spread`}
             >
-              {/* consensus line — the value all three methods bracket */}
+              {/* Consensus marker: a FAINT dashed guide spans the block (behind
+                  everything, so it never reads as a line struck through the
+                  rationale text — the old solid line clipped every row), while a
+                  SOLID tick crosses each track only. The badge caps the guide. */}
               <div
-                className="pointer-events-none absolute bottom-7 top-10 z-10 w-px bg-[var(--cb-ember)]"
+                className="pointer-events-none absolute bottom-7 top-10 z-0 w-px border-l border-dashed border-[var(--cb-ember)]/25"
                 style={{ left: `${consensusPos}%` }}
                 aria-hidden
               >
@@ -141,25 +149,32 @@ export function Accuracy() {
                 </span>
               </div>
 
-              <div className="flex flex-col gap-5">
+              <div className="relative z-10 flex flex-col gap-5">
                 {methods.map((m) => {
                   const p = posOf(m.value);
-                  const fromLeft = p >= consensusPos;
                   return (
                     <div key={m.name}>
                       <div className="flex items-baseline justify-between gap-3">
-                        <span className="text-sm font-medium text-foreground">{m.name}</span>
-                        <span className="font-data text-sm font-semibold tabular-nums text-foreground">
+                        <span className="min-w-0 truncate text-sm font-medium text-foreground">
+                          {m.name}
+                        </span>
+                        <span className="font-data shrink-0 text-sm font-semibold tabular-nums text-foreground">
                           {usd(m.value)}
                         </span>
                       </div>
 
                       {/* the bar reaches from the scale floor toward its method value;
-                          the dot lands on the value, near the consensus line */}
+                          the dot lands on the value, near the consensus tick */}
                       <div className="relative mt-2 h-2 rounded-full bg-secondary/60">
                         <div
                           className="absolute inset-y-0 left-0 rounded-full bg-foreground/25"
                           style={{ width: `${p}%` }}
+                          aria-hidden
+                        />
+                        {/* solid consensus tick — only ever crosses the track */}
+                        <span
+                          className="absolute -inset-y-1 w-px bg-[var(--cb-ember)]"
+                          style={{ left: `${consensusPos}%` }}
                           aria-hidden
                         />
                         <span
@@ -169,12 +184,7 @@ export function Accuracy() {
                         />
                       </div>
 
-                      <p
-                        className={
-                          "mt-2 max-w-[88%] text-xs leading-relaxed text-muted-foreground " +
-                          (fromLeft ? "" : "ml-auto text-right")
-                        }
-                      >
+                      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
                         {stripTags(m.rationale)}
                       </p>
                     </div>
@@ -193,11 +203,14 @@ export function Accuracy() {
               />
               <div>
                 <p className="text-sm leading-relaxed text-foreground">
-                  Low divergence across independent methods.
+                  {confidence >= 80
+                    ? "Low divergence across independent methods."
+                    : "Independent methods, one verdict."}
                 </p>
                 <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                  The methods land within {pct(divergence)} of one another — a tight
-                  cluster the engine reports as a high-confidence estimate.
+                  {methodCountWord.toLowerCase()} methods land within {pct(divergence)} of
+                  one another on this real engine run — the spread is published with
+                  every estimate, never hidden.
                 </p>
               </div>
             </div>

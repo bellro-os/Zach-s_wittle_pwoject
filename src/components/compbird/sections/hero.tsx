@@ -54,7 +54,7 @@ export function Hero() {
               {[
                 { k: "Statewide", v: "assessor parcels" },
                 { k: "~2s", v: "to six comps" },
-                { k: "6 methods", v: "cross-checked" },
+                { k: "5 methods", v: "cross-checked" },
               ].map((s) => (
                 <div key={s.v}>
                   <dt className="font-data text-2xl font-medium text-foreground">{s.k}</dt>
