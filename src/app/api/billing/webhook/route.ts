@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { systemDb } from "@/lib/db";
+import { emailShell, sendEmail } from "@/lib/mailer";
 import { stripe, webhookSecret, subscribedTier, tierForPriceId } from "@/lib/stripe";
 import { createLogger } from "@/lib/utils/logger";
 
@@ -8,6 +9,47 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const log = createLogger("billing/webhook");
+
+/**
+ * Best-effort "welcome to Pro" email to the account's owner. Strictly
+ * fire-and-forget: everything (DB lookup included) is caught, nothing is
+ * awaited by the webhook, and sendEmail itself never throws — Stripe retries
+ * exist for STATE changes, not mail, so a delivery failure must never 500
+ * the webhook.
+ */
+function sendWelcomeEmail(accountId: string): void {
+  void (async () => {
+    const owner = await systemDb.membership.findFirst({
+      where: { accountId, role: "OWNER" },
+      orderBy: { createdAt: "asc" },
+      include: { user: { select: { email: true } } },
+    });
+    const email = owner?.user.email;
+    if (!email) return;
+
+    const base = (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:4310").replace(/\/$/, "");
+    const subject = "Welcome to compbird Pro";
+    const html = emailShell(
+      subject,
+      [
+        `<p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#374151;">Your subscription is active. Your account now includes:</p>`,
+        `<ul style="margin:0 0 20px;padding-left:20px;font-size:14px;line-height:1.8;color:#374151;">`,
+        `<li>Unlimited watermark-free report downloads</li>`,
+        `<li>Statewide coverage</li>`,
+        `</ul>`,
+        `<p style="margin:0;font-size:13px;line-height:1.6;color:#6b7280;">Manage your billing anytime at <a href="${base}/account" style="color:#2563eb;text-decoration:none;">${base}/account</a>.</p>`,
+      ].join(""),
+    );
+    const text = `Your compbird Pro subscription is active: unlimited watermark-free downloads and statewide coverage. Manage billing at ${base}/account`;
+
+    await sendEmail({ to: email, subject, html, text });
+  })().catch((err) => {
+    log.warn("Welcome email skipped", {
+      accountId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  });
+}
 
 /**
  * Stripe webhook — the ONLY place the account tier is changed by a payment event.
@@ -65,6 +107,8 @@ export async function POST(req: Request) {
               },
             });
             log.info("Subscription activated", { accountId, tier: grant });
+            // AFTER the tier flip — the state change is durable regardless of mail.
+            sendWelcomeEmail(accountId);
           }
         }
         break;

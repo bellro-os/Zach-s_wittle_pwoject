@@ -1,0 +1,28 @@
+# Keep the build context tiny + never bake secrets or local state into layers.
+node_modules
+.next
+.git
+.claude
+docs
+deploy
+scripts
+DEPLOY.md
+
+# local env + databases — the production DB lives on the /data volume
+.env
+.env.*
+!.env.production.example
+*.db
+*.db-journal
+prisma/dev.db
+prisma/dev.db-journal
+
+# generated / editor noise
+src/generated
+next-env.d.ts
+tsconfig.tsbuildinfo
+*.log
+.DS_Store
+Thumbs.db
+.vscode
+.idea

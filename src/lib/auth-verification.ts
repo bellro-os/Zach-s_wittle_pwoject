@@ -14,9 +14,7 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import { db } from "@/lib/db";
-import { createLogger } from "@/lib/utils/logger";
-
-const log = createLogger("AuthVerify");
+import { emailShell, sendEmail } from "@/lib/mailer";
 
 const RESET_KIND = "reset";
 const RESET_TTL_MS = 15 * 60 * 1000; // 15 minutes
@@ -73,27 +71,32 @@ export async function consumeResetToken(rawToken: string): Promise<{ userId: str
 }
 
 /**
- * Deliver the reset link. No email provider is configured yet, so when neither
- * RESEND_API_KEY nor SMTP settings are present this logs the full link to the
- * server console — an honest dev fallback, not silent success.
+ * Deliver the reset link. Sends through the Resend-backed mailer when
+ * RESEND_API_KEY is set; otherwise (or on delivery failure) logs the full link
+ * to the server console — an honest dev fallback, not silent success. sendEmail
+ * never throws, so this can't break the requestPasswordReset flow.
  */
 export async function sendResetLink(email: string, rawToken: string): Promise<void> {
   const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:4310";
   const url = `${base.replace(/\/$/, "")}/reset-password/${rawToken}`;
 
-  const hasProvider = Boolean(process.env.RESEND_API_KEY || process.env.SMTP_HOST);
-  if (!hasProvider) {
-    // eslint-disable-next-line no-console -- intentional dev-mode delivery channel
-    console.log(`[auth] password-reset link (no email provider configured): ${url} (for ${email})`);
-    return;
-  }
+  const subject = "Reset your compbird password";
+  const html = emailShell(
+    subject,
+    [
+      `<p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#374151;">A password reset was requested for this address. Click the button below to choose a new password.</p>`,
+      `<p style="margin:0 0 20px;"><a href="${url}" style="display:inline-block;background:#2563eb;color:#ffffff;padding:10px 20px;border-radius:6px;font-size:14px;font-weight:600;text-decoration:none;">Reset password</a></p>`,
+      `<p style="margin:0 0 8px;font-size:13px;line-height:1.6;color:#6b7280;">This link expires in 15 minutes and can be used once.</p>`,
+      `<p style="margin:0;font-size:13px;line-height:1.6;color:#6b7280;">If you didn't request this, you can safely ignore this email — your password is unchanged.</p>`,
+    ].join(""),
+  );
+  const text = `Reset your compbird password: ${url}\n\nThis link expires in 15 minutes and can be used once. If you didn't request this, ignore this email — your password is unchanged.`;
 
-  // TODO: wire a real provider (Resend or SMTP) here — send `url` to `email`
-  // with a "Reset your compbird password" template. Until then, providers that
-  // set the env vars still get the console fallback below.
-  log.warn("Email provider env present but sender not implemented — logging reset link instead", {
-    email,
-  });
-  // eslint-disable-next-line no-console -- fallback until the provider is wired
-  console.log(`[auth] password-reset link (provider not wired): ${url} (for ${email})`);
+  const sent = await sendEmail({ to: email, subject, html, text });
+  if (sent) return;
+
+  // Fallback (no provider configured, or delivery failed): surface the link on
+  // the server console so local/dev resets still work.
+  // eslint-disable-next-line no-console -- intentional dev-mode delivery channel
+  console.log(`[auth] password-reset link (email not sent): ${url} (for ${email})`);
 }

@@ -32,6 +32,9 @@ const CB_DESC =
   "compbird builds appraisal-grade comparables and live neighborhood market reports in seconds — a bird's-eye view of what every home is really worth.";
 
 export const metadata: Metadata = {
+  // Absolute base for OG/twitter image URLs in production (social scrapers
+  // require absolute URLs; falls back to the dev origin locally).
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL?.trim() || "http://localhost:4310"),
   title: { default: CB_TITLE, template: "%s · compbird" },
   description: CB_DESC,
   openGraph: {
