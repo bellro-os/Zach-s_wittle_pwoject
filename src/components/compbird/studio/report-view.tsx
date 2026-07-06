@@ -12,6 +12,7 @@ import { ValuationPanel } from "./valuation-panel";
 import { CompsTable, compKey } from "./comps-table";
 import { AddCompSearch } from "./add-comp-search";
 import { PpsfBars } from "./ppsf-bars";
+import { LiveAnalytics } from "./live-analytics";
 import { MarketPanel } from "./market-panel";
 import { LockedPanel } from "./locked-panel";
 import { ReportActions } from "./report-actions";
@@ -424,6 +425,32 @@ export function ReportView({
           )}
         </div>
       </div>
+
+      {/* live analytics — every mark derives from THIS lookup's comps + method
+          values, recomputing as the user tunes the set. Pro-only. */}
+      {locked ? (
+        <LockedPanel
+          title="Live analytics"
+          teaser="Sale-price timeline, $/sqft by distance, and the method-convergence read for this exact lookup."
+        />
+      ) : (
+        <PanelCard className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div className="flex flex-col gap-1">
+              <span className="cb-eyebrow text-muted-foreground">Live analytics</span>
+              <h3 className="font-display text-xl font-semibold text-foreground">
+                This lookup, charted
+              </h3>
+            </div>
+            {tuning ? (
+              <span className="text-xs text-muted-foreground">recomputing…</span>
+            ) : null}
+          </div>
+          <div className={tuning ? "opacity-60 transition-opacity" : "transition-opacity"}>
+            <LiveAnalytics comps={comps} valuation={valuation ?? null} />
+          </div>
+        </PanelCard>
+      )}
 
       {/* market context — Pro-only; redacted to null on a locked live report */}
       {locked ? (
