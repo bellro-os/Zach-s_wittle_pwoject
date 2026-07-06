@@ -3,9 +3,11 @@ node_modules/
 out/
 build/
 
-# local env + db
+# env + db — ignore EVERY env file (incl. .env.production which holds LIVE
+# Stripe keys); the committed templates end in .example and are re-included.
 .env
-.env*.local
+.env.*
+!.env*.example
 prisma/dev.db
 prisma/dev.db-journal
 

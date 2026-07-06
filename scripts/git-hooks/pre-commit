@@ -1,0 +1,30 @@
+#!/bin/sh
+# Blocks commits that would leak a Stripe key or a real env file.
+# Install: git config core.hooksPath scripts/git-hooks   (run once)
+#
+# Catches: live/test secret + restricted keys (sk_/rk_) and webhook signing
+# secrets (whsec_) in staged content, and any staged real .env file. Placeholder
+# forms in *.example / docs (sk_live_..., sk_test_…) are allowed.
+
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+
+# 1) real env files must never be staged (templates end in .example)
+for f in $staged; do
+  case "$f" in
+    *.env|*.env.*)
+      case "$f" in *.example) : ;; *)
+        echo "BLOCKED: staged env file '$f' — real env files must not be committed." >&2
+        exit 1 ;;
+      esac ;;
+  esac
+done
+
+# 2) scan staged CONTENT for concrete key material (…_ followed by real chars,
+#    not the '...'/'…' placeholders used in docs and *.example)
+if git diff --cached -U0 | grep -nE '^\+.*(sk|rk)_(live|test)_[A-Za-z0-9]{6,}|whsec_[A-Za-z0-9]{6,}' >/dev/null; then
+  echo "BLOCKED: a Stripe secret/restricted key or webhook secret is in the staged diff." >&2
+  echo "Move it to an env var (.env.production, which is gitignored) and re-stage." >&2
+  exit 1
+fi
+
+exit 0
