@@ -72,12 +72,13 @@ export default function TermsPage() {
 
         <Section title="5 · Subscriptions and billing">
           <p>
-            The free plan includes a limited number of watermarked report downloads each
-            month. Pro is a monthly subscription billed through Stripe. You can cancel
-            anytime via the billing portal in the studio&rsquo;s account menu; access
-            continues through the end of the paid period, and we do not offer partial-month
-            refunds. Prices may change with at least 30 days&rsquo; notice before your next
-            renewal.
+            The free plan includes instant property value estimates at no charge. Pro is
+            a monthly subscription billed through Stripe that unlocks comparable-sale
+            detail, market analytics, and report downloads. You can cancel anytime via
+            the billing portal in the studio&rsquo;s account menu; access continues
+            through the end of the paid period, and we do not offer partial-month
+            refunds. Prices may change with at least 30 days&rsquo; notice before your
+            next renewal.
           </p>
         </Section>
 

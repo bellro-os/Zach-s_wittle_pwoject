@@ -138,6 +138,13 @@ export interface ProfileResult {
   overrideDiff?: Record<string, { from: unknown; to: unknown }> | null;
   /** Record-basis vs agent-adjusted value — shown in the on-screen disclosure. */
   overrideValue?: { record: number | null; adjusted: number | null } | null;
+  /**
+   * Evidence paywall (server-side redaction — src/lib/compbird/redact.ts).
+   * `locked: true` means comps/marketContext/saleHistory/methods were stripped
+   * for a non-Pro caller; `compsSummary` is the teaser computed before the strip.
+   */
+  locked?: boolean;
+  compsSummary?: { count: number; nearest_mi: number | null; farthest_mi: number | null };
   error?: string;
 }
 
@@ -245,6 +252,9 @@ export interface PreviewResult {
   comps?: PreviewComp[];
   valuation?: PreviewValuation;
   elapsed_seconds?: number;
+  /** Evidence paywall — same server-side redaction contract as ProfileResult. */
+  locked?: boolean;
+  compsSummary?: { count: number; nearest_mi: number | null; farthest_mi: number | null };
   error?: string;
 }
 

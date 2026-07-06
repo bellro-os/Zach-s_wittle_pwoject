@@ -30,7 +30,7 @@ export function SubscribeToast() {
     );
 
     if (subscribed) {
-      toast.success("Welcome to Pro — unlimited, watermark-free downloads are live.");
+      toast.success("Welcome to Pro — every comp, market analytics, and watermark-free branded reports are unlocked.");
       // The server render right after the Stripe redirect can beat the webhook
       // that flips the tier — refresh once shortly after so the header plan chip
       // updates without a manual reload. Deliberately NOT cleared on unmount:

@@ -49,8 +49,9 @@ Build image → compose up alongside the existing engine service → Caddy inclu
 first-boot db push → smoke.
 
 ## 7. Production smoke (ME, after 1+2)
-signup → free report (watermarked) → quota exhaust → 402 → test-mode checkout →
-Pro unlock → watermark-free PDF → billing portal → password reset email.
+signup → free instant estimate → locked evidence → 403 → test-mode checkout →
+Pro unlock → full comps + watermark-free PDF → billing portal → password reset
+email.
 
 ## Cost/config notes
 - Engine hygiene model for compbird: leave `CMA_HYGIENE_MODEL` at the engine

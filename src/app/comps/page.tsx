@@ -4,11 +4,10 @@ import { redirect } from "next/navigation";
 import { Wordmark } from "@/components/compbird/brand";
 import { GrainOverlay } from "@/components/compbird/ui";
 import { CompStudio } from "@/components/compbird/studio/comp-studio";
-import { StudioAccountMenu, QuotaBanner } from "@/components/compbird/studio/account-menu";
+import { StudioAccountMenu, ProPitchBanner } from "@/components/compbird/studio/account-menu";
 import { SubscribeToast } from "@/components/compbird/studio/subscribe-toast";
-import { getActiveContext, quotaFor } from "@/lib/session";
-import { monthStart } from "@/lib/usage";
-import { systemDb } from "@/lib/db";
+import { getActiveContext } from "@/lib/session";
+import { can as canFeature } from "@/lib/entitlements";
 
 export const metadata: Metadata = {
   title: "Comp studio",
@@ -47,21 +46,10 @@ export default async function CompStudioPage() {
   const plan = PLAN_LABEL[acct.tier] ?? "Account";
   const subscribed = Boolean(acct.stripeSubscriptionId);
 
-  // Metered plans see their remaining report-download allowance UP FRONT, so a
-  // free user learns about the 2/month cap before burning a 2-minute render on
-  // the paywall. quota === null ⇒ unlimited (no banner). systemDb + explicit
-  // accountId: this page runs outside the host's tenancy ALS scope.
-  const quota = quotaFor(ctx.ent, "cma.generate");
-  const used =
-    quota == null
-      ? 0
-      : await systemDb.usageEvent.count({
-          where: {
-            accountId: ctx.account.id,
-            feature: "cma.generate",
-            createdAt: { gte: monthStart() },
-          },
-        });
+  // The paywall line: Pro ("cma.evidence") sees everything, unmetered — no
+  // banner at all. FREE sees unlimited estimates with the evidence redacted
+  // server-side, so the only banner is a slim pitch naming what Pro adds.
+  const evidence = canFeature(ctx.ent, "cma.evidence");
   return (
     <div className="cb-dark cb-shell-night min-h-screen bg-background text-foreground">
       {/* Stripe Checkout return toasts (?subscribed=1 / ?checkout=cancelled) */}
@@ -105,15 +93,9 @@ export default async function CompStudioPage() {
           className="cb-glow-ring pointer-events-none absolute -right-48 -top-56 h-[36rem] w-[36rem] opacity-50"
         />
         <div className="relative mx-auto w-full max-w-6xl px-5 py-12 sm:px-8 sm:py-16">
-          {quota != null ? (
+          {!evidence ? (
             <div className="mb-8">
-              <QuotaBanner
-                used={used}
-                limit={quota}
-                subscribed={subscribed}
-                plan={plan}
-                showUpsell={acct.tier === "FREE"}
-              />
+              <ProPitchBanner />
             </div>
           ) : null}
           <CompStudio />

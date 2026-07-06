@@ -62,13 +62,13 @@ export async function POST(req: Request) {
   payload.excluded = capStringList(payload.excluded);
   payload.forced = capStringList(payload.forced);
 
-  // ── Account + usage gate (the paywall) ────────────────────────────────────
-  // Downloading a full CMA requires a (free) account and counts against the tier
-  // quota: FREE = 2 reports/month → 402 (subscribe); SOLO+ = unlimited. The studio
-  // wall funnels users here already signed in, so a 401 here is a fallback. The
-  // reservation is atomic (closes the count→render→record TOCTOU under concurrency)
-  // and is REFUNDED below if the render fails, so a failed attempt never burns a
-  // free-tier credit.
+  // ── Account + Pro gate (the paywall) ──────────────────────────────────────
+  // Downloading a full CMA is a Pro-only artifact: the metered "2 free
+  // downloads" model is RETIRED. FREE gets the estimate on-screen; comps,
+  // analytics, and the rendered report require "cma.evidence" (SOLO, $20/mo)
+  // → 403 pro_required. The reserveUsage below stays for SOLO+ (their quota is
+  // null = unlimited) purely as usage telemetry, and is REFUNDED if the render
+  // fails so the usage rows only count successful reports.
   const ctx = await getActiveContext();
   if (!ctx) {
     return NextResponse.json(
@@ -76,9 +76,13 @@ export async function POST(req: Request) {
       { status: 401 },
     );
   }
-  if (!canFeature(ctx.ent, "cma.generate")) {
+  if (!canFeature(ctx.ent, "cma.evidence")) {
     return NextResponse.json(
-      { ok: false, error: "Your plan does not include report downloads.", code: "not_entitled" },
+      {
+        ok: false,
+        error: "Comps, analytics, and report downloads are part of Pro.",
+        code: "pro_required",
+      },
       { status: 403 },
     );
   }
@@ -96,7 +100,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         ok: false,
-        error: "You've used all your report downloads this month. Upgrade to Pro for unlimited.",
+        error: "Full report downloads are part of Pro. Upgrade for every comp and unlimited branded PDFs.",
         code: "quota_exceeded",
       },
       { status: 402 },

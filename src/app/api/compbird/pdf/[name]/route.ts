@@ -46,14 +46,14 @@ export async function GET(_req: Request, ctx: { params: Promise<{ name: string }
     );
   }
 
-  // A downloaded report is a paid/metered artifact — require a signed-in, entitled
-  // account. Without this, the guessable-name file stream bypasses BOTH the studio
-  // wall and the FREE 2/mo quota (the reserveUsage on generate meters the render,
-  // not the bytes). The legitimate studio flow opens this URL same-origin, so the
-  // session cookie rides along and this passes.
+  // A downloaded report is a Pro-only artifact — require a signed-in account
+  // with "cma.evidence" (mirrors the pro_required gate on /api/compbird/generate).
+  // Without this, the file stream would bypass the paywall entirely. The
+  // legitimate studio flow opens this URL same-origin, so the session cookie
+  // rides along and this passes.
   const active = await getActiveContext();
   if (!active) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  if (!canFeature(active.ent, "cma.generate")) {
+  if (!canFeature(active.ent, "cma.evidence")) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 

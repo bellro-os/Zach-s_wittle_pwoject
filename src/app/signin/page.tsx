@@ -61,7 +61,7 @@ export default async function CompbirdSignInPage({
         <h1 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
           Sign in
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">Welcome back to the comp studio. Free plan: 2 reports a month · Pro: $20/mo unlimited.</p>
+        <p className="mt-2 text-sm text-muted-foreground">Welcome back to the comp studio. Free: unlimited instant estimates · Pro: every comp and the full market read, $20/mo.</p>
 
         {errorMsg ? (
           <div

@@ -262,7 +262,7 @@ export default async function AccountPage({
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
               {subscribed
                 ? "Update your card, download invoices, or cancel any time — billing is handled by Stripe."
-                : "The free plan includes 2 report downloads a month. Pro is $20/mo for unlimited, watermark-free reports."}
+                : "The free plan includes unlimited instant value estimates. Pro is $20/mo for the evidence — every comp, market analytics, and unlimited watermark-free branded reports."}
             </p>
             <div className="mt-5">
               <BillingButtons subscribed={subscribed} />

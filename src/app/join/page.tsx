@@ -7,7 +7,7 @@ import { signup } from "@/actions/auth";
 export const metadata: Metadata = {
   title: "Create your free account", // layout template appends "· compbird"
   description:
-    "Create a free compbird account to price any home with appraisal-grade comparables. Two full reports a month, free.",
+    "Create a free compbird account for instant property value estimates — unlimited lookups, no card required. Pro unlocks every comp and the full market read.",
 };
 
 export const dynamic = "force-dynamic";
@@ -63,7 +63,7 @@ export default async function CompbirdJoinPage({
           Create your free account
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Two full CMA reports a month, free. No card required.
+          Instant value estimates, unlimited lookups — free. No card required.
         </p>
 
         {errorMsg ? (

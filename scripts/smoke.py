@@ -8,7 +8,8 @@ Checks (in order):
   2. anon wall: /comps -> redirect to /join; anon PDF fetch -> 401
   3. signup -> lands authenticated in /comps (cb_session cookie)
   4. engine: profile resolves a known parcel (skippable where engine absent)
-  5. quota: /api/compbird/generate metering visible (402 after limit) — only
+  5. paywall: free accounts get the estimate; the full report render on
+     /api/compbird/generate is Pro-gated (locked evidence -> checkout) — only
      exercised with --burn-quota (renders are slow/expensive)
   6. billing: /api/billing/checkout returns a Stripe URL when configured, or
      the clean 503 "not configured" otherwise (both PASS states are reported)
@@ -111,7 +112,7 @@ if not args.skip_engine:
 else:
     print("  SKIP  engine profile (--skip-engine)")
 
-# 5 — quota / paywall
+# 5 — paywall (locked evidence: full render is Pro-gated)
 if args.burn_quota and authed:
     seen_402 = False
     for i in range(3):

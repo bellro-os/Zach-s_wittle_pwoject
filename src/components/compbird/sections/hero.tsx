@@ -51,8 +51,10 @@ export function Hero() {
 
           <Reveal delay={0.22}>
             <p className="mt-4 text-sm text-muted-foreground">
-              Free account · 2 full reports a month · no card required.{" "}
-              <span className="text-muted-foreground/80">Pro is $20/mo, unlimited.</span>
+              Free account · instant value estimates · no card required.{" "}
+              <span className="text-muted-foreground/80">
+                Pro unlocks every comp and the full market read — $20/mo.
+              </span>
             </p>
           </Reveal>
 

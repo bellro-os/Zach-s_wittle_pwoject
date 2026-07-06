@@ -438,16 +438,21 @@ export function CompStudio() {
   useEffect(() => cancelPreview, [cancelPreview]);
 
   const subjectAddress = profile.facts?.address ?? "";
+  // Evidence-locked live profile (server-redacted for a FREE viewer): the comp
+  // set is empty, so every tuning affordance is moot — withhold the callbacks
+  // exactly like the sample does, so the excluded/tuning UI can't be reached.
+  const locked = Boolean(profile.locked);
+  const inert = isSample || locked;
   // Memoized: ReportView's children (CompsTable, the map) are React.memo'd, so
   // these must keep their identity across re-renders where nothing was toggled —
   // a fresh Set every render would defeat every memo below it.
   const excludedSet = useMemo(
-    () => (isSample ? undefined : new Set(excluded)),
-    [isSample, excluded],
+    () => (inert ? undefined : new Set(excluded)),
+    [inert, excluded],
   );
   const forcedSet = useMemo(
-    () => (isSample ? undefined : new Set(forced)),
-    [isSample, forced],
+    () => (inert ? undefined : new Set(forced)),
+    [inert, forced],
   );
 
   return (
@@ -524,13 +529,13 @@ export function CompStudio() {
               isSample={isSample}
               excluded={excludedSet}
               forced={forcedSet}
-              onToggleComp={isSample ? undefined : toggleComp}
-              onAddComp={isSample ? undefined : addForced}
-              onRemoveForced={isSample ? undefined : removeForced}
+              onToggleComp={inert ? undefined : toggleComp}
+              onAddComp={inert ? undefined : addForced}
+              onRemoveForced={inert ? undefined : removeForced}
               overrides={overrides}
               reportConfig={reportConfig}
-              onOverridesChange={isSample ? undefined : onOverridesChange}
-              onReportConfigChange={isSample ? undefined : onReportConfigChange}
+              onOverridesChange={inert ? undefined : onOverridesChange}
+              onReportConfigChange={inert ? undefined : onReportConfigChange}
               tuning={tuning}
             />
           </Reveal>

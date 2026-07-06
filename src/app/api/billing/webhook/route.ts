@@ -34,13 +34,15 @@ function sendWelcomeEmail(accountId: string): void {
       [
         `<p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#374151;">Your subscription is active. Your account now includes:</p>`,
         `<ul style="margin:0 0 20px;padding-left:20px;font-size:14px;line-height:1.8;color:#374151;">`,
-        `<li>Unlimited watermark-free report downloads</li>`,
+        `<li>Every comparable sale — distances and $/sqft</li>`,
+        `<li>Neighborhood market analytics</li>`,
+        `<li>Unlimited watermark-free branded PDF reports</li>`,
         `<li>Statewide coverage</li>`,
         `</ul>`,
         `<p style="margin:0;font-size:13px;line-height:1.6;color:#6b7280;">Manage your billing anytime at <a href="${base}/account" style="color:#2563eb;text-decoration:none;">${base}/account</a>.</p>`,
       ].join(""),
     );
-    const text = `Your compbird Pro subscription is active: unlimited watermark-free downloads and statewide coverage. Manage billing at ${base}/account`;
+    const text = `Your compbird Pro subscription is active: every comparable sale, neighborhood market analytics, unlimited watermark-free branded reports, and statewide coverage. Manage billing at ${base}/account`;
 
     await sendEmail({ to: email, subject, html, text });
   })().catch((err) => {

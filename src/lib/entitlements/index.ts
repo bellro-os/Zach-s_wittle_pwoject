@@ -3,15 +3,18 @@
 // parseOverrides / EntitlementContext) so the ported routes run unchanged.
 //
 // Two rungs + admin:
-//   FREE — the trial: full studio, downloads metered at 2/month, watermarked.
-//   SOLO — "Pro", $20/mo: unlimited un-watermarked downloads, whitelabel,
-//          statewide coverage, market analytics.
+//   FREE — the teaser: the ESTIMATED VALUE of a property (profile lookup +
+//          on-screen market cards). No evidence, no downloads.
+//   SOLO — "Pro", $20/mo: the EVIDENCE — comps, market analytics, sale
+//          history, method breakdown ("cma.evidence") — plus unlimited
+//          un-watermarked downloads, whitelabel, statewide coverage.
 
 export type Tier = "FREE" | "SOLO" | "ADMIN";
 
 export type FeatureKey =
   | "cma.profile"
   | "cma.generate"
+  | "cma.evidence"
   | "cma.whitelabel"
   | "cma.statewide_data"
   | "market.reports";
@@ -28,13 +31,13 @@ export type TierMatrix = Partial<Record<FeatureKey, Capacity>>;
 
 export const TIER_MATRIX: Record<Tier, TierMatrix> = {
   FREE: {
-    "cma.profile": true,
-    "cma.generate": { limit: 2, period: "month" }, // watermarked (no cma.whitelabel)
+    "cma.profile": true, // estimate-only: profile responses are evidence-REDACTED server-side
     "market.reports": true, // on-screen market cards are part of the teaser
   },
   SOLO: {
     "cma.profile": true,
     "cma.generate": true,
+    "cma.evidence": true, // comps / market analytics / sale history / method breakdown
     "cma.whitelabel": true,
     "cma.statewide_data": true,
     "market.reports": true,
@@ -42,6 +45,7 @@ export const TIER_MATRIX: Record<Tier, TierMatrix> = {
   ADMIN: {
     "cma.profile": true,
     "cma.generate": true,
+    "cma.evidence": true,
     "cma.whitelabel": true,
     "cma.statewide_data": true,
     "market.reports": true,

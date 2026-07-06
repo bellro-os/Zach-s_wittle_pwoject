@@ -27,8 +27,8 @@ const BEATS: Array<{ title: string; body: ReactNode }> = [
     title: "Download when it counts",
     body: (
       <>
-        Free runs 2 branded PDFs a month. Pro is $20/mo — unlimited,
-        watermark-free.{" "}
+        Free shows the number. Pro shows the proof — every comp, the market
+        read, unlimited branded reports ($20/mo).{" "}
         <Link
           href="/pricing"
           className="text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]"

@@ -13,6 +13,7 @@ import { CompsTable, compKey } from "./comps-table";
 import { AddCompSearch } from "./add-comp-search";
 import { PpsfBars } from "./ppsf-bars";
 import { MarketPanel } from "./market-panel";
+import { LockedPanel } from "./locked-panel";
 import { ReportActions } from "./report-actions";
 import { SubjectFactsEditor } from "./subject-facts-editor";
 import { SummaryEditor } from "./summary-editor";
@@ -170,6 +171,10 @@ export function ReportView({
   const { facts, valuation, marketContext, meta } = profile;
   const comps = profile.comps ?? [];
   const saleHistory = profile.saleHistory ?? [];
+  // Evidence-locked: the server redacted comps/market/methods for a non-Pro
+  // viewer (src/lib/compbird/redact.ts). The SAMPLE dossier is never locked —
+  // it is the demo, and its richness IS the pitch.
+  const locked = Boolean(profile.locked) && !isSample;
   // Closest comp distance — caps the valuation confidence when comps aren't local.
   const nearestMi = comps.reduce<number | null>((min, c) => {
     const d = c.distance_mi;
@@ -190,12 +195,15 @@ export function ReportView({
   const excludedCount = excluded?.size ?? 0;
   const forcedSet = forced ?? EMPTY_SET;
 
-  // Live reports only: the user can pin/unpin comps and add new ones.
-  const canControl = !isSample && typeof onAddComp === "function";
-  // Live reports only: the agent-control editors (what-if subject + narrative).
-  // The studio route is account-walled, so every live viewer may edit.
+  // Live UNLOCKED reports only: the user can pin/unpin comps and add new ones.
+  // (The studio already withholds these callbacks on locked profiles — the
+  // `!locked` here is defense-in-depth.)
+  const canControl = !isSample && !locked && typeof onAddComp === "function";
+  // Live unlocked reports only: the agent-control editors (what-if subject +
+  // narrative). The studio route is account-walled, so every Pro viewer may edit.
   const canEdit =
     !isSample &&
+    !locked &&
     typeof onOverridesChange === "function" &&
     typeof onReportConfigChange === "function";
 
@@ -258,12 +266,13 @@ export function ReportView({
                 >
                   <ValuationPanel
                     valuation={valuation}
-                    nearestMi={nearestMi}
+                    nearestMi={locked ? profile.compsSummary?.nearest_mi ?? null : nearestMi}
                     supplementalShare={
                       comps.length
                         ? comps.filter((c) => c.source === "supplemental").length / comps.length
                         : 0
                     }
+                    locked={locked}
                   />
                 </div>
               ) : null}
@@ -277,8 +286,17 @@ export function ReportView({
                 it skips the Leaflet runtime + tile fetches on first paint); live
                 reports get the real OSM map. */}
             <div className="relative flex flex-col">
+              {/* Locked: the comps array is redacted, so only the subject pin
+                  renders — say so instead of showing a legend for pins that
+                  aren't there. */}
               <div className="absolute right-4 top-4 z-[500]">
-                <MapLegend />
+                {locked ? (
+                  <Pill tone="ember" className="bg-card/85 backdrop-blur">
+                    Comp locations — Pro
+                  </Pill>
+                ) : (
+                  <MapLegend />
+                )}
               </div>
               {isSample ? (
                 <AerialMap points={points} height={420} className="h-full min-h-[20rem]" />
@@ -292,7 +310,12 @@ export function ReportView({
             </div>
           </div>
 
-          {/* comps evidence */}
+          {/* comps evidence — Pro-only. On a locked live report the server has
+              already stripped the comp rows; one LockedPanel stands in for the
+              table, $/sqft bars, editors, and the add-a-comp search. */}
+          {locked ? (
+            <LockedPanel title="Comparable sales" teaser={lockedCompsTeaser(profile)} />
+          ) : (
           <PanelCard className="flex flex-col gap-6">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div className="flex flex-col gap-1">
@@ -398,11 +421,17 @@ export function ReportView({
             />
             <PpsfBars comps={comps} />
           </PanelCard>
+          )}
         </div>
       </div>
 
-      {/* market context */}
-      {marketContext ? (
+      {/* market context — Pro-only; redacted to null on a locked live report */}
+      {locked ? (
+        <LockedPanel
+          title="Neighborhood market"
+          teaser="The local market read — median $/sqft, price trend, days on market, inventory."
+        />
+      ) : marketContext ? (
         <PanelCard>
           <MarketPanel market={marketContext} saleHistory={saleHistory} />
         </PanelCard>
@@ -439,6 +468,7 @@ export function ReportView({
           forced={forced ? Array.from(forced) : undefined}
           subjectOverrides={canEdit ? overrides : undefined}
           reportConfig={canEdit ? reportConfig : undefined}
+          evidence={!locked}
         />
       </PanelCard>
 
@@ -456,22 +486,35 @@ const EMPTY_SET: Set<string> = new Set();
 const EMPTY_OVERRIDES: SubjectOverrides = {};
 const EMPTY_CONFIG: ReportConfig = {};
 
+/** One-line hook for the locked comps panel, built from the redacted teaser. */
+function lockedCompsTeaser(profile: ProfileResult): string {
+  const s = profile.compsSummary;
+  if (!s || s.count <= 0) return "Every comparable sale behind this estimate.";
+  const n = `${s.count} comparable sale${s.count === 1 ? "" : "s"} found`;
+  return s.nearest_mi != null ? `${n} · nearest ${s.nearest_mi.toFixed(1)} mi` : n;
+}
+
 /** One paste-able paragraph an agent can read aloud or drop into a text. */
 function dossierSummary(profile: ProfileResult, nearestMi: number | null): string {
   const f = profile.facts;
   const v = profile.valuation;
-  const n = (profile.comps ?? []).length;
+  // Locked live reports carry no comp rows — the redacted compsSummary still
+  // gives the honest count/farthest, so the talking points keep their evidence line.
+  const n = (profile.comps ?? []).length || profile.compsSummary?.count || 0;
   const m = profile.marketContext;
   const parts: string[] = [];
   if (f?.address && v?.mid != null) parts.push(`${f.address} — estimated ${usd(v.mid)}`);
   if (v?.low != null && v?.high != null) parts.push(`range ${usd(v.low)} to ${usd(v.high)}`);
   if (n > 0) {
     // "within X mi" must bound ALL comps — use the farthest, not the nearest.
-    const far = (profile.comps ?? []).reduce<number | null>((mx, c) => {
-      const d = c.distance_mi;
-      if (d == null || !Number.isFinite(d)) return mx;
-      return mx == null || d > mx ? d : mx;
-    }, null);
+    const far =
+      (profile.comps ?? []).reduce<number | null>((mx, c) => {
+        const d = c.distance_mi;
+        if (d == null || !Number.isFinite(d)) return mx;
+        return mx == null || d > mx ? d : mx;
+      }, null) ??
+      profile.compsSummary?.farthest_mi ??
+      null;
     parts.push(
       `${n} closed comparable${n === 1 ? "" : "s"}${
         far != null ? ` within ${far < 1 ? far.toFixed(1) : far.toFixed(1)} mi` : ""

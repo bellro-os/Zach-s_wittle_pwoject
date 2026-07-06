@@ -77,12 +77,20 @@ function ValuationPanelImpl({
   valuation,
   nearestMi,
   supplementalShare = 0,
+  locked = false,
 }: {
   valuation: Valuation;
   /** Distance (mi) of the closest comp — caps confidence when comps aren't local. */
   nearestMi?: number | null;
   /** Share (0–1) of comps sourced from public records — caps confidence at moderate past 50%. */
   supplementalShare?: number;
+  /**
+   * Evidence-redacted payload (methods stripped to [] for a non-Pro viewer).
+   * The mid/low/high still render; the confidence pill is suppressed — with
+   * zero visible methods it would falsely read "Single method · limited
+   * evidence" about a valuation that was merely redacted, not thin.
+   */
+  locked?: boolean;
 }) {
   const mid = valuation.mid ?? null;
   const hasMid = mid != null && mid > 0;
@@ -98,7 +106,9 @@ function ValuationPanelImpl({
       <div>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span className="cb-eyebrow text-muted-foreground">Estimated value</span>
-          {conf.kind === "pill" ? (
+          {locked ? (
+            <Pill tone="neutral">Method breakdown — Pro</Pill>
+          ) : conf.kind === "pill" ? (
             <Pill tone={conf.tone}>{conf.label}</Pill>
           ) : null}
         </div>

@@ -1,19 +1,16 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { enginePreview } from "@/lib/cma/engine";
 import { checkRateLimit, getClientIp } from "@/lib/compbird-ratelimit";
 import { toEngineOverrides, type SubjectOverrides } from "@/lib/cma/overrides";
 import { clampInt, capStringList, COMPBIRD_BOUNDS } from "@/lib/compbird/validate";
-import { SESSION_COOKIE, verifyAppSessionToken } from "@/lib/auth";
+import type { PreviewResult } from "@/lib/compbird/types";
+import { getActiveContext } from "@/lib/session";
+import { can as canFeature } from "@/lib/entitlements";
+import { redactEvidence } from "@/lib/compbird/redact";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
-
-interface PreviewResult {
-  ok: boolean;
-  error?: string;
-}
 
 export async function POST(req: Request) {
   // P0 #12: per-IP throttle on the preview spawn (comp set + valuation).
@@ -46,21 +43,27 @@ export async function POST(req: Request) {
   payload.nComps = clampInt(payload.nComps, COMPBIRD_BOUNDS.nComps);
   payload.excluded = capStringList(payload.excluded);
   payload.forced = capStringList(payload.forced);
-  // AUTHENTICATED-builder gate. Subject-fact overrides + full LLM hygiene are an
-  // authenticated capability; anonymous callers get the read-only AVM-on/LLM-off
-  // CMA. The compbird surface is proxy-exempt, but the host session cookie is still
-  // readable here, so we enforce at the route. The studio hides the editors for
-  // anonymous users — this is the SERVER enforcement behind that.
-  const session = await verifyAppSessionToken((await cookies()).get(SESSION_COOKIE)?.value);
-  const authed = !!session;
+  // Entitlement resolution (server-side; the compbird surface is proxy-exempt but
+  // the host session cookie is readable here, so we enforce at the route):
+  //   - `authed` (any signed-in account) → full LLM hygiene on the estimate.
+  //   - `evidence` ("cma.evidence", Pro/SOLO+) → subject-fact overrides are
+  //     honored AND the response ships un-redacted. FREE + anonymous callers get
+  //     overrides STRIPPED (the editors are Pro) and an evidence-REDACTED body —
+  //     the estimate stays live, the comps never leave the server.
+  const ctx = await getActiveContext();
+  const authed = !!ctx;
+  const evidence = ctx ? canFeature(ctx.ent, "cma.evidence") : false;
 
   // toEngineOverrides clamps numerics to OVERRIDE_BOUNDS and maps condition→
-  // appearance; for anonymous callers overrides are STRIPPED (undefined) so a
+  // appearance; for non-evidence callers overrides are STRIPPED (undefined) so a
   // crafted payload can never fabricate subject facts into the valuation.
   const { status, body } = await enginePreview<PreviewResult>({
     ...payload,
-    subjectOverrides: authed ? toEngineOverrides(payload.subjectOverrides) : undefined,
+    subjectOverrides: evidence ? toEngineOverrides(payload.subjectOverrides) : undefined,
     aiHygiene: authed, // server-controlled; authed → full hygiene, anon → off
   });
+  if (body?.ok && !evidence) {
+    return NextResponse.json(redactEvidence(body), { status });
+  }
   return NextResponse.json(body, { status });
 }

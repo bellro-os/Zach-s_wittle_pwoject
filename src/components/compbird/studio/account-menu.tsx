@@ -143,74 +143,40 @@ export function StudioAccountMenu({
 }
 
 /**
- * Persistent allowance banner for METERED plans, shown above the studio so the
- * monthly download cap is visible BEFORE a user spends a 2-minute render
- * discovering it. Unlimited plans never render this (the page skips it). The
- * plan label comes from the page (BETA is also metered — never say "Free plan"
- * to it), and the Pro upsell sentence renders only where Pro is a strict
- * upgrade (the FREE tier).
+ * Slim persistent Pro pitch for evidence-locked (FREE) accounts, shown above
+ * the studio. Estimates are unlimited on Free — there is no quota to count —
+ * so this banner names what Pro adds instead of metering anything. Pro
+ * accounts never render it (the page skips it entirely).
  */
-export function QuotaBanner({
-  used,
-  limit,
-  subscribed,
-  plan,
-  showUpsell = false,
-}: {
-  used: number;
-  limit: number;
-  subscribed: boolean;
-  /** Resolved plan label for the copy (e.g. "Free plan", "Beta"). */
-  plan: string;
-  /** Pitch Pro in the banner — true only for the FREE tier. */
-  showUpsell?: boolean;
-}) {
+export function ProPitchBanner() {
   const [busy, setBusy] = useState(false);
-  const left = Math.max(0, limit - used);
-  const out = left === 0;
 
   return (
     <div
       role="status"
-      className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 ${
-        out
-          ? "border-[var(--cb-ember)]/40 bg-[var(--cb-tint)]"
-          : "border-border bg-card/60"
-      }`}
+      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card/60 px-4 py-3"
     >
       <p className="text-sm text-foreground">
-        {out ? (
-          <>You&rsquo;ve used all {limit} report downloads this month.</>
-        ) : (
-          <>
-            {plan} · <span className="font-data font-semibold">{left}</span> of{" "}
-            <span className="font-data font-semibold">{limit}</span> report downloads
-            left this month.
-          </>
-        )}{" "}
-        {showUpsell ? (
-          <span className="text-muted-foreground">
-            Pro is unlimited, watermark-free, and statewide.
-          </span>
-        ) : null}
+        Estimates are free.{" "}
+        <span className="text-muted-foreground">
+          Every comp, the market read, and branded reports are Pro.
+        </span>
       </p>
-      {!subscribed ? (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => {
-            if (busy) return;
-            setBusy(true);
-            startSubscription().catch((e) => {
-              toast.error(e instanceof Error ? e.message : "Could not start checkout.");
-              setBusy(false);
-            });
-          }}
-          className="inline-flex items-center rounded-full bg-[var(--cb-ember)] px-4 py-1.5 text-xs font-semibold text-[var(--cb-on-ember)] transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
-          Upgrade to Pro · $20/mo
-        </button>
-      ) : null}
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => {
+          if (busy) return;
+          setBusy(true);
+          startSubscription().catch((e) => {
+            toast.error(e instanceof Error ? e.message : "Could not start checkout.");
+            setBusy(false);
+          });
+        }}
+        className="inline-flex items-center rounded-full bg-[var(--cb-ember)] px-4 py-1.5 text-xs font-semibold text-[var(--cb-on-ember)] transition-opacity hover:opacity-90 disabled:opacity-50"
+      >
+        Upgrade to Pro · $20/mo
+      </button>
     </div>
   );
 }

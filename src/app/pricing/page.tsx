@@ -7,31 +7,32 @@ import { SectionShell, Eyebrow, Button, Card, GrainOverlay } from "@/components/
 export const metadata: Metadata = {
   title: "Pricing", // layout template appends "· compbird"
   description:
-    "Start free with the full comp studio and two report downloads a month. Pro is $20/mo for unlimited, whitelabeled reports with market analytics.",
+    "Start free with unlimited instant value estimates. Pro is $20/mo for the evidence layer — every comparable sale, neighborhood market analytics, and unlimited watermark-free branded PDF reports.",
 };
 
-/* Honest split: Free is the whole studio with a download cap; Pro removes the
-   cap and dresses the report in the agent's brand. The layout is deliberately
-   asymmetric — Pro carries the dark instrument slab. */
+/* Honest split: Free is the estimate — unlimited instant valuations. Pro is
+   the evidence — every comp, the market read, and the branded PDF. The layout
+   is deliberately asymmetric — Pro carries the dark instrument slab. */
 
 const FREE_FEATURES = [
-  "Full comp studio — price any address in coverage",
-  "Live comp tuning: swap, weight, and re-run in seconds",
-  "Market cards on screen for every report",
-  "2 report downloads a month, watermarked",
+  "Unlimited instant value estimates on any address in coverage",
+  "Subject property facts from assessor records",
+  "Low–high value range around every estimate",
+  "A full sample report, so you can inspect before you pay",
 ];
 
 const PRO_FEATURES = [
-  "Unlimited report downloads",
-  "No watermark — your name and branding on every page",
+  "Every comparable sale — distance and $/sqft on each",
+  "Neighborhood market analytics",
+  "Comp tuning and subject what-if editing",
+  "Unlimited watermark-free branded PDF reports",
   "Statewide off-MLS sales coverage in the comp pool",
-  "Market analytics printed inside the report",
 ];
 
 const FAQ: { q: string; a: string }[] = [
   {
-    q: "What counts as a download?",
-    a: "A rendered PDF report. If a render fails, it never counts against your two — only finished documents do.",
+    q: "What's in Free vs Pro?",
+    a: "Free is the estimate: unlimited lookups, subject facts, and a low–high range on any address in coverage. Pro is the evidence behind the number: every comparable sale, neighborhood market analytics, comp tuning, and unlimited branded PDF reports.",
   },
   {
     q: "Can I cancel anytime?",
@@ -65,11 +66,12 @@ export default function PricingPage() {
           <div className="max-w-2xl">
             <Eyebrow>Pricing</Eyebrow>
             <h1 className="font-display mt-6 text-4xl font-bold tracking-tight text-foreground text-balance sm:text-5xl">
-              Free to price. $20 when the report has to leave the building.
+              The estimate is free. The evidence is $20/mo.
             </h1>
             <p className="mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground">
-              Every account gets the whole studio — the same engine, the same comps.
-              Pro is for agents who hand the report to a client.
+              Every account gets instant value estimates from the same engine —
+              unlimited, no card. Pro unlocks what&rsquo;s behind the number: every
+              comparable sale, the market read, and the branded PDF.
             </p>
           </div>
 
@@ -82,7 +84,7 @@ export default function PricingPage() {
                 <span className="text-sm text-muted-foreground">no card required</span>
               </div>
               <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                The full studio, on screen. Downloads are the only meter.
+                The number, instantly — for as many addresses as you need.
               </p>
               <FeatureList items={FREE_FEATURES} />
               <div className="mt-auto pt-9">
@@ -101,7 +103,7 @@ export default function PricingPage() {
               <div className="relative flex grow flex-col">
                 <div className="flex items-center justify-between gap-4">
                   <span className="cb-eyebrow text-[var(--cb-ember-text)]">Pro</span>
-                  <span className="text-xs text-muted-foreground">for client-facing reports</span>
+                  <span className="text-xs text-muted-foreground">the evidence layer</span>
                 </div>
                 <div className="mt-5 flex items-baseline gap-2">
                   <span className="font-data text-5xl font-semibold tracking-tight text-foreground">$20</span>
