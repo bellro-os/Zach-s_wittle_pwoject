@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { enginePreview } from "@/lib/cma/engine";
 import { checkRateLimit, getClientIp } from "@/lib/compbird-ratelimit";
 import { toEngineOverrides, type SubjectOverrides } from "@/lib/cma/overrides";
-import { clampInt, capStringList, COMPBIRD_BOUNDS } from "@/lib/compbird/validate";
+import {
+  clampInt,
+  capStringList,
+  subjectOverridesError,
+  COMPBIRD_BOUNDS,
+} from "@/lib/compbird/validate";
 import type { PreviewResult } from "@/lib/compbird/types";
 import { getActiveContext } from "@/lib/session";
 import { can as canFeature } from "@/lib/entitlements";
@@ -43,6 +48,12 @@ export async function POST(req: Request) {
   payload.nComps = clampInt(payload.nComps, COMPBIRD_BOUNDS.nComps);
   payload.excluded = capStringList(payload.excluded);
   payload.forced = capStringList(payload.forced);
+  // Subject FACTS are rejected, not clamped: a NaN/Infinity/absurd sqft would
+  // otherwise be silently coerced into a valuation the caller never asked for.
+  const factsError = subjectOverridesError(payload.subjectOverrides);
+  if (factsError) {
+    return NextResponse.json({ ok: false, error: factsError }, { status: 400 });
+  }
   // Entitlement resolution (server-side; the compbird surface is proxy-exempt but
   // the host session cookie is readable here, so we enforce at the route):
   //   - `authed` (any signed-in account) → full LLM hygiene on the estimate.

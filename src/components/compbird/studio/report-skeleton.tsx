@@ -14,7 +14,12 @@ function Bar({ className }: { className?: string }) {
 
 export function ReportSkeleton() {
   return (
-    <div aria-hidden className="flex flex-col gap-6">
+    // The shimmer bars are decorative (aria-hidden below); the wrapper is a
+    // polite status region so AT hears that a report is being fetched instead
+    // of a silent, empty page.
+    <div role="status" aria-live="polite">
+      <span className="sr-only">Building the report…</span>
+      <div aria-hidden className="flex flex-col gap-6">
       {/* subject header */}
       <div className="flex flex-col gap-3">
         <Bar className="h-5 w-28" />
@@ -44,6 +49,7 @@ export function ReportSkeleton() {
         {Array.from({ length: 5 }).map((_, i) => (
           <Bar key={i} className="h-9 w-full opacity-80" />
         ))}
+      </div>
       </div>
     </div>
   );

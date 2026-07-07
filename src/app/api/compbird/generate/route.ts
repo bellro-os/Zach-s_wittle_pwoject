@@ -10,7 +10,12 @@ import {
   type SubjectOverrides,
   type ReportConfig,
 } from "@/lib/cma/overrides";
-import { clampInt, capStringList, COMPBIRD_BOUNDS } from "@/lib/compbird/validate";
+import {
+  clampInt,
+  capStringList,
+  subjectOverridesError,
+  COMPBIRD_BOUNDS,
+} from "@/lib/compbird/validate";
 import { logOverrideEvent } from "@/lib/cma/override-audit";
 import {
   getActiveContext,
@@ -61,6 +66,13 @@ export async function POST(req: Request) {
   payload.nComps = clampInt(payload.nComps, COMPBIRD_BOUNDS.nComps);
   payload.excluded = capStringList(payload.excluded);
   payload.forced = capStringList(payload.forced);
+  // Subject FACTS are rejected, not clamped: a NaN/Infinity/absurd sqft would
+  // otherwise be silently coerced into a rendered report the caller never asked
+  // for. Checked BEFORE the quota reserve so a bad payload never burns a credit.
+  const factsError = subjectOverridesError(payload.subjectOverrides);
+  if (factsError) {
+    return NextResponse.json({ ok: false, error: factsError }, { status: 400 });
+  }
 
   // ── Account + Pro gate (the paywall) ──────────────────────────────────────
   // Downloading a full CMA is a Pro-only artifact: the metered "2 free

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { systemDb } from "@/lib/db";
 import { emailShell, sendEmail } from "@/lib/mailer";
+import { sendMetaSubscribeEvent } from "@/lib/marketing/meta-capi";
 import { stripe, webhookSecret, subscribedTier, tierForPriceId } from "@/lib/stripe";
 import { createLogger } from "@/lib/utils/logger";
 
@@ -111,6 +112,28 @@ export async function POST(req: Request) {
             log.info("Subscription activated", { accountId, tier: grant });
             // AFTER the tier flip — the state change is durable regardless of mail.
             sendWelcomeEmail(accountId);
+            // Server-side ad conversion (Meta CAPI). Fire-and-forget like the
+            // email; event_id = session id dedups against the browser pixel.
+            // Only sent when the buyer accepted the consent banner (metadata
+            // set by the checkout route) — and inert unless META_CAPI_ACCESS_TOKEN
+            // + a pixel id are configured.
+            void (async () => {
+              const owner = await systemDb.membership.findFirst({
+                where: { accountId, role: "OWNER" },
+                orderBy: { createdAt: "asc" },
+                include: { user: { select: { email: true } } },
+              });
+              sendMetaSubscribeEvent({
+                email: owner?.user.email ?? s.customer_details?.email,
+                eventId: s.id,
+                consented: s.metadata?.adConsent === "1",
+              });
+            })().catch((err) => {
+              log.warn("Meta CAPI lookup skipped", {
+                accountId,
+                error: err instanceof Error ? err.message : String(err),
+              });
+            });
           }
         }
         break;

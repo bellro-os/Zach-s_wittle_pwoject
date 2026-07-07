@@ -9,13 +9,16 @@
  *
  * Works on both ProfileResult- and PreviewResult-shaped bodies (they share the
  * evidence fields this strips). Pure function — never mutates its input.
+ *
+ * CONTRACT the confidence tier depends on (src/lib/compbird/confidence.ts):
+ * `compsSummary` {count, nearest_mi, farthest_mi} and `valuation.divergence_pct`
+ * must SURVIVE redaction — the locked UI computes its confidence badge and
+ * "Based on N comparable sales · nearest X mi" line from exactly these fields.
  */
 
-export interface CompsSummary {
-  count: number;
-  nearest_mi: number | null;
-  farthest_mi: number | null;
-}
+import type { CompsSummary } from "./types";
+
+export type { CompsSummary };
 
 /** The evidence-bearing fields a Profile/Preview body may carry. */
 interface EvidenceFields {

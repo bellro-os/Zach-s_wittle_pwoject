@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, Inter_Tight, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "sonner";
+import { ConsentBanner } from "@/components/marketing/consent-banner";
+import { MarketingPixels } from "@/components/marketing/pixels";
 import "./globals.css";
 import "@/styles/compbird.css";
 
@@ -56,6 +58,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${display.variable} ${sans.variable} ${mono.variable} compbird-root antialiased`}>
         {children}
         <Toaster richColors closeButton theme="light" />
+        {/* Ad pixels (consent-gated; inert without NEXT_PUBLIC_META_PIXEL_ID / NEXT_PUBLIC_GOOGLE_ADS_ID) */}
+        <MarketingPixels />
+        <ConsentBanner />
       </body>
     </html>
   );

@@ -13,6 +13,7 @@ import type {
   MarketsResponse,
 } from "./types";
 import type { SubjectOverrides, ReportConfig } from "@/lib/cma/overrides";
+import { trackCheckoutStart, trackReportGenerated } from "@/lib/marketing/track";
 
 /**
  * Thrown when a compbird API call returns a non-2xx status. `rateLimited` is
@@ -116,7 +117,11 @@ export async function generateReport(input: {
    */
   reportConfig?: ReportConfig;
 }): Promise<GenerateResult> {
-  return postJSON<GenerateResult>("/api/compbird/generate", input);
+  const result = await postJSON<GenerateResult>("/api/compbird/generate", input);
+  // Ad "Lead" event: a report actually generated is the activation moment the
+  // ad networks optimize toward. Consent-gated no-op when pixels are absent.
+  trackReportGenerated();
+  return result;
 }
 
 /**
@@ -158,6 +163,8 @@ export function pdfUrl(name: string): string {
  * server's message otherwise (e.g. "Billing is not configured yet.").
  */
 export async function startSubscription(): Promise<void> {
+  // Ad conversion funnel marker — consent-gated no-op when pixels are absent.
+  trackCheckoutStart();
   const res = await fetch("/api/billing/checkout", { method: "POST", cache: "no-store" });
   const data = (await res.json().catch(() => null)) as
     | { ok?: boolean; url?: string; error?: string }

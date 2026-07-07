@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils/cn";
 import { Wordmark } from "./brand";
@@ -37,6 +37,7 @@ function CtaLink({ className, onClick }: { className?: string; onClick?: () => v
 export function Nav() {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 16);
@@ -44,6 +45,20 @@ export function Nav() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  // Keyboard dismissal for the mobile disclosure: Escape closes the panel and
+  // hands focus back to the toggle, per the disclosure pattern.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        menuButtonRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
 
   return (
     <header className="sticky top-0 z-50 w-full">
@@ -59,7 +74,7 @@ export function Nav() {
           <Wordmark />
         </Link>
 
-        <nav className="hidden items-center gap-7 md:flex">
+        <nav aria-label="Primary" className="hidden items-center gap-7 md:flex">
           {LINKS.map((l) => (
             <a
               key={l.href}
@@ -98,6 +113,7 @@ export function Nav() {
           <CtaLink className="hidden md:inline-flex" />
           {/* mobile disclosure */}
           <button
+            ref={menuButtonRef}
             type="button"
             aria-label={open ? "Close menu" : "Open menu"}
             aria-expanded={open}
@@ -126,7 +142,9 @@ export function Nav() {
             id="cb-mobile-menu"
             className="mx-auto mt-1 max-w-6xl rounded-2xl border border-border bg-card/95 p-3 backdrop-blur-xl"
           >
-            <nav className="flex flex-col">
+            {/* Same "Primary" label is safe: the desktop nav is display:none
+                here, so only one primary landmark is exposed at a time. */}
+            <nav aria-label="Primary" className="flex flex-col">
               {LINKS.map((l) => (
                 <a
                   key={l.href}

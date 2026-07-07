@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useRef } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
 import "leaflet/dist/leaflet.css";
 import { cn } from "@/lib/utils/cn";
 
@@ -39,15 +39,22 @@ function isMappable(p: GeoMapPoint): boolean {
 
 function LeafletMapImpl({ points, height = 280, className }: LeafletMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mappable = points.filter(isMappable);
 
   // Explicit re-init signature: the tear-down/rebuild effect re-runs only when
   // the PLOTTED data actually changes — not when a parent re-render hands us a
   // fresh-but-equal points array (which JSON.stringify over raw objects also
   // caught, but by serializing every field of every render's objects).
-  const sig = mappable
-    .map((p) => `${p.lat},${p.lng},${p.kind},${p.atypical ? 1 : 0},${p.label ?? ""}`)
-    .join("|");
+  // Memoized on the points array so a re-render with the same (stable) array
+  // doesn't re-filter and re-serialize every marker.
+  const { mappable, sig } = useMemo(() => {
+    const m = points.filter(isMappable);
+    return {
+      mappable: m,
+      sig: m
+        .map((p) => `${p.lat},${p.lng},${p.kind},${p.atypical ? 1 : 0},${p.label ?? ""}`)
+        .join("|"),
+    };
+  }, [points]);
 
   useEffect(() => {
     // Nothing to plot — the graceful box renders instead (see JSX below).

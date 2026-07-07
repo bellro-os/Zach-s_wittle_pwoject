@@ -20,3 +20,5 @@ tsconfig.tsbuildinfo
 .DS_Store
 *.log
 uploads/
+# editing-session scratch copies — safe to delete
+*.fresh

@@ -35,6 +35,19 @@ export interface SearchResponse {
   error?: string;
 }
 
+/* ── Evidence-paywall teaser (survives redaction) ──────────────────────────── */
+/**
+ * Comp teaser computed server-side BEFORE comps are stripped for a non-Pro
+ * caller (src/lib/compbird/redact.ts). These fields deliberately SURVIVE
+ * redaction: the confidence tier (src/lib/compbird/confidence.ts) and the
+ * locked UI's "N comps within X mi" line are built from them.
+ */
+export interface CompsSummary {
+  count: number;
+  nearest_mi: number | null;
+  farthest_mi: number | null;
+}
+
 /* ── Full dossier — /api/compbird/profile ──────────────────────────────────── */
 export interface ProfileFacts {
   address: string;
@@ -144,7 +157,7 @@ export interface ProfileResult {
    * for a non-Pro caller; `compsSummary` is the teaser computed before the strip.
    */
   locked?: boolean;
-  compsSummary?: { count: number; nearest_mi: number | null; farthest_mi: number | null };
+  compsSummary?: CompsSummary;
   error?: string;
 }
 
@@ -254,7 +267,7 @@ export interface PreviewResult {
   elapsed_seconds?: number;
   /** Evidence paywall — same server-side redaction contract as ProfileResult. */
   locked?: boolean;
-  compsSummary?: { count: number; nearest_mi: number | null; farthest_mi: number | null };
+  compsSummary?: CompsSummary;
   error?: string;
 }
 

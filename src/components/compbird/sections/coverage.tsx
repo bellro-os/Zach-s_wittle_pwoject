@@ -1,6 +1,7 @@
-import { SectionShell, Eyebrow, Marquee, GrainOverlay } from "@/components/compbird/ui";
+import { SectionShell, Eyebrow, GrainOverlay } from "@/components/compbird/ui";
 import { Reveal, CountUp } from "@/components/compbird/motion";
 import { ContourField } from "@/components/compbird/graphics";
+import { CoverageTabs } from "./coverage-tabs";
 
 /**
  * Coverage — depth-first footprint. Statewide assessor parcels joined to live
@@ -22,7 +23,8 @@ const STATS: Array<
 ];
 
 /* Real Virginia places the graph already covers — New River Valley core out to
-   the metros, west → east. */
+   the metros, west → east. The static fallback marquee when the live feed is
+   unavailable. */
 const PLACES = [
   "Blacksburg",
   "Roanoke",
@@ -33,6 +35,23 @@ const PLACES = [
   "Floyd",
   "Pulaski",
   "Giles",
+  "Wytheville",
+  "Abingdon",
+  "Bristol",
+  "Lynchburg",
+  "Charlottesville",
+  "Richmond",
+  "Fairfax",
+  "Loudoun",
+  "Arlington",
+  "Alexandria",
+  "Virginia Beach",
+  "Norfolk",
+];
+
+/* Expansion markets in rollout order — the COMING NEXT tab. Deep-MLS rings out
+   from the New River Valley core; these are roadmap, never claimed as live. */
+const COMING_NEXT = [
   "Wytheville",
   "Abingdon",
   "Bristol",
@@ -84,12 +103,13 @@ export function Coverage() {
         {/* ── dark stat slab ── */}
         <Reveal delay={0.1} y={32}>
           <div className="cb-dark relative overflow-hidden rounded-3xl border border-border bg-card p-8 sm:p-10">
-            <ContourField className="opacity-[0.4]" />
+            {/* contour = the section's LEAD tile only (rule in compbird.css) */}
+            <ContourField className="cb-contour-accent" />
             <GrainOverlay className="opacity-30" />
-            {/* ember glow bleed */}
+            {/* ember glow bleed — section accent = the named medium stop */}
             <div
               aria-hidden
-              className="cb-glow-ring pointer-events-none absolute -right-28 -top-28 h-72 w-72 opacity-60"
+              className="cb-glow-ring pointer-events-none absolute -right-28 -top-28 h-72 w-72 opacity-[var(--cb-glow-medium)]"
             />
 
             <div className="relative">
@@ -130,20 +150,11 @@ export function Coverage() {
         </Reveal>
       </div>
 
-      {/* ── jurisdiction marquee ── */}
+      {/* ── coverage footprint: LIVE NOW vs COMING NEXT (static marquee until
+             the live feed answers — see CoverageTabs) ── */}
       <Reveal delay={0.12}>
         <div className="mt-16 sm:mt-20">
-          <div className="mb-4 flex items-center justify-between gap-4">
-            <span className="cb-eyebrow text-muted-foreground">
-              Reading the map across Virginia
-            </span>
-            <span className="hidden text-xs text-muted-foreground sm:inline">
-              Now live across the New River Valley — expanding statewide.
-            </span>
-          </div>
-          <div className="relative overflow-hidden rounded-2xl border border-border bg-card/60 py-4 [mask-image:linear-gradient(to_right,transparent,black_8%,black_92%,transparent)]">
-            <Marquee items={PLACES} />
-          </div>
+          <CoverageTabs places={PLACES} coming={COMING_NEXT} />
         </div>
       </Reveal>
     </SectionShell>

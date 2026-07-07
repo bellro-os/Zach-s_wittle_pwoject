@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { checkRateLimit, getClientIp } from "@/lib/compbird-ratelimit";
+import { parseLatLng } from "@/lib/compbird/validate";
 
 /**
  * Public Street View image proxy.
@@ -9,11 +10,13 @@ import { checkRateLimit, getClientIp } from "@/lib/compbird-ratelimit";
  * for the nearest panorama, or 404s so the client can show its link-out fallback.
  *
  * Behavior is intentionally graceful — this never throws and never 500s:
- *   - rate-limited        → 429
- *   - no key configured   → 404 (client renders its fallback tile)
- *   - bad/missing coords  → 404
- *   - no imagery here      → 404 (metadata status !== "OK")
- *   - any fetch failure   → 404
+ *   - rate-limited          → 429
+ *   - malformed coords      → 400 (NaN/Infinity/off-planet — a bad REQUEST,
+ *                             not missing imagery; bounds in validate.ts)
+ *   - no key configured     → 404 (client renders its fallback tile)
+ *   - missing coords        → 404
+ *   - no imagery here       → 404 (metadata status !== "OK")
+ *   - any fetch failure     → 404
  */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,16 +34,21 @@ export async function GET(req: Request) {
     );
   }
 
+  // Coordinate plausibility FIRST (before the key check) so a malformed request
+  // is a 400 regardless of deployment config: absent coords keep the graceful
+  // 404 contract, but NaN/Infinity/off-planet values are a caller bug.
+  const url = new URL(req.url);
+  const coords = parseLatLng(url.searchParams.get("lat"), url.searchParams.get("lng"));
+  if (coords && "error" in coords) {
+    return NextResponse.json({ error: coords.error }, { status: 400 });
+  }
+  if (!coords) return notFound();
+
   const key = process.env.GOOGLE_MAPS_API_KEY;
   // No key → 404 so the client shows its link-out fallback (no imagery available).
   if (!key) return notFound();
 
-  const url = new URL(req.url);
-  const lat = Number(url.searchParams.get("lat"));
-  const lng = Number(url.searchParams.get("lng"));
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return notFound();
-
-  const location = `${lat},${lng}`;
+  const location = `${coords.lat},${coords.lng}`;
 
   try {
     // 1) Metadata first — cheap, free, tells us if a panorama actually exists.

@@ -107,7 +107,12 @@ function MarketPanelImpl({
           <div className="col-span-full flex flex-col gap-2 sm:col-span-1">
             <span className="cb-eyebrow text-muted-foreground">Subject sale history</span>
             {spark.length > 1 ? (
-              <Sparkline data={spark} height={34} fill color="var(--muted-foreground)" />
+              // Decorative here: the exact dates + prices are read out from the
+              // list right below, so the sparkline's own generic image label
+              // ("latest 350000") would only add unformatted noise for AT.
+              <span aria-hidden>
+                <Sparkline data={spark} height={34} fill color="var(--muted-foreground)" />
+              </span>
             ) : null}
             <ul className="flex flex-col gap-0.5">
               {history.map((h, i) => (

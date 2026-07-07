@@ -65,6 +65,29 @@ html:has(.cb-shell-night) {
   --cb-tint: rgba(37, 99, 235, 0.1);
   --cb-glow: rgba(37, 99, 235, 0.3);
 
+  /* ── Layered-surface opacity scale (named, not sprinkled) ──────────────────
+     GLOW RINGS — the .cb-glow-ring bleed behind a panel corner gets exactly one
+     of three intensities. Consume as `opacity-[var(--cb-glow-strong)]` etc.
+       strong 0.7 — the hero only (one per page)
+       medium 0.5 — section accents (coverage slab, markets band, studio header)
+       soft   0.4 — auth/utility pages (join, signin, account, error, 404)
+
+     CARD SURFACES — three rungs, by job:
+       opaque  `bg-card`                    — data panels: tables, charts, KPIs
+                                              (evidence never sits on a see-through)
+       frosted `bg-card/70 + backdrop-blur` — chrome that floats OVER content:
+                                              popovers, sticky bars, map badges
+                                              (85–95 when text sits on busy ground)
+       ghost   `bg-card/60`                 — decorative rails + marquee shells;
+                                              never primary reading surfaces      */
+  --cb-glow-strong: 0.7;
+  --cb-glow-medium: 0.5;
+  --cb-glow-soft: 0.4;
+
+  /* Muted comparison-bar fill for token-driven charts (MiniBars): slate-600 —
+     at 0.6 alpha it clears the 3:1 non-text floor on white. */
+  --chart-muted: #475569;
+
   /* Remap the host's font slots to compbird's faces. `serif` is repurposed as
      the display face so any reused component using `font-serif` reads on-brand. */
   --font-sans: var(--font-cb-sans), "Inter Tight", ui-sans-serif, system-ui, sans-serif;
@@ -123,6 +146,12 @@ html:has(.cb-shell-night) {
   --cb-tint: rgba(37, 99, 235, 0.1);
   --cb-glow: rgba(37, 99, 235, 0.3);
 
+  /* Layered-surface scale — same values as .compbird-root (documented there). */
+  --cb-glow-strong: 0.7;
+  --cb-glow-medium: 0.5;
+  --cb-glow-soft: 0.4;
+  --chart-muted: #475569;
+
   color: var(--foreground);
   background-color: var(--background);
 }
@@ -164,7 +193,12 @@ html:has(.cb-shell-night) {
   background: var(--cb-ember);
 }
 
-/* ── Warm parcel grid (fades radially) ─────────────────────────────────────── */
+/* ── Warm parcel grid (fades radially) ───────────────────────────────────────
+   RULE: data-heavy panels (the comps table, market metrics, the provenance
+   panel when it lands) MAY carry the faint parcel grid — it reads as the survey
+   paper the evidence sits on. Forms, editors, and plain content cards do NOT:
+   a grid under an input field is noise, not instrument. One grid per panel;
+   never nest a .cb-grid inside another. */
 .cb-grid {
   position: relative;
   isolation: isolate;
@@ -180,6 +214,24 @@ html:has(.cb-shell-night) {
   background-size: 52px 52px;
   mask-image: radial-gradient(ellipse 85% 70% at 50% 0%, black 30%, transparent 78%);
   -webkit-mask-image: radial-gradient(ellipse 85% 70% at 50% 0%, black 30%, transparent 78%);
+}
+
+/* ── Marquee edge fade (shared) ────────────────────────────────────────────────
+   The horizontal fade every marquee shell wears so the loop enters/exits
+   through air instead of clipping. One utility, not per-site mask strings —
+   consumers: the coverage jurisdiction marquee, the trust-strip source marquee. */
+.cb-mask-fade {
+  -webkit-mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
+  mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
+}
+
+/* ── Contour accent (ornamental relief lines) ──────────────────────────────────
+   The standard opacity for a ContourField laid behind a panel. RULE: lead tiles
+   only — the one anchor surface of a section (the coverage stat slab, a bento's
+   2x2 lead). Minor cards and repeated tiles never carry contours; two contour
+   fields in one viewport read as wallpaper, not instrument. */
+.cb-contour-accent {
+  opacity: 0.4;
 }
 
 /* ── Film grain overlay (tactile, "designed not generated") ────────────────── */

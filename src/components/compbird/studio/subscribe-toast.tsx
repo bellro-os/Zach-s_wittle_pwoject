@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { trackSubscribe } from "@/lib/marketing/track";
 
 /**
  * Reads the Stripe Checkout return markers (`?subscribed=1` / `?checkout=cancelled`)
@@ -20,8 +21,14 @@ export function SubscribeToast() {
     const cancelled = params.get("checkout") === "cancelled";
     if (!subscribed && !cancelled) return;
 
+    // Stripe Checkout session id (set by the checkout route's success_url) —
+    // passed to the ad pixels as the event id so Meta dedups this browser
+    // event against the webhook's server-side Conversions API copy.
+    const checkoutSessionId = params.get("cs") ?? undefined;
+
     params.delete("subscribed");
     params.delete("checkout");
+    params.delete("cs");
     const qs = params.toString();
     window.history.replaceState(
       null,
@@ -30,6 +37,7 @@ export function SubscribeToast() {
     );
 
     if (subscribed) {
+      trackSubscribe(checkoutSessionId);
       toast.success("Welcome to Pro — every comp, market analytics, and watermark-free branded reports are unlocked.");
       // The server render right after the Stripe redirect can beat the webhook
       // that flips the tier — refresh once shortly after so the header plan chip

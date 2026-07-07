@@ -14,6 +14,11 @@ import { cn } from "@/lib/utils/cn";
  * address UP so the studio force-includes it in the comp set (the engine's
  * `forced` list) and re-runs the live preview.
  *
+ * Collapsed by default to a quiet "+ Add a comparable" affordance — the search
+ * input only appears once the user reaches for it, so the tuning area doesn't
+ * carry a permanently-open input. Pass `collapsible={false}` to pin the input
+ * open (e.g. in a dedicated add flow).
+ *
  * Live reports only — the studio passes a no-op / omits the affordance on sample
  * data, and `disabled` hard-stops typing as a belt-and-braces guard.
  */
@@ -65,6 +70,8 @@ export function AddCompSearch({
   busy = false,
   /** Addresses already pinned — surfaced as "Added" so the user can't double-add. */
   pinned,
+  collapsible = true,
+  dropUp = false,
 }: {
   /** Hand the picked address up to force-include it as a comp. */
   onAdd: (address: string) => void;
@@ -73,6 +80,10 @@ export function AddCompSearch({
   /** A recompute is in flight — reflected on the spinner. */
   busy?: boolean;
   pinned?: Set<string>;
+  /** Collapse to a "+ Add a comparable" affordance until reached for (default). */
+  collapsible?: boolean;
+  /** Open the results ABOVE the input — for bottom-sticky mounts (table footer). */
+  dropUp?: boolean;
 }) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<PropertyMatch[]>([]);
@@ -80,10 +91,17 @@ export function AddCompSearch({
   const [loading, setLoading] = useState(false);
   const [active, setActive] = useState(-1);
   const [failed, setFailed] = useState(false);
+  const [expanded, setExpanded] = useState(!collapsible);
 
   const rootRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const listId = useId();
   const pinnedSet = pinned ?? EMPTY;
+
+  // Reaching for the affordance opens the input ready to type.
+  useEffect(() => {
+    if (expanded && collapsible) inputRef.current?.focus();
+  }, [expanded, collapsible]);
 
   // Debounced search — mirrors the studio SearchBar cadence (250ms).
   useEffect(() => {
@@ -121,14 +139,20 @@ export function AddCompSearch({
     };
   }, [q, disabled]);
 
-  // Close on outside click.
+  // Close on outside click; an untouched (empty) input also folds back to the
+  // '+' affordance so the footer returns to its quiet state.
   useEffect(() => {
     function onDoc(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        if (collapsible) {
+          setExpanded((was) => (was && inputRef.current?.value.trim() ? was : false));
+        }
+      }
     }
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
-  }, []);
+  }, [collapsible]);
 
   function choose(m: PropertyMatch) {
     setQ("");
@@ -136,6 +160,7 @@ export function AddCompSearch({
     setOpen(false);
     setActive(-1);
     setFailed(false);
+    if (collapsible) setExpanded(false); // added — fold back to the affordance
     onAdd(m.address);
   }
 
@@ -158,6 +183,39 @@ export function AddCompSearch({
     }
   }
 
+  // Escape on an empty input (dropdown already closed) folds the affordance.
+  function onInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (
+      e.key === "Escape" &&
+      collapsible &&
+      !(open && results.length > 0) &&
+      q.trim() === ""
+    ) {
+      setExpanded(false);
+      return;
+    }
+    onKeyDown(e);
+  }
+
+  /* Collapsed: the quiet '+' affordance. */
+  if (collapsible && !expanded) {
+    return (
+      <div ref={rootRef}>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => setExpanded(true)}
+          className="group inline-flex min-h-[40px] w-full items-center gap-2.5 rounded-xl border border-dashed border-border px-3.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:border-[var(--cb-ember)]/50 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+        >
+          <span className="text-[var(--cb-ember)]">
+            {busy ? <Spinner className="h-4 w-4" /> : <PlusIcon className="h-4 w-4" />}
+          </span>
+          Add a comparable
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div ref={rootRef} className="relative">
       <label htmlFor={`${listId}-input`} className="sr-only">
@@ -168,12 +226,13 @@ export function AddCompSearch({
           <PlusIcon className="h-4.5 w-4.5" />
         </span>
         <input
+          ref={inputRef}
           id={`${listId}-input`}
           type="text"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onFocus={() => results.length && setOpen(true)}
-          onKeyDown={onKeyDown}
+          onKeyDown={onInputKeyDown}
           disabled={disabled}
           placeholder="Add a comparable — search any address"
           aria-label="Add a comparable by address"
@@ -199,7 +258,10 @@ export function AddCompSearch({
           id={listId}
           role="listbox"
           aria-label="Properties to add as comparables"
-          className="absolute z-30 mt-2 max-h-[20rem] w-full overflow-auto rounded-2xl border border-border bg-popover/95 p-1.5 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.7)] backdrop-blur-md"
+          className={cn(
+            "absolute z-30 max-h-[20rem] w-full overflow-auto rounded-2xl border border-border bg-popover/95 p-1.5 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.7)] backdrop-blur-md",
+            dropUp ? "bottom-full mb-2" : "mt-2",
+          )}
         >
           {results.map((m, i) => {
             const already = pinnedSet.has(m.address);
@@ -244,7 +306,12 @@ export function AddCompSearch({
       ) : null}
 
       {open && !loading && q.trim().length >= 2 && results.length === 0 ? (
-        <div className="absolute z-30 mt-2 w-full rounded-2xl border border-border bg-popover/95 p-4 text-sm text-muted-foreground shadow-lg backdrop-blur-md">
+        <div
+          className={cn(
+            "absolute z-30 w-full rounded-2xl border border-border bg-popover/95 p-4 text-sm text-muted-foreground shadow-lg backdrop-blur-md",
+            dropUp ? "bottom-full mb-2" : "mt-2",
+          )}
+        >
           {failed
             ? "Search is unavailable right now. Try again in a moment."
             : `No matches for “${truncate(q.trim(), 80)}”. Try a street address.`}

@@ -28,7 +28,7 @@ export default function PrivacyPage() {
         <h1 className="font-display text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
           Privacy Policy
         </h1>
-        <p className="mt-3 text-sm text-muted-foreground">Last updated: July 2, 2026</p>
+        <p className="mt-3 text-sm text-muted-foreground">Last updated: July 6, 2026</p>
 
         <Section title="1 · What we collect">
           <p>
@@ -68,10 +68,14 @@ export default function PrivacyPage() {
           </p>
         </Section>
 
-        <Section title="5 · Cookies">
+        <Section title="5 · Cookies and advertising">
           <p>
-            We use a session cookie to keep you signed in. No third-party advertising
-            trackers.
+            We use a session cookie to keep you signed in — it is essential and always
+            on. With your consent (the cookie banner), we also use the Meta Pixel and
+            Google advertising tags to measure our ads and reach people who visited
+            compbird. These load only after you choose &ldquo;Accept,&rdquo; and you can
+            decline them entirely with &ldquo;Essential only.&rdquo; To change your
+            choice later, clear this site&rsquo;s cookies and the banner will reappear.
           </p>
         </Section>
 
@@ -79,7 +83,9 @@ export default function PrivacyPage() {
           <p>
             Personal data is shared only with the service providers that run compbird —
             payment processing (Stripe) and hosting infrastructure — under agreements
-            that limit their use of it, or when the law requires disclosure.
+            that limit their use of it, or when the law requires disclosure. If you
+            accept advertising cookies, Meta and Google receive the ad-measurement
+            events described in section 5.
           </p>
         </Section>
 

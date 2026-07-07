@@ -135,6 +135,12 @@ export function SearchBar({
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    // Escape always dismisses the popover — including the no-results / error
+    // panel, which has no options for the branch below to walk.
+    if (e.key === "Escape") {
+      setOpen(false);
+      return;
+    }
     if (!open || results.length === 0) {
       if (e.key === "ArrowDown" && results.length) setOpen(true);
       return;
@@ -148,8 +154,6 @@ export function SearchBar({
     } else if (e.key === "Enter" && active >= 0) {
       e.preventDefault();
       choose(results[active]);
-    } else if (e.key === "Escape") {
-      setOpen(false);
     }
   }
 
@@ -188,12 +192,17 @@ export function SearchBar({
       </div>
 
       {/* Screen-reader narration of the async result set — the listbox popping
-          open is invisible to AT until focus moves into it. */}
+          open is invisible to AT until focus moves into it. Failure states are
+          narrated too: the error panel below is otherwise silent for AT. */}
       <p aria-live="polite" role="status" className="sr-only">
         {open && results.length > 0
           ? `${results.length} matching propert${results.length === 1 ? "y" : "ies"}. Use the arrow keys to review.`
           : open && !loading && q.trim().length >= 2
-            ? "No matching properties."
+            ? rateLimited
+              ? "Searching too fast — wait a few seconds and try again."
+              : failed
+                ? "Search is unavailable right now. Try again in a moment."
+                : "No matching properties."
             : ""}
       </p>
 

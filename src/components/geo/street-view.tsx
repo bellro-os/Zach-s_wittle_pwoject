@@ -104,7 +104,7 @@ function StreetViewImpl({ lat, lng, address, className }: StreetViewProps) {
           href={panoHref}
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-border bg-card/60 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-[var(--cb-ember,#10b981)]/40 hover:text-[var(--cb-ember-text,#0f766e)]"
+          className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-border bg-card/60 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-[var(--cb-ember,#10b981)]/40 hover:text-[var(--cb-ember-text,#0f766e)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember,#10b981)]"
         >
           Open in Street View
           <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" aria-hidden>

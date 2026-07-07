@@ -4,101 +4,70 @@ import { memo } from "react";
 
 import { Pill } from "@/components/compbird/ui";
 import { CountUp } from "@/components/compbird/motion";
-import { usd, ppsf, pct, stripTags } from "@/lib/compbird/format";
+import { usd, ppsf, stripTags } from "@/lib/compbird/format";
+import { computeConfidenceFromSignals } from "@/lib/compbird/confidence";
+import { ConfidenceBadge, ConfidenceFactsLine } from "./confidence-badge";
 import type { Valuation } from "@/lib/compbird/types";
 
 /**
- * The headline number. The mid value reads LARGE with an animated count-up; the
- * low–high range, comp $/sqft and a divergence "confidence" pill sit beneath,
- * then the three valuation methods are itemized as rows with their rationale.
+ * The headline number. The mid value reads LARGE with an animated count-up; a
+ * two-tier confidence badge (src/lib/compbird/confidence.ts) sits beside it
+ * with the honest drivers in a popover; the low–high range, comp $/sqft and an
+ * always-visible comp-evidence facts line sit beneath, then the valuation
+ * methods are itemized as rows with their rationale.
+ *
+ * Confidence renders for LOCKED viewers too — it is computed from fields that
+ * survive redaction (compsSummary count/nearest + divergence_pct), so it works
+ * as a selling point for the unlock without moving any gated data client-side.
  */
-
-type Confidence =
-  | { kind: "none" }
-  | { kind: "pill"; label: string; tone: "positive" | "neutral" | "negative" };
-
-/**
- * Tighter spread ⇒ higher confidence — but a tight spread only MEANS something
- * once at least two independent comp-based methods agree. A single-method
- * valuation reports divergence 0.0; treating that as "high confidence" is a lie.
- * With no real estimate, we show no pill at all.
- */
-function confidence(
-  mid: number | null,
-  agreeingMethods: number,
-  divergence: number | null,
-  nearestMi: number | null,
-  supplementalShare = 0,
-): Confidence {
-  if (mid == null || mid <= 0) return { kind: "none" };
-  // Non-local comps can never read as high confidence — when the nearest
-  // comparable is far away, the headline number is geographic, not local
-  // evidence (the engine falls back to distant sales where local ones are scarce).
-  if (nearestMi != null && nearestMi > 40)
-    return {
-      kind: "pill",
-      label: `Comps ~${Math.round(nearestMi)} mi away · Low confidence`,
-      tone: "negative",
-    };
-  if (agreeingMethods < 2)
-    return { kind: "pill", label: "Single method · limited evidence", tone: "neutral" };
-  if (divergence == null)
-    return { kind: "pill", label: "Confidence —", tone: "neutral" };
-  const far = nearestMi != null && nearestMi > 15;
-  if (divergence > 10)
-    return { kind: "pill", label: `${pct(divergence)} spread · Wide spread`, tone: "negative" };
-  if (divergence > 5 || far)
-    return {
-      kind: "pill",
-      label: far
-        ? `Comps ~${Math.round(nearestMi as number)} mi away · Moderate confidence`
-        : `${pct(divergence)} spread · Moderate confidence`,
-      tone: "neutral",
-    };
-  // A pool dominated by public-records sales (no list-side fields, coarser
-  // attributes) can corroborate — but it can't push the read to "high".
-  if (supplementalShare > 0.5)
-    return {
-      kind: "pill",
-      label: `${pct(divergence)} spread · Public-records comps · Moderate confidence`,
-      tone: "neutral",
-    };
-  return { kind: "pill", label: `${pct(divergence)} spread · High confidence`, tone: "positive" };
-}
-
-/**
- * Methods whose value actually came from comparable sales. The model-based and
- * trend-based methods (AVM, prior-sale-plus-trend) corroborate but are not
- * "agreement among comps", so they don't count toward divergence confidence.
- */
-const NON_COMP_METHODS = new Set(["Prior sale + trend", "AVM (model)"]);
 
 function ValuationPanelImpl({
   valuation,
   nearestMi,
+  compCount,
   supplementalShare = 0,
   locked = false,
 }: {
   valuation: Valuation;
   /** Distance (mi) of the closest comp — caps confidence when comps aren't local. */
   nearestMi?: number | null;
-  /** Share (0–1) of comps sourced from public records — caps confidence at moderate past 50%. */
+  /**
+   * Number of comparable sales behind the estimate. Callers pass comps.length
+   * on live reports and compsSummary.count on locked ones (both survive
+   * redaction). Undefined = not wired: the facts line drops the count and the
+   * tier stays "standard" (a verified comp count is a high-tier gate).
+   */
+  compCount?: number | null;
+  /** Share (0–1) of comps sourced from public records — >50% caps the tier at standard. */
   supplementalShare?: number;
   /**
    * Evidence-redacted payload (methods stripped to [] for a non-Pro viewer).
-   * The mid/low/high still render; the confidence pill is suppressed — with
-   * zero visible methods it would falsely read "Single method · limited
-   * evidence" about a valuation that was merely redacted, not thin.
+   * The mid/low/high still render. The confidence tier is then computed from
+   * the engine's divergence_pct (which survives redaction) instead of the
+   * per-method values — see confidence.ts for what degrades.
    */
   locked?: boolean;
 }) {
   const mid = valuation.mid ?? null;
   const hasMid = mid != null && mid > 0;
   const methods = valuation.methods ?? [];
-  const agreeingMethods = methods.filter(
-    (m) => m.value != null && !NON_COMP_METHODS.has(m.name),
-  ).length;
-  const conf = confidence(mid, agreeingMethods, valuation.divergence_pct, nearestMi ?? null, supplementalShare);
+
+  // Locked payloads carry methods: [] — pass null (UNKNOWN) so the spread
+  // falls back to divergence_pct rather than reading redaction as "no methods".
+  const methodValues = locked
+    ? null
+    : methods
+        .map((m) => m.value)
+        .filter((v): v is number => typeof v === "number" && Number.isFinite(v) && v > 0);
+
+  const conf = computeConfidenceFromSignals({
+    compCount: compCount ?? null,
+    nearestMi: nearestMi ?? null,
+    methodValues,
+    divergencePct: valuation.divergence_pct ?? null,
+    mid,
+    supplementalShare,
+  });
 
   return (
     <div className="flex flex-col gap-7">
@@ -106,11 +75,10 @@ function ValuationPanelImpl({
       <div>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span className="cb-eyebrow text-muted-foreground">Estimated value</span>
-          {locked ? (
-            <Pill tone="neutral">Method breakdown — Pro</Pill>
-          ) : conf.kind === "pill" ? (
-            <Pill tone={conf.tone}>{conf.label}</Pill>
-          ) : null}
+          <span className="inline-flex flex-wrap items-center gap-2">
+            {locked ? <Pill tone="neutral">Method breakdown — Pro</Pill> : null}
+            {hasMid ? <ConfidenceBadge confidence={conf} /> : null}
+          </span>
         </div>
 
         <div className="mt-2 flex items-baseline gap-3">
@@ -127,6 +95,9 @@ function ValuationPanelImpl({
             </span>
           )}
         </div>
+
+        {/* comp-evidence facts — always visible, caution copy when comps run thin */}
+        {hasMid ? <ConfidenceFactsLine confidence={conf} className="mt-2.5" /> : null}
 
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 font-data text-sm text-muted-foreground">
           <span>
@@ -171,5 +142,5 @@ function ValuationPanelImpl({
   );
 }
 
-/** Memoized: the valuation object only changes identity when a recompute lands, so tuning-flag re-renders skip the whole panel. */
+/** Memoized: the valuation object only changes identity when a recompute lands, so tuning-flag re-renders skip the whole panel. (New confidence props are scalars — memo stays effective.) */
 export const ValuationPanel = memo(ValuationPanelImpl);

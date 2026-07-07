@@ -2,11 +2,14 @@ import { memo } from "react";
 import { Pill } from "@/components/compbird/ui";
 import { usd, ppsf, num, miles, dateLong } from "@/lib/compbird/format";
 import type { ProfileComp } from "@/lib/compbird/types";
+import { AddCompSearch } from "./add-comp-search";
 
 /**
  * The evidence: every closed comparable in one scannable grid. Figures are mono
  * tabular; atypical comps carry a small negative flag so the eye catches the
- * outlier the model down-weighted. Scrolls horizontally on narrow screens.
+ * outlier the model down-weighted. Scrolls horizontally on narrow screens. As a
+ * data-heavy panel it carries the faint parcel grid (`.cb-grid` — rule in
+ * compbird.css: evidence surfaces may, forms and cards may not).
  *
  * On LIVE reports the studio passes `onToggle` + the current `excluded` set, so
  * each row gains a keyboard-accessible Exclude/Include control that drops a comp
@@ -16,6 +19,11 @@ import type { ProfileComp } from "@/lib/compbird/types";
  * The studio may also pass a `forced` set — comps the user pinned in via the
  * "add a comparable" search. Those rows wear a "Pinned" badge so it's clear the
  * value rests on a comp the user added, not one the engine surfaced.
+ *
+ * When `onAddComp` is provided, the table grows a STICKY FOOTER (frosted, pins
+ * to the viewport bottom while a long comp set scrolls) holding the '+'
+ * add-a-comparable affordance plus the pinned comps as removable chips — the
+ * comp controls live with the evidence they act on, not in a separate box.
  */
 
 function baths(n: number | null): string {
@@ -54,6 +62,8 @@ export const CompsTable = memo(function CompsTable({
   excluded,
   forced,
   onToggle,
+  onAddComp,
+  onRemoveForced,
   busy = false,
 }: {
   comps: ProfileComp[];
@@ -63,27 +73,87 @@ export const CompsTable = memo(function CompsTable({
   forced?: Set<string>;
   /** Toggle a comp in/out of the valuation. Absent ⇒ read-only (sample). */
   onToggle?: (key: string, exclude: boolean) => void;
+  /** Pin a searched address IN as a comp — enables the sticky add-comp footer. */
+  onAddComp?: (address: string) => void;
+  /** Drop a previously-pinned address back out of the set (footer chips). */
+  onRemoveForced?: (address: string) => void;
   /** A recompute is in flight — disable the toggles to avoid pile-ups. */
   busy?: boolean;
 }) {
-  if (!comps.length) {
-    return (
-      <p className="rounded-xl border border-border bg-card/60 p-6 text-sm text-muted-foreground">
-        No comparable sales matched within the search window.
-      </p>
-    );
-  }
-
   const tunable = typeof onToggle === "function";
   const excludedSet = excluded ?? EMPTY;
   const forcedSet = forced ?? EMPTY;
+  const hasFooter = tunable && typeof onAddComp === "function";
 
-  return (
+  // Pinned chips: match each forced address back to a resolved row when present
+  // so the chip shows the engine's canonical address.
+  const pinnedChips = hasFooter
+    ? Array.from(forcedSet).map((address) => {
+        const comp = comps.find((c) => compKey(c) === address) ?? null;
+        return { address, label: (comp?.address ?? address).split(",")[0] };
+      })
+    : [];
+
+  // Sticky comp-controls footer — frosted (bg-card/85 + blur per the surface
+  // ladder) so it stays legible pinned over scrolling rows.
+  const footer = hasFooter ? (
+    <div className="sticky bottom-0 z-10 -mx-1 mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-border/70 bg-card/85 px-3 py-2.5 backdrop-blur">
+      <div className="min-w-[15rem] max-w-md flex-1">
+        <AddCompSearch onAdd={onAddComp!} busy={busy} pinned={forcedSet} dropUp />
+      </div>
+      {pinnedChips.length ? (
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <span className="cb-eyebrow mr-0.5 text-muted-foreground">Pinned</span>
+          {pinnedChips.map(({ address, label }) => (
+            <span
+              key={address}
+              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--cb-ember)]/30 bg-[var(--cb-tint)] py-1 pl-3 pr-1.5 text-xs font-medium text-[var(--cb-ember-text)]"
+            >
+              <span className="max-w-[16rem] truncate" title={address}>
+                {label}
+              </span>
+              <button
+                type="button"
+                onClick={() => onRemoveForced?.(address)}
+                disabled={busy}
+                aria-label={`Remove ${address} from the comp set`}
+                className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[var(--cb-ember-text)] transition-colors hover:bg-[var(--cb-ember)]/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cb-ember)] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" aria-hidden>
+                  <path
+                    d="M4 4l8 8M12 4l-8 8"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  ) : null;
+
+  if (!comps.length) {
+    // An empty live set is exactly when adding a comparable matters most —
+    // keep the add affordance alongside the empty notice.
+    return (
+      <div className="flex flex-col">
+        <p className="rounded-xl border border-border bg-card/60 p-6 text-sm text-muted-foreground">
+          No comparable sales matched within the search window.
+        </p>
+        {footer}
+      </div>
+    );
+  }
+
+  const table = (
     <div
       tabIndex={0}
       role="region"
       aria-label="Comparable sales table"
-      className="-mx-1 overflow-x-auto rounded-lg px-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]"
+      className="cb-grid -mx-1 overflow-x-auto rounded-lg px-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]"
     >
       <table className="w-full border-collapse text-sm sm:min-w-[44rem]">
         <thead>
@@ -245,6 +315,16 @@ export const CompsTable = memo(function CompsTable({
           })}
         </tbody>
       </table>
+    </div>
+  );
+
+  // Read-only (sample/locked) or footer-less mounts: just the table.
+  if (!footer) return table;
+
+  return (
+    <div className="flex flex-col">
+      {table}
+      {footer}
     </div>
   );
 });

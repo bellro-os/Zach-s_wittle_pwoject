@@ -177,7 +177,10 @@ export async function signup(formData: FormData): Promise<void> {
   recordSuccess("signup", ip);
   log.info("Account created", { accountId });
   await setSessionCookie({ userId: user.id, accountId, role: "OWNER", isSuperAdmin: false });
-  redirect(redirectTo);
+  // ?signedup=1 lets the client fire the ad-conversion event (CompleteRegistration)
+  // exactly once — <MarketingPixels/> consumes and strips it, mirroring the
+  // ?subscribed=1 toast pattern. safeAuthRedirect guarantees a query-less path.
+  redirect(`${redirectTo}?signedup=1`);
 }
 
 export async function logout(): Promise<void> {

@@ -43,16 +43,21 @@ export async function POST() {
 
     const origin =
       (await headers()).get("origin") || process.env.NEXT_PUBLIC_APP_URL?.trim() || "";
+    // Ad-consent flag rides through Stripe metadata to the webhook, which only
+    // sends the server-side Meta conversion if the buyer accepted the banner.
+    const adConsent = (await cookies()).get("cb_consent")?.value === "granted";
     const checkout = await stripe().checkout.sessions.create({
       mode: "subscription",
       customer: customerId,
       line_items: [{ price: subscriptionPriceId(), quantity: 1 }],
-      success_url: `${origin}/comps?subscribed=1`,
+      // `cs` (the Checkout session id) lets the browser pixel fire Subscribe with
+      // the SAME event id the webhook sends via the Conversions API → Meta dedups.
+      success_url: `${origin}/comps?subscribed=1&cs={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/comps?checkout=cancelled`,
       allow_promotion_codes: true,
       // accountId on BOTH the session and the subscription so the webhook can map
       // either event back to the account.
-      metadata: { accountId: account.id },
+      metadata: { accountId: account.id, adConsent: adConsent ? "1" : "0" },
       subscription_data: { metadata: { accountId: account.id } },
     });
     return NextResponse.json({ ok: true, url: checkout.url });

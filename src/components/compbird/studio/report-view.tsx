@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { toast } from "sonner";
 import { Pill } from "@/components/compbird/ui";
 import { LeafletMap, type GeoMapPoint } from "@/components/geo/leaflet-map";
@@ -170,28 +171,45 @@ export function ReportView({
   tuning?: boolean;
 }) {
   const { facts, valuation, marketContext, meta } = profile;
-  const comps = profile.comps ?? [];
-  const saleHistory = profile.saleHistory ?? [];
+  // Referential stability matters below: every array/object derived from the
+  // profile is memoized so the React.memo children (LeafletMap, LiveAnalytics,
+  // PpsfBars, MarketPanel, CompsTable, ValuationPanel) actually skip when the
+  // profile hasn't changed — e.g. when only the `tuning` flag flips. A bare
+  // `?? []` here would mint a fresh array per render and defeat all of them.
+  // (ReportView itself is deliberately NOT memo'd: the studio derives nearly
+  // every prop from state that changes together with the profile, so a memo
+  // wrapper would compare a dozen props and almost never hit.)
+  const comps = useMemo(() => profile.comps ?? [], [profile.comps]);
+  const saleHistory = useMemo(() => profile.saleHistory ?? [], [profile.saleHistory]);
   // Evidence-locked: the server redacted comps/market/methods for a non-Pro
   // viewer (src/lib/compbird/redact.ts). The SAMPLE dossier is never locked —
   // it is the demo, and its richness IS the pitch.
   const locked = Boolean(profile.locked) && !isSample;
   // Closest comp distance — caps the valuation confidence when comps aren't local.
-  const nearestMi = comps.reduce<number | null>((min, c) => {
-    const d = c.distance_mi;
-    if (d == null || !Number.isFinite(d)) return min;
-    return min == null || d < min ? d : min;
-  }, null);
-  if (!facts) {
-    return (
-      <p className="rounded-2xl border border-border bg-card/60 p-8 text-sm text-muted-foreground">
-        This property has no record we can profile yet.
-      </p>
-    );
-  }
-
-  const points = mapPoints(profile);
-  const asOf = meta?.as_of ?? meta?.generated ?? null;
+  const nearestMi = useMemo(
+    () =>
+      comps.reduce<number | null>((min, c) => {
+        const d = c.distance_mi;
+        if (d == null || !Number.isFinite(d)) return min;
+        return min == null || d < min ? d : min;
+      }, null),
+    [comps],
+  );
+  // Share of the comp pool that is public-records (supplemental) evidence —
+  // a primitive, so the memo'd ValuationPanel only re-renders on real change.
+  const supplementalShare = useMemo(
+    () =>
+      comps.length
+        ? comps.filter((c) => c.source === "supplemental").length / comps.length
+        : 0,
+    [comps],
+  );
+  // Map pins keyed to the profile: LeafletMap is memo'd, and a stable points
+  // array is what keeps the map subtree from re-rendering (and re-diffing its
+  // marker signature) on every unrelated studio state change.
+  const points = useMemo(() => mapPoints(profile), [profile]);
+  // Built once per profile — rendered in the panel AND read by the Copy button.
+  const summary = useMemo(() => dossierSummary(profile, nearestMi), [profile, nearestMi]);
 
   const excludedCount = excluded?.size ?? 0;
   const forcedSet = forced ?? EMPTY_SET;
@@ -210,12 +228,26 @@ export function ReportView({
 
   // Show pinned comps as removable chips — match each forced address back to a
   // resolved comp row when present so we can show its city alongside the address.
-  const forcedComps: { address: string; comp: ProfileComp | null }[] = canControl
-    ? Array.from(forcedSet).map((address) => ({
-        address,
-        comp: comps.find((c) => compKey(c) === address) ?? null,
-      }))
-    : [];
+  const forcedComps: { address: string; comp: ProfileComp | null }[] = useMemo(
+    () =>
+      canControl
+        ? Array.from(forcedSet).map((address) => ({
+            address,
+            comp: comps.find((c) => compKey(c) === address) ?? null,
+          }))
+        : [],
+    [canControl, forcedSet, comps],
+  );
+
+  if (!facts) {
+    return (
+      <p className="rounded-2xl border border-border bg-card/60 p-8 text-sm text-muted-foreground">
+        This property has no record we can profile yet.
+      </p>
+    );
+  }
+
+  const asOf = meta?.as_of ?? meta?.generated ?? null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -268,11 +300,8 @@ export function ReportView({
                   <ValuationPanel
                     valuation={valuation}
                     nearestMi={locked ? profile.compsSummary?.nearest_mi ?? null : nearestMi}
-                    supplementalShare={
-                      comps.length
-                        ? comps.filter((c) => c.source === "supplemental").length / comps.length
-                        : 0
-                    }
+                    compCount={locked ? profile.compsSummary?.count ?? null : comps.length}
+                    supplementalShare={supplementalShare}
                     locked={locked}
                   />
                 </div>
@@ -300,7 +329,16 @@ export function ReportView({
                 )}
               </div>
               {isSample ? (
-                <AerialMap points={points} height={420} className="h-full min-h-[20rem]" />
+                // The illustrative SVG aerial has no semantics of its own —
+                // give it an image role + honest name (fabricated pins must
+                // not read as a real map to AT either).
+                <div
+                  role="img"
+                  aria-label="Illustrative aerial map of the sample subject and comparable sales"
+                  className="h-full min-h-[20rem]"
+                >
+                  <AerialMap points={points} height={420} className="h-full min-h-[20rem]" />
+                </div>
               ) : (
                 <LeafletMap
                   points={points}
@@ -446,7 +484,10 @@ export function ReportView({
               <span className="text-xs text-muted-foreground">recomputing…</span>
             ) : null}
           </div>
-          <div className={tuning ? "opacity-60 transition-opacity" : "transition-opacity"}>
+          <div
+            className={tuning ? "opacity-60 transition-opacity" : "transition-opacity"}
+            aria-busy={tuning}
+          >
             <LiveAnalytics comps={comps} valuation={valuation ?? null} />
           </div>
         </PanelCard>
@@ -470,9 +511,10 @@ export function ReportView({
           <span className="cb-eyebrow text-muted-foreground">Talking points</span>
           <button
             type="button"
+            aria-label="Copy the talking-points summary"
             onClick={() => {
               void navigator.clipboard
-                .writeText(dossierSummary(profile, nearestMi))
+                .writeText(summary)
                 .then(() => toast.success("Summary copied"));
             }}
             className="rounded-full border border-border px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-[var(--cb-ember)]/40 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]"
@@ -480,9 +522,7 @@ export function ReportView({
             Copy
           </button>
         </div>
-        <p className="text-sm leading-relaxed text-foreground">
-          {dossierSummary(profile, nearestMi)}
-        </p>
+        <p className="text-sm leading-relaxed text-foreground">{summary}</p>
       </PanelCard>
 
       {/* actions */}

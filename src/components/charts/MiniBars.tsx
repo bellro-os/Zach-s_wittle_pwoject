@@ -50,10 +50,12 @@ export function MiniBars({
     >
       {items.map((it, idx) => {
         const h = Math.max(2, (it.value / max) * barArea);
-        // Comparison bars must stay legible on white: slate-600 at 0.6 alpha
-        // clears the 3:1 non-text floor (the old muted-foreground @0.32 washed
-        // out to ~2:1). Highlighted bar keeps the solid emerald accent.
-        const tone = it.highlight ? "var(--primary)" : "#475569";
+        // Comparison bars must stay legible on white: --chart-muted (slate-600,
+        // declared in compbird.css) at 0.6 alpha clears the 3:1 non-text floor
+        // (the old muted-foreground @0.32 washed out to ~2:1). The literal here
+        // is only the fallback for scopes that don't declare the token.
+        // Highlighted bar keeps the solid accent.
+        const tone = it.highlight ? "var(--primary)" : "var(--chart-muted, #475569)";
         const op = it.highlight ? 1 : 0.6;
         return (
           <div
