@@ -27,6 +27,10 @@ function ValuationPanelImpl({
   compCount,
   supplementalShare = 0,
   locked = false,
+  engineMid,
+  tunedCount = 0,
+  onResetTuning,
+  busy = false,
 }: {
   valuation: Valuation;
   /** Distance (mi) of the closest comp — caps confidence when comps aren't local. */
@@ -47,10 +51,34 @@ function ValuationPanelImpl({
    * per-method values — see confidence.ts for what degrades.
    */
   locked?: boolean;
+  /**
+   * Comp workshop: the FIRST unmodified engine mid for this subject (captured
+   * when the live profile loaded, before any pin/exclude). With `tunedCount`
+   * > 0 it drives the realized-delta ticker "Engine set $X → yours $Y (+Z%)".
+   * Display values on both sides ($5k-rounded, matching the headline and the
+   * PDF) — the engine doesn't ship unrounded mids over the preview wire.
+   */
+  engineMid?: number | null;
+  /** |excluded ∪ forced| — >0 means the comp set is agent-tuned right now. */
+  tunedCount?: number;
+  /** Clears every pin/exclusion and recomputes — the "Reset to engine picks" chip. */
+  onResetTuning?: () => void;
+  /** A recompute is in flight — disables the reset chip to avoid pile-ups. */
+  busy?: boolean;
 }) {
   const mid = valuation.mid ?? null;
   const hasMid = mid != null && mid > 0;
   const methods = valuation.methods ?? [];
+
+  // Realized estimate delta — only meaningful once the user actually tuned the
+  // comp set on a live report. NOTE: no ghost baseline tick here — this panel
+  // presents the low–high range as text, not on a scale, so there is no natural
+  // axis to host a tick (per spec: don't invent a new chart for it).
+  const tuned = tunedCount > 0 && typeof onResetTuning === "function";
+  const showDelta = tuned && engineMid != null && engineMid > 0 && hasMid;
+  // `+ 0` normalizes -0 so a tiny negative drift never prints "-0.0%".
+  const deltaPct = showDelta ? Math.round(((mid! - engineMid!) / engineMid!) * 1000) / 10 + 0 : 0;
+  const deltaStr = `${deltaPct > 0 ? "+" : ""}${deltaPct.toFixed(1)}%`;
 
   // Locked payloads carry methods: [] — pass null (UNKNOWN) so the spread
   // falls back to divergence_pct rather than reading redaction as "no methods".
@@ -112,6 +140,29 @@ function ValuationPanelImpl({
             </>
           ) : null}
         </div>
+
+        {/* comp-workshop tuning readout: realized delta vs the engine's own
+            picks + the way back. Renders only while excluded ∪ forced ≠ ∅. */}
+        {tuned ? (
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+            {showDelta ? (
+              <p className="font-data text-xs text-muted-foreground">
+                Engine set <span className="text-foreground">{usd(engineMid)}</span>{" "}
+                <span aria-hidden>→</span>
+                <span className="sr-only">to</span> yours{" "}
+                <span className="text-[var(--cb-ember-text)]">{usd(mid)}</span> ({deltaStr})
+              </p>
+            ) : null}
+            <button
+              type="button"
+              onClick={onResetTuning}
+              disabled={busy}
+              className="rounded-full border border-border px-3 py-1 text-xs font-medium text-foreground transition-colors hover:border-[var(--cb-ember)]/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Reset to engine picks
+            </button>
+          </div>
+        ) : null}
       </div>
 
       {/* method breakdown */}
@@ -142,5 +193,5 @@ function ValuationPanelImpl({
   );
 }
 
-/** Memoized: the valuation object only changes identity when a recompute lands, so tuning-flag re-renders skip the whole panel. (New confidence props are scalars — memo stays effective.) */
+/** Memoized: the valuation object only changes identity when a recompute lands, so most re-renders skip the panel. (Confidence + workshop props are scalars or stable callbacks; `busy` flips do re-render it now — that's the price of a live-disabled reset chip, and the subtree is small.) */
 export const ValuationPanel = memo(ValuationPanelImpl);

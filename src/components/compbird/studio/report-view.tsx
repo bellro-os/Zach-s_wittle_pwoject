@@ -145,6 +145,8 @@ export function ReportView({
   reportConfig,
   onOverridesChange,
   onReportConfigChange,
+  engineMid,
+  onResetTuning,
   tuning = false,
 }: {
   profile: ProfileResult;
@@ -159,6 +161,10 @@ export function ReportView({
   onAddComp?: (address: string) => void;
   /** Drop a previously-pinned address back out of the set. */
   onRemoveForced?: (address: string) => void;
+  /** The FIRST unmodified engine mid for this subject — the delta ticker's baseline. */
+  engineMid?: number | null;
+  /** Clear every pin/exclusion and recompute — absent on sample/locked reports. */
+  onResetTuning?: () => void;
   /** Agent what-if subject overrides (sqft/condition) — live reports only. */
   overrides?: SubjectOverrides;
   /** Report composition / exec-summary override — live reports only. */
@@ -303,6 +309,10 @@ export function ReportView({
                     compCount={locked ? profile.compsSummary?.count ?? null : comps.length}
                     supplementalShare={supplementalShare}
                     locked={locked}
+                    engineMid={engineMid}
+                    tunedCount={(excluded?.size ?? 0) + (forced?.size ?? 0)}
+                    onResetTuning={onResetTuning}
+                    busy={tuning}
                   />
                 </div>
               ) : null}
@@ -557,8 +567,13 @@ const EMPTY_CONFIG: ReportConfig = {};
 function lockedCompsTeaser(profile: ProfileResult): string {
   const s = profile.compsSummary;
   if (!s || s.count <= 0) return "Every comparable sale behind this estimate.";
-  const n = `${s.count} comparable sale${s.count === 1 ? "" : "s"} found`;
-  return s.nearest_mi != null ? `${n} · nearest ${s.nearest_mi.toFixed(1)} mi` : n;
+  const parts = [`${s.count} comparable sale${s.count === 1 ? "" : "s"} found`];
+  if (s.nearest_mi != null) parts.push(`nearest ${s.nearest_mi.toFixed(1)} mi`);
+  // Match clause only when the redaction-surviving aggregate exists (i.e. the
+  // engine scored the set) — older engine responses keep the line unchanged.
+  if (s.avg_similarity != null)
+    return `${parts.join(" · ")} · average match ${s.avg_similarity} — unlock the comp set to see why.`;
+  return parts.join(" · ");
 }
 
 /** One paste-able paragraph an agent can read aloud or drop into a text. */

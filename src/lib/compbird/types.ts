@@ -35,6 +35,58 @@ export interface SearchResponse {
   error?: string;
 }
 
+/* ── Comp-workshop similarity surface (CMA_COMP_SCORE_SURFACE=1) ───────────── */
+/**
+ * Per-comp match score + six-axis breakdown, emitted by the engine ONLY when
+ * CMA_COMP_SCORE_SURFACE=1 (compbird's own engine instance — Ratifyly's leaves
+ * it unset). Every field is OPTIONAL app-side: older engine responses and the
+ * static SAMPLE_PROFILE lack them entirely, and the UI hides the Match column
+ * when no comp carries a `similarity`. SOLO-only by construction — redact.ts
+ * strips `comps → []` for FREE callers, so no client-side gating exists.
+ */
+export interface CompSubscore {
+  /** The six axes the engine surfaces (price-band stays in the overall only). */
+  key: "location" | "recency" | "size" | "lot" | "age" | "type";
+  label: string;
+  /** 0–100 int; null = not computable ("sqft not recorded" → em-dash, not 0). */
+  score: number | null;
+  /** This axis's share of the subject's achievable max, whole percent. */
+  weight_pct: number;
+  /** Engine-generated plain-English reason ("0.3 mi away · same subdivision"). */
+  reason: string | null;
+}
+
+/** The optional similarity fields a preview OR profile comp may carry. */
+export interface CompSimilarity {
+  /**
+   * Overall match, 0–100 int, raw-anchored against THIS subject (never
+   * set-renormalized — pinning/excluding other comps can't move it). Includes
+   * the price axis + atypical/pending discounts, so it is deliberately NOT
+   * the average of the six subscores.
+   */
+  similarity?: number | null;
+  subscores?: CompSubscore[];
+  /** Top-3 plain-English drivers, ranked engine-side by weight × shortfall. */
+  reasons?: string[];
+  /** Set-relative honesty flags ($/sqft outlier, pending price) — never in the score. */
+  atypical_flags?: string[];
+  /** v1.1 — AI-hygiene annotation, e.g. "condition: renovated (+4% $/sqft)". */
+  hygiene_note?: string | null;
+  /** v1.1 — leave-one-out estimate impact in USD; null when the set is ≤ 3 comps. */
+  impact_usd?: number | null;
+}
+
+/**
+ * Subject-level aggregate of the per-comp scores. The engine attaches it to
+ * the preview SUBJECT and the profile RESULT; avg/top feed the FREE teaser
+ * (via CompsSummary), low is internal. Fields null when nothing was computable.
+ */
+export interface SimilaritySummary {
+  avg: number | null;
+  top: number | null;
+  low: number | null;
+}
+
 /* ── Evidence-paywall teaser (survives redaction) ──────────────────────────── */
 /**
  * Comp teaser computed server-side BEFORE comps are stripped for a non-Pro
@@ -46,6 +98,13 @@ export interface CompsSummary {
   count: number;
   nearest_mi: number | null;
   farthest_mi: number | null;
+  /**
+   * Average/top per-comp match (0–100 ints), computed from the UNREDACTED
+   * comps before the strip — the "average match 78" clause of the locked
+   * teaser. Absent when no comp carried a similarity score.
+   */
+  avg_similarity?: number;
+  top_similarity?: number;
 }
 
 /* ── Full dossier — /api/compbird/profile ──────────────────────────────────── */
@@ -85,7 +144,7 @@ export interface Valuation {
   methods: ValuationMethod[];
 }
 
-export interface ProfileComp {
+export interface ProfileComp extends CompSimilarity {
   address: string;
   city: string | null;
   subdivision: string | null;
@@ -152,6 +211,12 @@ export interface ProfileResult {
   /** Record-basis vs agent-adjusted value — shown in the on-screen disclosure. */
   overrideValue?: { record: number | null; adjusted: number | null } | null;
   /**
+   * Subject-level similarity aggregate — engine attaches it TOP-LEVEL on the
+   * profile payload (property_profile.py), unlike the preview where it rides
+   * on the subject. Only present under CMA_COMP_SCORE_SURFACE=1.
+   */
+  similarity_summary?: SimilaritySummary | null;
+  /**
    * Evidence paywall (server-side redaction — src/lib/compbird/redact.ts).
    * `locked: true` means comps/marketContext/saleHistory/methods were stripped
    * for a non-Pro caller; `compsSummary` is the teaser computed before the strip.
@@ -182,7 +247,7 @@ export interface GenerateResult {
  * One comparable as the live engine emits it (see PREVIEW_RUNNER in
  * src/lib/cma/engine.ts → `_comp_dict`). Mostly nullable: the feed is uneven.
  */
-export interface PreviewComp {
+export interface PreviewComp extends CompSimilarity {
   address: string | null;
   city: string | null;
   county: string | null;
@@ -239,6 +304,11 @@ export interface PreviewSubject {
   _record_mid?: number | null;
   /** Value at the agent-adjusted subject (== valuation.mid). */
   _adjusted_mid?: number | null;
+  /**
+   * Subject-level similarity aggregate — the preview engine attaches it to the
+   * SUBJECT dict (build_cma.py). Only present under CMA_COMP_SCORE_SURFACE=1.
+   */
+  similarity_summary?: SimilaritySummary | null;
 }
 
 /** One reconciliation method in the preview valuation (PREVIEW_RUNNER → `out_valuation`). */

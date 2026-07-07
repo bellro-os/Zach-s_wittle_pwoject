@@ -22,7 +22,7 @@ export type { CompsSummary };
 
 /** The evidence-bearing fields a Profile/Preview body may carry. */
 interface EvidenceFields {
-  comps?: Array<{ distance_mi?: number | null }> | null;
+  comps?: Array<{ distance_mi?: number | null; similarity?: number | null }> | null;
   saleHistory?: unknown;
   marketContext?: unknown;
   valuation?: Record<string, unknown> | null;
@@ -34,8 +34,9 @@ interface EvidenceFields {
  * Strip Pro-only evidence from an engine response, keeping the headline
  * estimate (valuation mid/low/high/divergence) live as the free teaser:
  *
- *   - comps → [] (a `compsSummary` teaser — count + nearest/farthest mi — is
- *     computed FIRST so the locked UI can still say "6 comps within 1.2 mi")
+ *   - comps → [] (a `compsSummary` teaser — count + nearest/farthest mi +
+ *     avg/top match when the engine scored the set — is computed FIRST so the
+ *     locked UI can still say "6 comps within 1.2 mi · average match 78")
  *   - marketContext → null, saleHistory → []
  *   - valuation keeps mid/low/high/divergence_pct; methods → [] and every
  *     comp-derived ppsf (comp_ppsf / implied_subject_ppsf / preview `ppsf`)
@@ -58,6 +59,19 @@ export function redactEvidence<T extends object>(
     nearest_mi: distances.length ? Math.min(...distances) : null,
     farthest_mi: distances.length ? Math.max(...distances) : null,
   };
+
+  // Match teaser — avg/top of the per-comp similarity scores (comp-workshop
+  // surface, present only when the engine ran with CMA_COMP_SCORE_SURFACE=1).
+  // OMITTED entirely when no comp carries a score, so older engine responses
+  // keep today's exact CompsSummary shape. Only these two aggregate ints leak
+  // past the paywall — never the per-comp scores, subscores, or reasons.
+  const sims = comps
+    .map((c) => (c && typeof c === "object" ? c.similarity : null))
+    .filter((s): s is number => typeof s === "number" && Number.isFinite(s));
+  if (sims.length) {
+    compsSummary.avg_similarity = Math.round(sims.reduce((a, b) => a + b, 0) / sims.length);
+    compsSummary.top_similarity = Math.round(Math.max(...sims));
+  }
 
   const out: Record<string, unknown> = { ...(body as Record<string, unknown>) };
 

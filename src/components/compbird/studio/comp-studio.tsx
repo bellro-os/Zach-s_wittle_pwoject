@@ -89,6 +89,15 @@ function previewCompToProfile(
     cohort: c.cohort,
     atypical_reason: c.atypical_reason,
     appearance_tier: c.appearance_tier,
+    // Comp-workshop similarity surface (CompSimilarity) — carried through
+    // VERBATIM so a tuned recompute keeps its Match column. All optional:
+    // an engine without CMA_COMP_SCORE_SURFACE=1 simply doesn't send them.
+    similarity: c.similarity,
+    subscores: c.subscores,
+    reasons: c.reasons,
+    atypical_flags: c.atypical_flags,
+    hygiene_note: c.hygiene_note,
+    impact_usd: c.impact_usd,
   };
 }
 
@@ -434,6 +443,17 @@ export function CompStudio() {
     reportConfigRef.current = next;
   }, []);
 
+  // "Reset to engine picks": clear every pin/exclusion and restore the engine's
+  // own comp set. runPreview([], []) short-circuits to the stored base when no
+  // subject overrides are active, so the common case is a zero-round-trip snap
+  // back; with overrides present it recomputes them against the untouched set.
+  const resetTuning = useCallback(() => {
+    if (isSample || !subjectRef.current) return;
+    setExcluded([]);
+    setForced([]);
+    runPreview([], []);
+  }, [isSample, runPreview]);
+
   // Tear down any pending preview on unmount.
   useEffect(() => cancelPreview, [cancelPreview]);
 
@@ -536,6 +556,8 @@ export function CompStudio() {
               reportConfig={reportConfig}
               onOverridesChange={inert ? undefined : onOverridesChange}
               onReportConfigChange={inert ? undefined : onReportConfigChange}
+              engineMid={inert ? undefined : baseRef.current?.valuation?.mid ?? null}
+              onResetTuning={inert ? undefined : resetTuning}
               tuning={tuning}
             />
           </Reveal>

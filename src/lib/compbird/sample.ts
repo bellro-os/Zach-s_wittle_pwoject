@@ -83,7 +83,10 @@ export const SAMPLE_PROFILE: ProfileResult = {
       "lat": 37.150885,
       "lng": -80.36295,
       "pending": false,
-      "atypical": false
+      "atypical": false,
+      "similarity": 85,
+      "subscores": [{"key": "location", "label": "Location", "score": 97, "weight_pct": 34, "reason": "0.2 mi away · same subdivision"}, {"key": "recency", "label": "Recency", "score": 95, "weight_pct": 15, "reason": "sold 1 month ago"}, {"key": "size", "label": "Size", "score": 96, "weight_pct": 22, "reason": "3% smaller — 2,024 vs 2,096 sqft"}, {"key": "lot", "label": "Lot", "score": 62, "weight_pct": 5, "reason": "0.75 ac vs 0.26 ac"}, {"key": "age", "label": "Age", "score": 88, "weight_pct": 7, "reason": "built 2026 — 4 yrs newer"}, {"key": "type", "label": "Type", "score": 80, "weight_pct": 9, "reason": "4 bd / 2 ba vs 4 bd / 3 ba"}],
+      "reasons": ["0.2 mi away", "sold 1 month ago", "0.75 ac vs 0.26 ac"]
     },
     {
       "address": "1041 ST CLAIR Lane",
@@ -102,7 +105,10 @@ export const SAMPLE_PROFILE: ProfileResult = {
       "lat": 37.147482,
       "lng": -80.363748,
       "pending": false,
-      "atypical": false
+      "atypical": false,
+      "similarity": 88,
+      "subscores": [{"key": "location", "label": "Location", "score": 99, "weight_pct": 34, "reason": "0.1 mi away · same subdivision"}, {"key": "recency", "label": "Recency", "score": 88, "weight_pct": 15, "reason": "sold 3 months ago"}, {"key": "size", "label": "Size", "score": 99, "weight_pct": 22, "reason": "1% smaller — 2,075 vs 2,096 sqft"}, {"key": "lot", "label": "Lot", "score": 96, "weight_pct": 5, "reason": "0.30 ac vs 0.26 ac"}, {"key": "age", "label": "Age", "score": 78, "weight_pct": 7, "reason": "built 2018 — 4 yrs older"}, {"key": "type", "label": "Type", "score": 80, "weight_pct": 9, "reason": "4 bd / 2 ba vs 4 bd / 3 ba"}],
+      "reasons": ["0.1 mi away", "1% smaller", "sold 3 months ago"]
     },
     {
       "address": "1441 Walnut Ridge Road",
@@ -121,7 +127,10 @@ export const SAMPLE_PROFILE: ProfileResult = {
       "lat": 37.150588,
       "lng": -80.362581,
       "pending": false,
-      "atypical": false
+      "atypical": false,
+      "similarity": 84,
+      "subscores": [{"key": "location", "label": "Location", "score": 97, "weight_pct": 34, "reason": "0.2 mi away · same subdivision"}, {"key": "recency", "label": "Recency", "score": 97, "weight_pct": 15, "reason": "sold 2 weeks ago"}, {"key": "size", "label": "Size", "score": 94, "weight_pct": 22, "reason": "5% larger — 2,207 vs 2,096 sqft"}, {"key": "lot", "label": "Lot", "score": 78, "weight_pct": 5, "reason": "0.48 ac vs 0.26 ac"}, {"key": "age", "label": "Age", "score": 88, "weight_pct": 7, "reason": "built 2026 — 4 yrs newer"}, {"key": "type", "label": "Type", "score": 66, "weight_pct": 9, "reason": "5 bd / 2 ba vs 4 bd / 3 ba"}],
+      "reasons": ["0.2 mi away", "sold 2 weeks ago", "5 bd / 2 ba vs 4 bd / 3 ba"]
     },
     {
       "address": "1140 Crosscreek Drive",
@@ -140,7 +149,10 @@ export const SAMPLE_PROFILE: ProfileResult = {
       "lat": 37.146968,
       "lng": -80.364234,
       "pending": false,
-      "atypical": false
+      "atypical": false,
+      "similarity": 76,
+      "subscores": [{"key": "location", "label": "Location", "score": 98, "weight_pct": 34, "reason": "0.1 mi away · same subdivision"}, {"key": "recency", "label": "Recency", "score": 46, "weight_pct": 15, "reason": "sold 15 months ago"}, {"key": "size", "label": "Size", "score": 99, "weight_pct": 22, "reason": "1% smaller — 2,082 vs 2,096 sqft"}, {"key": "lot", "label": "Lot", "score": 80, "weight_pct": 5, "reason": "0.46 ac vs 0.26 ac"}, {"key": "age", "label": "Age", "score": 78, "weight_pct": 7, "reason": "built 2018 — 4 yrs older"}, {"key": "type", "label": "Type", "score": 100, "weight_pct": 9, "reason": "4 bd / 3 ba — matches the subject"}],
+      "reasons": ["sold 15 months ago", "0.1 mi away", "4 bd / 3 ba — matches the subject"]
     },
     {
       "address": "1271 WALNUT RIDGE Road",
@@ -159,7 +171,10 @@ export const SAMPLE_PROFILE: ProfileResult = {
       "lat": 37.148531,
       "lng": -80.363158,
       "pending": false,
-      "atypical": false
+      "atypical": false,
+      "similarity": 68,
+      "subscores": [{"key": "location", "label": "Location", "score": 98, "weight_pct": 34, "reason": "0.1 mi away · same subdivision"}, {"key": "recency", "label": "Recency", "score": 24, "weight_pct": 15, "reason": "sold 2 years ago"}, {"key": "size", "label": "Size", "score": 99, "weight_pct": 22, "reason": "1% larger — 2,124 vs 2,096 sqft"}, {"key": "lot", "label": "Lot", "score": 99, "weight_pct": 5, "reason": "0.27 ac vs 0.26 ac"}, {"key": "age", "label": "Age", "score": 92, "weight_pct": 7, "reason": "built 2020 — 2 yrs older"}, {"key": "type", "label": "Type", "score": 80, "weight_pct": 9, "reason": "4 bd / 2 ba vs 4 bd / 3 ba"}],
+      "reasons": ["sold 2 years ago", "0.1 mi away", "1% larger"]
     },
     {
       "address": "1031 GREEN RIDGE Road",
@@ -178,9 +193,13 @@ export const SAMPLE_PROFILE: ProfileResult = {
       "lat": 37.146554,
       "lng": -80.359564,
       "pending": false,
-      "atypical": false
+      "atypical": false,
+      "similarity": 74,
+      "subscores": [{"key": "location", "label": "Location", "score": 92, "weight_pct": 34, "reason": "0.3 mi away · same subdivision"}, {"key": "recency", "label": "Recency", "score": 70, "weight_pct": 15, "reason": "sold 7 months ago"}, {"key": "size", "label": "Size", "score": 96, "weight_pct": 22, "reason": "4% larger — 2,182 vs 2,096 sqft"}, {"key": "lot", "label": "Lot", "score": 96, "weight_pct": 5, "reason": "0.30 ac vs 0.26 ac"}, {"key": "age", "label": "Age", "score": 48, "weight_pct": 7, "reason": "built 2009 — 13 yrs older"}, {"key": "type", "label": "Type", "score": 83, "weight_pct": 9, "reason": "5 bd / 3 ba vs 4 bd / 3 ba"}],
+      "reasons": ["built 2009 — 13 yrs older", "sold 7 months ago", "sold well outside the subject's price band"]
     }
   ],
+  "similarity_summary": { "avg": 79, "top": 88, "low": 68 },
   "saleHistory": [],
   "marketContext": {
     "scope": "subdivision",

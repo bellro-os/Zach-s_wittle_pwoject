@@ -3,6 +3,7 @@ import { Pill } from "@/components/compbird/ui";
 import { usd, ppsf, num, miles, dateLong } from "@/lib/compbird/format";
 import type { ProfileComp } from "@/lib/compbird/types";
 import { AddCompSearch } from "./add-comp-search";
+import { MatchPopover } from "./match-popover";
 
 /**
  * The evidence: every closed comparable in one scannable grid. Figures are mono
@@ -24,6 +25,11 @@ import { AddCompSearch } from "./add-comp-search";
  * to the viewport bottom while a long comp set scrolls) holding the '+'
  * add-a-comparable affordance plus the pinned comps as removable chips — the
  * comp controls live with the evidence they act on, not in a separate box.
+ *
+ * COMP WORKSHOP: when the engine scored the set (per-comp `similarity`,
+ * CMA_COMP_SCORE_SURFACE=1), a Match column appears after Address — integer +
+ * tier word + hairline ember bar, opening the six-axis breakdown popover
+ * (match-popover.tsx). Unscored responses never grow the column.
  */
 
 function baths(n: number | null): string {
@@ -42,7 +48,13 @@ export function compKey(c: ProfileComp): string {
 
 // `mobile: false` columns collapse below sm — phones keep the decision-driving
 // figures (price, $/sqft, beds/baths, distance) without a 44rem side-scroll.
-const COLS = [
+interface Col {
+  key: string;
+  label: string;
+  align: "left" | "right";
+  mobile: boolean;
+}
+const COLS: readonly Col[] = [
   { key: "address", label: "Address", align: "left", mobile: true },
   { key: "sold", label: "Sold", align: "right", mobile: true },
   { key: "ppsf", label: "$/sqft", align: "right", mobile: true },
@@ -52,7 +64,16 @@ const COLS = [
   { key: "closed", label: "Closed", align: "right", mobile: false },
   { key: "dom", label: "DOM", align: "right", mobile: false },
   { key: "dist", label: "Dist", align: "right", mobile: true },
-] as const;
+];
+
+/**
+ * Comp-workshop Match column, inserted right after Address ONLY when at least
+ * one comp carries an engine similarity score. Older engine responses (and any
+ * profile served without CMA_COMP_SCORE_SURFACE=1) simply never grow the
+ * column — no placeholder header, no empty cells. Mobile keeps it: the score
+ * is the wow figure the workshop exists for.
+ */
+const MATCH_COL: Col = { key: "match", label: "Match", align: "right", mobile: true };
 
 /** Hidden below sm for `mobile: false` columns (headers + cells in lockstep). */
 const desktopOnly = "hidden sm:table-cell";
@@ -84,6 +105,10 @@ export const CompsTable = memo(function CompsTable({
   const excludedSet = excluded ?? EMPTY;
   const forcedSet = forced ?? EMPTY;
   const hasFooter = tunable && typeof onAddComp === "function";
+  // Match column exists only when the engine actually scored the set (rule:
+  // hide it entirely — never placeholders — for unscored/older responses).
+  const hasMatch = comps.some((c) => typeof c.similarity === "number");
+  const cols = hasMatch ? [COLS[0], MATCH_COL, ...COLS.slice(1)] : COLS;
 
   // Pinned chips: match each forced address back to a resolved row when present
   // so the chip shows the engine's canonical address.
@@ -158,7 +183,7 @@ export const CompsTable = memo(function CompsTable({
       <table className="w-full border-collapse text-sm sm:min-w-[44rem]">
         <thead>
           <tr className="border-b border-border">
-            {COLS.map((c) => (
+            {cols.map((c) => (
               <th
                 key={c.key}
                 scope="col"
@@ -194,6 +219,11 @@ export const CompsTable = memo(function CompsTable({
                 onKeyDown={
                   tunable
                     ? (e) => {
+                        // Only when the ROW itself is focused — a Space/X aimed
+                        // at a control inside the row (the Match popover
+                        // trigger, the Exclude button) must reach that control,
+                        // not silently toggle the comp.
+                        if (e.target !== e.currentTarget) return;
                         if (e.key === " " || e.key.toLowerCase() === "x") {
                           e.preventDefault();
                           if (!busy) onToggle!(key, !isExcluded);
@@ -260,6 +290,17 @@ export const CompsTable = memo(function CompsTable({
                     </span>
                   ) : null}
                 </td>
+                {hasMatch ? (
+                  <td className="whitespace-nowrap py-3 pl-4 text-right align-middle">
+                    {typeof c.similarity === "number" ? (
+                      <MatchPopover comp={c} pinned={isForced} />
+                    ) : (
+                      // Mixed set: this comp predates the score surface — an
+                      // em-dash, matching every other unknown cell in the table.
+                      <span className="font-data text-muted-foreground">—</span>
+                    )}
+                  </td>
+                ) : null}
                 <td className="whitespace-nowrap py-3 pl-4 text-right align-middle font-data text-foreground">
                   {usd(c.sold_price)}
                 </td>
