@@ -31,7 +31,8 @@ export type CompbirdSurface =
   | "compbird:pdf"
   | "compbird:markets"
   | "compbird:streetview"
-  | "compbird:lead";
+  | "compbird:lead"
+  | "compbird:portfolio";
 
 /** Fixed-window budget: at most `max` requests per `windowMs` per IP. */
 interface Limit {
@@ -62,6 +63,8 @@ const MARKETS_LIMIT: Limit = { max: 20, windowMs: MINUTE }; // ~20/min/IP
 const STREETVIEW_LIMIT: Limit = { max: 30, windowMs: MINUTE }; // ~30/min/IP
 /** lead appends a waitlist email to a file (cheap, but abuse-prone form post). */
 const LEAD_LIMIT: Limit = { max: 5, windowMs: MINUTE }; // ~5/min/IP
+/** portfolio POST enqueues up to 50 engine valuations per call — strictest budget. */
+const PORTFOLIO_LIMIT: Limit = { max: 4, windowMs: MINUTE }; // ~4/min/IP
 
 const LIMITS: Record<CompbirdSurface, Limit> = {
   "compbird:generate": GENERATE_LIMIT,
@@ -72,6 +75,7 @@ const LIMITS: Record<CompbirdSurface, Limit> = {
   "compbird:markets": MARKETS_LIMIT,
   "compbird:streetview": STREETVIEW_LIMIT,
   "compbird:lead": LEAD_LIMIT,
+  "compbird:portfolio": PORTFOLIO_LIMIT,
 };
 
 interface Window {

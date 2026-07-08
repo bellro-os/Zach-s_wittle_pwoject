@@ -87,3 +87,45 @@ model UsageEvent {
 
   @@index([accountId, feature, createdAt])
 }
+
+/// One batch-valuation run ("cma.portfolio", SOLO+). Statuses are plain strings
+/// (not enums) so they stay byte-identical to the wire contract in
+/// src/lib/compbird/portfolio.ts: "running" | "done" | "failed".
+model PortfolioRun {
+  id        String          @id @default(cuid())
+  accountId String
+  userId    String
+  status    String          @default("running")
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  items     PortfolioItem[]
+
+  @@index([accountId, createdAt])
+}
+
+/// One property inside a PortfolioRun. Result fields stay null until the batch
+/// runner lands them; status: "pending" | "running" | "done" | "error".
+model PortfolioItem {
+  id              String       @id @default(cuid())
+  runId           String
+  position        Int
+  label           String?
+  inputAddress    String?
+  inputParcelId   String?
+  status          String       @default("pending")
+  resolvedAddress String?
+  parcelId        String?
+  mid             Float?
+  low             Float?
+  high            Float?
+  confidenceTier  String?
+  caution         Boolean?
+  compCount       Int?
+  nearestMi       Float?
+  avgMatch        Float?
+  error           String?
+  updatedAt       DateTime     @updatedAt
+  run             PortfolioRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId, position])
+}

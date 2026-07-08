@@ -117,6 +117,9 @@ export function StudioAccountMenu({
             >
               Account settings
             </Link>
+            <Link href="/portfolio" role="menuitem" onClick={() => setOpen(false)} className={itemCls}>
+              Portfolio
+            </Link>
             {subscribed ? (
               <button
                 type="button"

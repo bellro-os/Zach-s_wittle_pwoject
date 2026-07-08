@@ -17,6 +17,7 @@ export type FeatureKey =
   | "cma.evidence"
   | "cma.whitelabel"
   | "cma.statewide_data"
+  | "cma.portfolio"
   | "market.reports";
 
 /**
@@ -40,6 +41,7 @@ export const TIER_MATRIX: Record<Tier, TierMatrix> = {
     "cma.evidence": true, // comps / market analytics / sale history / method breakdown
     "cma.whitelabel": true,
     "cma.statewide_data": true,
+    "cma.portfolio": true, // batch valuation runs (Pro-only, mirrors cma.evidence)
     "market.reports": true,
   },
   ADMIN: {
@@ -48,6 +50,7 @@ export const TIER_MATRIX: Record<Tier, TierMatrix> = {
     "cma.evidence": true,
     "cma.whitelabel": true,
     "cma.statewide_data": true,
+    "cma.portfolio": true,
     "market.reports": true,
   },
 };
