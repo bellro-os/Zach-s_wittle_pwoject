@@ -5,10 +5,11 @@ import { toast } from "sonner";
 import { Pill } from "@/components/compbird/ui";
 import { LeafletMap, type GeoMapPoint } from "@/components/geo/leaflet-map";
 import { AerialMap } from "@/components/compbird/graphics";
-import { StreetView } from "@/components/geo/street-view";
 import { dateLong, usd } from "@/lib/compbird/format";
+import { readFreshness } from "@/lib/compbird/freshness";
 import type { ProfileResult, ProfileComp } from "@/lib/compbird/types";
-import { SubjectHeader } from "./subject-header";
+import { SubjectCard } from "./subject-card";
+import { DataFreshness } from "./data-freshness";
 import { ValuationPanel } from "./valuation-panel";
 import { CompsTable, compKey, retainExcludedComps } from "./comps-table";
 import { AddCompSearch } from "./add-comp-search";
@@ -17,15 +18,24 @@ import { LiveAnalytics } from "./live-analytics";
 import { MarketPanel } from "./market-panel";
 import { LockedPanel } from "./locked-panel";
 import { ReportActions } from "./report-actions";
-import { SubjectFactsEditor } from "./subject-facts-editor";
 import { SummaryEditor } from "./summary-editor";
 import type { SubjectOverrides, ReportConfig } from "@/lib/cma/overrides";
 
 /**
- * Composes a full dossier from a ProfileResult. A client component now — it
- * mounts the real Leaflet map + Street View tile and, on LIVE reports, the
- * "add a comparable" search so the comp set is fully user-controllable. The
- * studio swaps this in once a profile resolves.
+ * Composes a full dossier from a ProfileResult. Restructured into three reading
+ * ZONES rather than a stack of identical bordered cards:
+ *
+ *   ZONE 1 — SUBJECT + VALUE. The editable subject block sits beside the
+ *     valuation, which is the single FOCAL POINT (largest type on the page);
+ *     the data-freshness stamp + record→adjusted disclosure + map live here too.
+ *   ZONE 2 — EVIDENCE. Comps table, $/sqft bars, live analytics and the
+ *     neighborhood market read as ONE connected panel divided by hairline rules,
+ *     not four sibling cards at the same weight.
+ *   ZONE 3 — OUTPUT. Talking points + the exec-summary override + report actions.
+ *
+ * A client component: it mounts the real Leaflet map, and on LIVE reports the
+ * what-if subject editor + "add a comparable" search so the comp set is fully
+ * user-controllable. The studio swaps this in once a profile resolves.
  */
 
 /** Build map points from the subject facts + every comp that carries coords. */
@@ -43,20 +53,6 @@ function mapPoints(profile: ProfileResult): GeoMapPoint[] {
   return pts;
 }
 
-function PanelCard({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={`rounded-2xl border border-border bg-card/70 p-5 sm:p-7 ${className ?? ""}`}>
-      {children}
-    </div>
-  );
-}
-
 function MapLegend() {
   return (
     <div className="flex items-center gap-4 rounded-full border border-border bg-card/85 px-3 py-1.5 text-[0.7rem] text-muted-foreground backdrop-blur">
@@ -70,6 +66,27 @@ function MapLegend() {
         <span className="h-2 w-2 rounded-full border border-[var(--negative)] bg-[var(--negative)]/30" aria-hidden />{" "}
         Atypical
       </span>
+    </div>
+  );
+}
+
+/** ZONE section header — eyebrow + heading, used to open ZONE 2 / ZONE 3. */
+function ZoneHeading({
+  eyebrow,
+  title,
+  aside,
+}: {
+  eyebrow: string;
+  title: string;
+  aside?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-col gap-1">
+        <span className="cb-eyebrow text-muted-foreground">{eyebrow}</span>
+        <h3 className="font-display text-xl font-semibold text-foreground">{title}</h3>
+      </div>
+      {aside}
     </div>
   );
 }
@@ -165,7 +182,7 @@ export function ReportView({
   engineMid?: number | null;
   /** Clear every pin/exclusion and recompute — absent on sample/locked reports. */
   onResetTuning?: () => void;
-  /** Agent what-if subject overrides (sqft/condition) — live reports only. */
+  /** Agent what-if subject overrides (all 8 fields) — live reports only. */
   overrides?: SubjectOverrides;
   /** Report composition / exec-summary override — live reports only. */
   reportConfig?: ReportConfig;
@@ -216,6 +233,9 @@ export function ReportView({
   const points = useMemo(() => mapPoints(profile), [profile]);
   // Built once per profile — rendered in the panel AND read by the Copy button.
   const summary = useMemo(() => dossierSummary(profile, nearestMi), [profile, nearestMi]);
+  // Honest freshness stamp — newest comp close_date (falls back to meta.as_of),
+  // memoized so the DataFreshness line is stable across tuning re-renders.
+  const freshness = useMemo(() => readFreshness(profile), [profile]);
 
   const excludedCount = excluded?.size ?? 0;
   const forcedSet = forced ?? EMPTY_SET;
@@ -275,17 +295,17 @@ export function ReportView({
   const asOf = meta?.as_of ?? meta?.generated ?? null;
 
   return (
-    <div className="flex flex-col gap-6">
-      {/*
-        Valuation + comps live inside one wrapper so a fallback report gets an
-        unmistakable inline SAMPLE treatment — a tinted ring + corner banner over
-        the figures that are modeled, not measured.
-      */}
-      <div
+    <div className="flex flex-col gap-10">
+      {/* ══ ZONE 1 — SUBJECT + VALUE ══════════════════════════════════════════
+          The subject you can correct + the answer. One wrapper carries the
+          SAMPLE treatment (tinted ring + corner banner) over the modeled
+          figures. The value is the page's single focal point. */}
+      <section
+        aria-label="Subject and estimated value"
         className={
           isSample
-            ? "relative rounded-3xl ring-1 ring-inset ring-[var(--cb-ember)]/25"
-            : "relative"
+            ? "relative rounded-3xl bg-card/40 p-4 ring-1 ring-inset ring-[var(--cb-ember)]/25 sm:p-6"
+            : "relative rounded-3xl border border-border bg-card/60 p-4 sm:p-6"
         }
       >
         {isSample ? (
@@ -303,48 +323,50 @@ export function ReportView({
           </>
         ) : null}
 
-        <div className="flex flex-col gap-6 p-px sm:p-1">
-          {/* identity + value, side by side on wide screens */}
-          <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
-            <PanelCard className="flex flex-col gap-7">
-              <SubjectHeader facts={facts} estimateMid={valuation?.mid ?? null} />
+        {/* identity (+ editable what-if) beside the value focal point */}
+        <div className="grid gap-x-10 gap-y-8 lg:grid-cols-[1.05fr_0.95fr]">
+          {/* LEFT — subject identity + the what-if editor anchored to the facts */}
+          <SubjectCard
+            facts={facts}
+            estimateMid={valuation?.mid ?? null}
+            canEdit={canEdit}
+            overrides={overrides}
+            onOverridesChange={canEdit ? onOverridesChange : undefined}
+          />
 
-              {/* street view — auto-loads from the proxy when coords are present */}
-              <div className="flex flex-col gap-2">
-                <span className="cb-eyebrow text-muted-foreground">Street view</span>
-                <StreetView lat={facts.lat} lng={facts.lng} address={facts.address} />
+          {/* RIGHT — the HERO: the value, its freshness stamp, disclosure, map */}
+          <div className="flex flex-col gap-6">
+            {valuation ? (
+              <div
+                className={tuning ? "opacity-60 transition-opacity" : "transition-opacity"}
+                aria-busy={tuning}
+              >
+                <ValuationPanel
+                  valuation={valuation}
+                  nearestMi={locked ? profile.compsSummary?.nearest_mi ?? null : nearestMi}
+                  compCount={locked ? profile.compsSummary?.count ?? null : comps.length}
+                  supplementalShare={supplementalShare}
+                  locked={locked}
+                  engineMid={engineMid}
+                  tunedCount={(excluded?.size ?? 0) + (forced?.size ?? 0)}
+                  onResetTuning={onResetTuning}
+                  busy={tuning}
+                />
               </div>
+            ) : null}
 
-              {valuation ? (
-                <div
-                  className={
-                    tuning ? "opacity-60 transition-opacity" : "transition-opacity"
-                  }
-                  aria-busy={tuning}
-                >
-                  <ValuationPanel
-                    valuation={valuation}
-                    nearestMi={locked ? profile.compsSummary?.nearest_mi ?? null : nearestMi}
-                    compCount={locked ? profile.compsSummary?.count ?? null : comps.length}
-                    supplementalShare={supplementalShare}
-                    locked={locked}
-                    engineMid={engineMid}
-                    tunedCount={(excluded?.size ?? 0) + (forced?.size ?? 0)}
-                    onResetTuning={onResetTuning}
-                    busy={tuning}
-                  />
-                </div>
-              ) : null}
-              {profile.overrideDiff ? (
-                <OverrideDisclosure diff={profile.overrideDiff} value={profile.overrideValue} />
-              ) : null}
-            </PanelCard>
+            {/* honest provenance — sits right under the value it describes */}
+            <DataFreshness freshness={freshness} sample={isSample} />
+
+            {profile.overrideDiff ? (
+              <OverrideDisclosure diff={profile.overrideDiff} value={profile.overrideValue} />
+            ) : null}
 
             {/* Map of the subject + comps. Sample reports draw the pure-SVG
                 aerial (fabricated comps must not sit on a real OSM basemap, and
                 it skips the Leaflet runtime + tile fetches on first paint); live
                 reports get the real OSM map. */}
-            <div className="relative flex flex-col">
+            <div className="relative flex min-h-[18rem] flex-1 flex-col">
               {/* Locked: the comps array is redacted, so only the subject pin
                   renders — say so instead of showing a legend for pins that
                   aren't there. */}
@@ -364,77 +386,70 @@ export function ReportView({
                 <div
                   role="img"
                   aria-label="Illustrative aerial map of the sample subject and comparable sales"
-                  className="h-full min-h-[20rem]"
+                  className="h-full min-h-[18rem]"
                 >
-                  <AerialMap points={points} height={420} className="h-full min-h-[20rem]" />
+                  <AerialMap points={points} height={360} className="h-full min-h-[18rem]" />
                 </div>
               ) : (
-                <LeafletMap
-                  points={points}
-                  height={420}
-                  className="h-full min-h-[20rem]"
-                />
+                <LeafletMap points={points} height={360} className="h-full min-h-[18rem]" />
               )}
             </div>
           </div>
+        </div>
+      </section>
 
-          {/* comps evidence — Pro-only. On a locked live report the server has
-              already stripped the comp rows; one LockedPanel stands in for the
-              table, $/sqft bars, editors, and the add-a-comp search. */}
-          {locked ? (
-            <LockedPanel title="Comparable sales" teaser={lockedCompsTeaser(profile)} />
-          ) : (
-          <PanelCard className="flex flex-col gap-6">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div className="flex flex-col gap-1">
-                <span className="cb-eyebrow text-muted-foreground">Comparable sales</span>
-                <h3 className="font-display text-xl font-semibold text-foreground">
-                  The {comps.length} comps the value rests on
-                </h3>
-                {onToggleComp ? (
-                  <span className="text-xs text-muted-foreground">
-                    {excludedCount > 0
-                      ? `${excludedCount} excluded — value recomputed from the remaining set. `
-                      : "Toggle any comp to exclude it, or add your own — the value recomputes live."}
+      {/* ══ ZONE 2 — EVIDENCE ═════════════════════════════════════════════════
+          Comps, $/sqft spread, live analytics and the neighborhood market read
+          as ONE connected panel divided by hairline rules — not four sibling
+          cards. On a locked live report the server stripped every comp/market
+          row, so LockedPanel stand-ins take the whole zone. */}
+      {locked ? (
+        <section aria-label="Evidence" className="flex flex-col gap-6">
+          <LockedPanel title="Comparable sales" teaser={lockedCompsTeaser(profile)} />
+          <LockedPanel
+            title="Live analytics"
+            teaser="Sale-price timeline, $/sqft by distance, and the method-convergence read for this exact lookup."
+          />
+          <LockedPanel
+            title="Neighborhood market"
+            teaser="The local market read — median $/sqft, price trend, days on market, inventory."
+          />
+        </section>
+      ) : (
+        <section
+          aria-label="Evidence"
+          className="flex flex-col gap-8 rounded-2xl border border-border bg-card/70 p-5 sm:p-7"
+        >
+          {/* comps — the evidence the value rests on */}
+          <div className="flex flex-col gap-5">
+            <ZoneHeading
+              eyebrow="Evidence"
+              title={`The ${comps.length} comps the value rests on`}
+              aside={
+                tuning ? (
+                  <Pill tone="neutral" className="shrink-0">
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--cb-ember)]" aria-hidden />
+                    Recomputing…
+                  </Pill>
+                ) : asOf ? (
+                  <span className="font-data text-xs text-muted-foreground">
+                    as of {dateLong(asOf)}
                   </span>
-                ) : null}
-              </div>
-              {tuning ? (
-                <Pill tone="neutral" className="shrink-0">
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--cb-ember)]" aria-hidden />
-                  Recomputing…
-                </Pill>
-              ) : asOf ? (
-                <span className="font-data text-xs text-muted-foreground">
-                  as of {dateLong(asOf)}
-                </span>
-              ) : null}
-            </div>
-
-            {/* agent-control editors — LIVE reports only. The what-if subject
-                edits re-estimate live; the summary override rides the PDF. */}
-            {canEdit ? (
-              <div className="flex flex-col gap-3">
-                <SubjectFactsEditor
-                  facts={facts}
-                  value={overrides ?? EMPTY_OVERRIDES}
-                  onChange={onOverridesChange!}
-                />
-                <SummaryEditor
-                  value={reportConfig ?? EMPTY_CONFIG}
-                  onChange={onReportConfigChange!}
-                />
-              </div>
+                ) : null
+              }
+            />
+            {onToggleComp ? (
+              <span className="-mt-2 text-xs text-muted-foreground">
+                {excludedCount > 0
+                  ? `${excludedCount} excluded — value recomputed from the remaining set. `
+                  : "Toggle any comp to exclude it, or add your own — the value recomputes live."}
+              </span>
             ) : null}
 
             {/* add-a-comparable affordance — LIVE reports only */}
             {canControl ? (
               <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-secondary/30 p-3.5 sm:p-4">
-                <AddCompSearch
-                  onAdd={onAddComp!}
-                  busy={tuning}
-                  pinned={forcedSet}
-                />
+                <AddCompSearch onAdd={onAddComp!} busy={tuning} pinned={forcedSet} />
                 {forcedComps.length ? (
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="cb-eyebrow mr-0.5 text-muted-foreground">Pinned</span>
@@ -488,74 +503,69 @@ export function ReportView({
               busy={tuning}
             />
             <PpsfBars comps={comps} />
-          </PanelCard>
-          )}
-        </div>
-      </div>
+          </div>
 
-      {/* live analytics — every mark derives from THIS lookup's comps + method
-          values, recomputing as the user tunes the set. Pro-only. */}
-      {locked ? (
-        <LockedPanel
-          title="Live analytics"
-          teaser="Sale-price timeline, $/sqft by distance, and the method-convergence read for this exact lookup."
-        />
-      ) : (
-        <PanelCard className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div className="flex flex-col gap-1">
-              <span className="cb-eyebrow text-muted-foreground">Live analytics</span>
-              <h3 className="font-display text-xl font-semibold text-foreground">
-                This lookup, charted
-              </h3>
+          {/* hairline divider — the evidence reads as one movement, not cards */}
+          <div className="border-t border-border" aria-hidden />
+
+          {/* live analytics — every mark derives from THIS lookup's comps +
+              method values, recomputing as the user tunes the set */}
+          <div className="flex flex-col gap-5">
+            <ZoneHeading
+              eyebrow="Live analytics"
+              title="This lookup, charted"
+              aside={tuning ? <span className="text-xs text-muted-foreground">recomputing…</span> : null}
+            />
+            <div
+              className={tuning ? "opacity-60 transition-opacity" : "transition-opacity"}
+              aria-busy={tuning}
+            >
+              <LiveAnalytics comps={comps} valuation={valuation ?? null} />
             </div>
-            {tuning ? (
-              <span className="text-xs text-muted-foreground">recomputing…</span>
-            ) : null}
           </div>
-          <div
-            className={tuning ? "opacity-60 transition-opacity" : "transition-opacity"}
-            aria-busy={tuning}
-          >
-            <LiveAnalytics comps={comps} valuation={valuation ?? null} />
-          </div>
-        </PanelCard>
+
+          {/* market context — redacted to null on a locked live report */}
+          {marketContext ? (
+            <>
+              <div className="border-t border-border" aria-hidden />
+              <MarketPanel market={marketContext} saleHistory={saleHistory} />
+            </>
+          ) : null}
+        </section>
       )}
 
-      {/* market context — Pro-only; redacted to null on a locked live report */}
-      {locked ? (
-        <LockedPanel
-          title="Neighborhood market"
-          teaser="The local market read — median $/sqft, price trend, days on market, inventory."
-        />
-      ) : marketContext ? (
-        <PanelCard>
-          <MarketPanel market={marketContext} saleHistory={saleHistory} />
-        </PanelCard>
-      ) : null}
-
-      {/* paste-able executive summary — listing-consultation talking points */}
-      <PanelCard className="flex flex-col gap-2">
-        <div className="flex items-start justify-between gap-3">
-          <span className="cb-eyebrow text-muted-foreground">Talking points</span>
-          <button
-            type="button"
-            aria-label="Copy the talking-points summary"
-            onClick={() => {
-              void navigator.clipboard
-                .writeText(summary)
-                .then(() => toast.success("Summary copied"));
-            }}
-            className="rounded-full border border-border px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-[var(--cb-ember)]/40 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]"
-          >
-            Copy
-          </button>
+      {/* ══ ZONE 3 — OUTPUT ═══════════════════════════════════════════════════
+          What the agent leaves with: paste-able talking points, the exec-summary
+          override that rides the PDF, and the download actions. Lighter weight —
+          no bordered box per item, just spaced blocks and a hairline. */}
+      <section aria-label="Report output" className="flex flex-col gap-6">
+        {/* paste-able executive summary — listing-consultation talking points */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-start justify-between gap-3">
+            <span className="cb-eyebrow text-muted-foreground">Talking points</span>
+            <button
+              type="button"
+              aria-label="Copy the talking-points summary"
+              onClick={() => {
+                void navigator.clipboard
+                  .writeText(summary)
+                  .then(() => toast.success("Summary copied"));
+              }}
+              className="rounded-full border border-border px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-[var(--cb-ember)]/40 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]"
+            >
+              Copy
+            </button>
+          </div>
+          <p className="text-sm leading-relaxed text-foreground">{summary}</p>
         </div>
-        <p className="text-sm leading-relaxed text-foreground">{summary}</p>
-      </PanelCard>
 
-      {/* actions */}
-      <PanelCard className="flex flex-col gap-1">
+        {/* exec-summary override — LIVE reports only; rides the generated PDF */}
+        {canEdit ? (
+          <SummaryEditor value={reportConfig ?? EMPTY_CONFIG} onChange={onReportConfigChange!} />
+        ) : null}
+
+        <div className="border-t border-border" aria-hidden />
+
         <ReportActions
           address={facts.address}
           parcelId={facts.parcel_id}
@@ -566,20 +576,19 @@ export function ReportView({
           reportConfig={canEdit ? reportConfig : undefined}
           evidence={!locked}
         />
-      </PanelCard>
 
-      {isSample ? (
-        <p className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Pill tone="neutral">Sample data</Pill>
-          Representative sample figures modeled on the New River Valley — search a real address above for live records.
-        </p>
-      ) : null}
+        {isSample ? (
+          <p className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Pill tone="neutral">Sample data</Pill>
+            Representative sample figures modeled on the New River Valley — search a real address above for live records.
+          </p>
+        ) : null}
+      </section>
     </div>
   );
 }
 
 const EMPTY_SET: Set<string> = new Set();
-const EMPTY_OVERRIDES: SubjectOverrides = {};
 const EMPTY_CONFIG: ReportConfig = {};
 
 /** One-line hook for the locked comps panel, built from the redacted teaser. */
