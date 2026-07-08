@@ -57,6 +57,32 @@ function markerColor(band: StrategyBand): string {
   return "var(--muted-foreground)";
 }
 
+/** Tiny inline clock — the app ships no icon font, so glyphs are hand-drawn SVG. */
+function ClockGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" aria-hidden>
+      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4" />
+      <path
+        d="M8 5v3l2 1.3"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** Caution triangle for the above-market price-cut risk. */
+function RiskGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" className="mt-px h-3.5 w-3.5 shrink-0" fill="none" aria-hidden>
+      <path d="M8 2.5l5.6 9.7H2.4L8 2.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+      <path d="M8 6.4v2.6M8 10.9v.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function PricingStrategyImpl({
   valuation,
   marketContext,
@@ -91,31 +117,28 @@ function PricingStrategyImpl({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <span className="cb-eyebrow text-muted-foreground">Pricing strategy</span>
-        <p className="text-xs leading-snug text-muted-foreground">
-          What each list price is likely to cost you in time on market.
-        </p>
-      </div>
-
-      {/* Market-pace context — the model's headline assumption, stated plainly. */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Pill tone={hasPace ? "ember" : "neutral"}>{paceLabel}</Pill>
-        {trendClause ? <Pill tone="neutral">{trendClause}</Pill> : null}
-        {hasPace ? (
-          <span className="font-data text-xs text-muted-foreground">
-            median {num(baseDom)} days at market
-          </span>
-        ) : null}
+      {/* Header — eyebrow + subhead on the left, the model's headline pace
+          assumption pinned right (stated plainly, never buried). */}
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div className="flex flex-col gap-1">
+          <span className="cb-eyebrow text-muted-foreground">Pricing strategy</span>
+          <p className="text-xs leading-snug text-muted-foreground">
+            What each list price is likely to cost you in time on market.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Pill tone={hasPace ? "ember" : "neutral"}>{paceLabel}</Pill>
+          {trendClause ? <Pill tone="neutral">{trendClause}</Pill> : null}
+        </div>
       </div>
 
       {/* ── PRICE SPECTRUM (decorative) ────────────────────────────────────────
-          A slim low→high rail with a marker per band, positioned by price. Pure
-          decoration — aria-hidden — because the same numbers are read out in the
-          accessible band list below; meaning never lives in color alone here. */}
+          A low→high rail with a marker per band, positioned by real price. The
+          anchor wears an ember halo so the eye lands on market value first. Pure
+          decoration — aria-hidden — the same numbers read out in the cards. */}
       {bands.length > 1 ? (
-        <div aria-hidden className="px-1 pb-1 pt-2">
-          <div className="relative h-1.5 rounded-full bg-gradient-to-r from-secondary via-secondary to-[var(--cb-tint)]">
+        <div aria-hidden className="px-2 pb-1 pt-3">
+          <div className="relative h-2 rounded-full border border-border bg-secondary">
             {bands.map((band) => {
               const frac = railFraction(band, bands);
               return (
@@ -125,11 +148,13 @@ function PricingStrategyImpl({
                   style={{ left: `${frac * 100}%` }}
                 >
                   <span
-                    className={cn(
-                      "block rounded-full ring-2 ring-card",
-                      band.isAnchor ? "h-3.5 w-3.5" : "h-2.5 w-2.5",
-                    )}
-                    style={{ backgroundColor: markerColor(band) }}
+                    className={cn("block rounded-full", band.isAnchor ? "h-4 w-4" : "h-2.5 w-2.5")}
+                    style={{
+                      backgroundColor: markerColor(band),
+                      boxShadow: band.isAnchor
+                        ? "0 0 0 4px var(--cb-tint)"
+                        : "0 0 0 2px var(--card)",
+                    }}
                   />
                 </span>
               );
@@ -138,61 +163,68 @@ function PricingStrategyImpl({
         </div>
       ) : null}
 
-      {/* ── BAND LIST (the accessible source of truth) ─────────────────────────
-          Each band is a row: strategy label + $ price + modeled pace. The
-          anchor reads in ember; the ceiling carries a text risk caveat (never
-          color alone). Stacks to a single column on narrow screens. */}
-      <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-2xl border border-border bg-secondary/30">
+      {/* ── STRATEGY CARDS (the accessible source of truth) ────────────────────
+          One card per band — label, $ price, modeled pace. The anchor carries an
+          ember frame + tag; the ceiling spells out its price-cut risk in text
+          (never color alone). Three-up on wide, stacked on mobile. */}
+      <ul className={cn("grid gap-3", bands.length > 1 && "sm:grid-cols-3")}>
         {bands.map((band) => (
           <li
             key={band.key}
             className={cn(
-              "flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3",
-              band.isAnchor && "bg-[var(--cb-tint)]/40",
+              "flex flex-col gap-2 rounded-xl border p-3.5",
+              band.isAnchor
+                ? "border-2 border-[var(--cb-ember)]/50 bg-[var(--cb-tint)]/40"
+                : "border-border bg-secondary/30",
             )}
           >
-            <div className="flex min-w-0 flex-col gap-0.5">
-              <span className="flex items-center gap-2">
-                <span
-                  className={cn(
-                    "text-sm font-semibold",
-                    band.isAnchor ? "text-[var(--cb-ember-text)]" : "text-foreground",
-                  )}
-                >
-                  {band.label}
-                </span>
-                {band.isAnchor ? (
-                  <span className="cb-eyebrow text-[var(--cb-ember-text)]">Anchor</span>
-                ) : null}
-              </span>
-              <span className="text-xs text-muted-foreground">{band.blurb}</span>
-            </div>
-
-            <div className="flex flex-col items-end gap-0.5 text-right">
+            <div className="flex items-center gap-2">
+              <span
+                aria-hidden
+                className="h-2 w-2 shrink-0 rounded-full"
+                style={{ backgroundColor: markerColor(band) }}
+              />
               <span
                 className={cn(
-                  "font-data text-lg font-medium leading-none tracking-tight",
+                  "text-sm font-semibold",
                   band.isAnchor ? "text-[var(--cb-ember-text)]" : "text-foreground",
                 )}
               >
-                {usd(band.price)}
+                {band.label}
               </span>
-              <span
-                className={cn(
-                  "font-data text-xs",
-                  hasPace ? "text-muted-foreground" : "text-muted-foreground/70 italic",
-                )}
-              >
-                {domText(band)}
-              </span>
+              {band.isAnchor ? (
+                <span className="cb-eyebrow ml-auto text-[var(--cb-ember-text)]">Anchor</span>
+              ) : null}
             </div>
+
+            <span className="text-xs text-muted-foreground">{band.blurb}</span>
+
+            <span
+              className={cn(
+                "font-data text-xl font-medium leading-none tracking-tight",
+                band.isAnchor ? "text-[var(--cb-ember-text)]" : "text-foreground",
+              )}
+            >
+              {usd(band.price)}
+            </span>
+
+            <span
+              className={cn(
+                "flex items-center gap-1.5 font-data text-xs",
+                hasPace ? "text-muted-foreground" : "italic text-muted-foreground/70",
+              )}
+            >
+              <ClockGlyph />
+              {domText(band)}
+            </span>
 
             {/* Price-cut caveat — spelled out in text so it survives color-blind
                 and screen-reader use; only on the above-market ceiling. */}
             {band.cutRisk ? (
-              <p className="w-full text-xs leading-snug text-[var(--negative)]">
-                Above market — higher chance the listing sits and needs a price cut.
-              </p>
+              <span className="flex items-start gap-1.5 text-xs leading-snug text-[var(--negative)]">
+                <RiskGlyph />
+                Above market — higher chance of a price cut.
+              </span>
             ) : null}
           </li>
         ))}
