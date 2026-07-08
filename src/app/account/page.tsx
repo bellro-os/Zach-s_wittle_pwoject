@@ -7,6 +7,7 @@ import { BillingButtons } from "@/components/compbird/account/billing-buttons";
 import { changePassword, updateName } from "@/actions/account";
 import { logout } from "@/actions/auth";
 import { getActiveContext } from "@/lib/session";
+import { can as canFeature } from "@/lib/entitlements";
 import { db } from "@/lib/db";
 
 export const metadata: Metadata = {
@@ -66,13 +67,16 @@ export default async function AccountPage({
   if (!user) redirect("/signin?redirect=%2Fcomps");
 
   // ctx.account is the full Prisma row at runtime (ActiveContext narrows the
-  // type); the Stripe subscription id decides Upgrade vs. Manage billing.
+  // type). Plan state keys off the TIER (via entitlements) — a comped/dev SOLO
+  // account is Pro with no Stripe record; the Stripe subscription id ONLY
+  // decides whether "Manage billing" exists.
   const acct = ctx.account as unknown as {
     tier: string;
     stripeSubscriptionId?: string | null;
     subscriptionStatus?: string | null;
   };
   const plan = PLAN_LABEL[acct.tier] ?? "Account";
+  const pro = canFeature(ctx.ent, "cma.evidence");
   const subscribed = Boolean(acct.stripeSubscriptionId);
   const subStatus = acct.subscriptionStatus?.trim().replace(/_/g, " ") || "";
 
@@ -252,21 +256,29 @@ export default async function AccountPage({
           </span>
           <Card className="mt-3 p-6 sm:p-7">
             <div className="flex flex-wrap items-center gap-3">
-              <Pill tone={subscribed ? "ember" : "neutral"}>{plan}</Pill>
+              <Pill tone={pro ? "ember" : "neutral"}>{plan}</Pill>
               {subStatus ? (
                 <span className="text-xs text-muted-foreground">
                   Subscription status: {subStatus}
                 </span>
+              ) : pro && !subscribed ? (
+                <span className="text-xs text-muted-foreground">Complimentary</span>
               ) : null}
             </div>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
               {subscribed
                 ? "Update your card, download invoices, or cancel any time — billing is handled by Stripe."
-                : "The free plan includes unlimited instant value estimates. Pro is $20/mo for the evidence — every comp, market analytics, and unlimited watermark-free branded reports."}
+                : pro
+                  ? "Pro access on this account is complimentary — everything is unlocked and there's nothing to bill."
+                  : "The free plan includes unlimited instant value estimates. Pro is $20/mo for the evidence — every comp, market analytics, and unlimited watermark-free branded reports."}
             </p>
-            <div className="mt-5">
-              <BillingButtons subscribed={subscribed} />
-            </div>
+            {/* Comped Pro accounts have no Stripe record: no "Manage billing"
+                (nothing to manage) and no upgrade CTA (nothing to buy). */}
+            {subscribed || !pro ? (
+              <div className="mt-5">
+                <BillingButtons subscribed={subscribed} />
+              </div>
+            ) : null}
           </Card>
         </section>
 

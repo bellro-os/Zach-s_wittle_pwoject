@@ -8,17 +8,23 @@ import { startSubscription, openBillingPortal } from "@/lib/compbird/api";
 import { logout } from "@/actions/auth";
 
 /**
- * The studio's account affordance: the plan Pill plus — when not subscribed —
+ * The studio's account affordance: the plan Pill plus — for non-Pro accounts —
  * an always-visible Upgrade ($20/mo) button (the upgrade CTA never hides in a
  * menu). Secondary actions (Manage billing, Sign out) live in a compact
- * dropdown behind a circular avatar trigger. `subscribed` is true when the
- * account has an active Stripe subscription.
+ * dropdown behind a circular avatar trigger.
+ *
+ * Two DISTINCT booleans, deliberately: `pro` keys off the TIER/entitlements
+ * (a comped/dev SOLO account is Pro with no Stripe record) and decides the
+ * pill tone + whether the upgrade CTA renders; `subscribed` is true only when
+ * an actual Stripe subscription exists and gates "Manage billing" alone.
  */
 export function StudioAccountMenu({
   plan,
+  pro,
   subscribed,
 }: {
   plan: string;
+  pro: boolean;
   subscribed: boolean;
 }) {
   const [busy, setBusy] = useState(false);
@@ -71,9 +77,9 @@ export function StudioAccountMenu({
 
   return (
     <div className="flex items-center gap-3">
-      <Pill tone={subscribed ? "ember" : "neutral"}>{plan}</Pill>
+      <Pill tone={pro ? "ember" : "neutral"}>{plan}</Pill>
 
-      {!subscribed ? (
+      {!pro ? (
         <button
           type="button"
           onClick={() => go(startSubscription, "Could not start checkout.")}

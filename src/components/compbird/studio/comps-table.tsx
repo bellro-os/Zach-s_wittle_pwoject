@@ -46,6 +46,36 @@ export function compKey(c: ProfileComp): string {
   return c.address;
 }
 
+/**
+ * Keep excluded comps VISIBLE across recomputes. The engine doesn't
+ * down-weight an excluded comp — it drops it from the response entirely and
+ * backfills the set (verified against the live worker: /preview with
+ * `excluded` returns comps without it). Without retention the row vanishes
+ * the instant the recompute settles: no dimmed state, no Include toggle, no
+ * way back short of a full reset.
+ *
+ * Every comp the table has seen for this subject goes into `cache` (keyed by
+ * compKey); any excluded key missing from the live set is re-appended from the
+ * cache so it renders dimmed, below the live comps, with its Include toggle.
+ * The caller owns the cache's lifetime (reset it per subject).
+ */
+export function retainExcludedComps(
+  comps: ProfileComp[],
+  excluded: Set<string> | undefined,
+  cache: Map<string, ProfileComp>,
+): ProfileComp[] {
+  for (const c of comps) cache.set(compKey(c), c);
+  if (!excluded || excluded.size === 0) return comps;
+  const present = new Set(comps.map(compKey));
+  const retained: ProfileComp[] = [];
+  for (const key of excluded) {
+    if (present.has(key)) continue;
+    const row = cache.get(key);
+    if (row) retained.push(row);
+  }
+  return retained.length ? [...comps, ...retained] : comps;
+}
+
 // `mobile: false` columns collapse below sm — phones keep the decision-driving
 // figures (price, $/sqft, beds/baths, distance) without a 44rem side-scroll.
 interface Col {
@@ -246,6 +276,11 @@ export const CompsTable = memo(function CompsTable({
                     >
                       {c.address}
                     </span>
+                    {isExcluded ? (
+                      <Pill tone="neutral" className="shrink-0">
+                        Excluded
+                      </Pill>
+                    ) : null}
                     {isForced ? (
                       <Pill tone="ember" className="shrink-0">
                         Pinned
@@ -301,7 +336,11 @@ export const CompsTable = memo(function CompsTable({
                     )}
                   </td>
                 ) : null}
-                <td className="whitespace-nowrap py-3 pl-4 text-right align-middle font-data text-foreground">
+                <td
+                  className={`whitespace-nowrap py-3 pl-4 text-right align-middle font-data text-foreground ${
+                    isExcluded ? "line-through decoration-border" : ""
+                  }`}
+                >
                   {usd(c.sold_price)}
                 </td>
                 <td className="whitespace-nowrap py-3 pl-4 text-right align-middle font-data text-foreground">

@@ -84,27 +84,32 @@ function StreetViewImpl({ lat, lng, address, className }: StreetViewProps) {
     );
   }
 
-  // Fallback tile — missing coords, no key, or no panorama at this point.
+  // Fallback — missing coords, no key, or no panorama at this point. One tidy
+  // row, not a tall empty tile: muted small-print explains why there's no
+  // image, the link-out (when coords exist) stays. NO eyebrow here — the
+  // caller labels the section (report-view renders "Street view" above this
+  // tile; a second one inside made the label print twice).
   return (
     <div
       className={cn(
-        "flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-secondary/40 p-5 text-center",
+        "flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl border border-border bg-secondary/40 px-4 py-3",
         className,
       )}
     >
-      <HouseGlyph className="text-muted-foreground" />
-      <span className="cb-eyebrow text-muted-foreground">Street view</span>
-      {address ? (
-        <span className="max-w-[24ch] text-sm text-foreground text-balance">
-          {address}
+      <span className="flex min-w-0 items-center gap-2.5">
+        <HouseGlyph className="h-5 w-5 shrink-0 text-muted-foreground" />
+        <span className="text-xs leading-snug text-muted-foreground/70">
+          {coords
+            ? "Inline imagery needs a Google Maps key."
+            : "No coordinates on record for street-level imagery."}
         </span>
-      ) : null}
+      </span>
       {panoHref ? (
         <a
           href={panoHref}
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-border bg-card/60 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-[var(--cb-ember,#10b981)]/40 hover:text-[var(--cb-ember-text,#0f766e)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember,#10b981)]"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-card/60 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-[var(--cb-ember,#10b981)]/40 hover:text-[var(--cb-ember-text,#0f766e)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember,#10b981)]"
         >
           Open in Street View
           <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" aria-hidden>
@@ -118,9 +123,6 @@ function StreetViewImpl({ lat, lng, address, className }: StreetViewProps) {
           </svg>
         </a>
       ) : null}
-      <span className="mt-0.5 text-[0.7rem] leading-snug text-muted-foreground/70">
-        Inline imagery needs a Google Maps key.
-      </span>
     </div>
   );
 }

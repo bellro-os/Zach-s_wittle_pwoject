@@ -103,6 +103,37 @@ export function titleCase(s: string | null | undefined, fallback = ""): string {
 }
 
 /**
+ * Human labels for the MLS class enum the engine emits as `property_type`
+ * (facts.property_type = the feed's `_class` token). Vocabulary matches the
+ * engine's own UI labels (mls_bot buyer_portal/bands). NOTE: RE_1 spans
+ * detached, townhouse AND condo listings in the feed, so it reads
+ * "Residential" — "Single family" would mislabel ~13% of the class. Unknown
+ * tokens fall back to a cleaned title-case (code suffix stripped), never the
+ * raw enum.
+ */
+const PROPERTY_CLASS_LABELS: Record<string, string> = {
+  RE_1: "Residential",
+  MF_2: "Multifamily",
+  LD_3: "Land",
+  CM_4: "Commercial",
+  FM_5: "Farm",
+  RN_6: "Rental",
+};
+
+export function propertyTypeLabel(
+  s: string | null | undefined,
+  fallback = "",
+): string {
+  if (!s) return fallback;
+  const token = s.trim().toUpperCase();
+  const mapped = PROPERTY_CLASS_LABELS[token];
+  if (mapped) return mapped;
+  // Unknown class token: drop a trailing "_<n>" code suffix, break remaining
+  // underscores into spaces, and title-case — readable words, never the enum.
+  return titleCase(token.replace(/_\d+$/, "").replace(/_/g, " "), fallback);
+}
+
+/**
  * Join a place and its county into one label without doubling "County" — the
  * feed sometimes hands us a county string that already carries the suffix.
  * "Palmyra" + "Fluvanna County" → "Palmyra, Fluvanna County".

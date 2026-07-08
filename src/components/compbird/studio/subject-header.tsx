@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { Pill } from "@/components/compbird/ui";
-import { bedsBaths, sqft, acres, titleCase } from "@/lib/compbird/format";
+import { bedsBaths, sqft, acres, titleCase, propertyTypeLabel } from "@/lib/compbird/format";
 import type { ProfileFacts } from "@/lib/compbird/types";
 
 /**
@@ -40,8 +40,10 @@ function SubjectHeaderImpl({
     );
   if (facts.property_type)
     factParts.push(
+      // Render-boundary humanization: the feed's class enum ("RE_1") must
+      // never leak verbatim (or half-cased, "Re_1") into the dossier.
       <span key="pt" className="text-muted-foreground">
-        {titleCase(facts.property_type)}
+        {propertyTypeLabel(facts.property_type)}
       </span>,
     );
 
@@ -91,13 +93,22 @@ function SubjectHeaderImpl({
               })}
             </span>
             {/* Honest gap between the tax roll and the market read — genuine
-                listing intel (assessments often trail the market by years). */}
+                listing intel, framed neutrally: assessed values are set for
+                taxation and systematically trail market, so a bare "+58%"
+                would read as an over-valuation alarm when it's the norm. */}
             {estimateMid != null && facts.assessed_value > 0
               ? (() => {
                   const d = Math.round(((estimateMid - facts.assessed_value!) / facts.assessed_value!) * 100);
                   return Math.abs(d) >= 2 ? (
-                    <span className="font-data text-muted-foreground/90">
-                      {" "}· estimate {d > 0 ? "+" : ""}{d}%
+                    <span
+                      title="Tax-assessed values are set for taxation and typically sit below current market value — a gap here is normal, not an over-valuation flag."
+                    >
+                      <span className="font-data text-muted-foreground/90">
+                        {" "}· estimate {Math.abs(d)}% {d > 0 ? "above" : "below"}
+                      </span>
+                      {d > 0 ? (
+                        <span className="text-muted-foreground/70"> (typical — tax values trail market)</span>
+                      ) : null}
                     </span>
                   ) : null;
                 })()

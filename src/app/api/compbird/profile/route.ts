@@ -23,13 +23,15 @@ function tooManyRequests(retryAfterSeconds: number) {
  * only — comps, market analytics, sale history, and the method breakdown are
  * Pro ("cma.evidence"). Redacting HERE means the evidence never ships to a
  * non-Pro client, so a blur overlay can't be bypassed in devtools.
+ * `ctx` is the already-resolved session (resolved once per request, shared
+ * with the aiHygiene decision so both read the same auth state).
  */
-async function respondWithEntitlement(
+function respondWithEntitlement(
   status: number,
   body: ProfileResult | { ok: false; error: string },
+  ctx: Awaited<ReturnType<typeof getActiveContext>>,
 ) {
   if (body?.ok) {
-    const ctx = await getActiveContext();
     const evidence = ctx ? canFeature(ctx.ent, "cma.evidence") : false; // anonymous = locked
     if (!evidence) return NextResponse.json(redactEvidence(body), { status });
   }
@@ -46,8 +48,16 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ ok: false, error: "Invalid JSON body" }, { status: 400 });
   }
-  const { status, body } = await engineProfile<ProfileResult>(payload);
-  return respondWithEntitlement(status, body);
+  // aiHygiene mirrors the preview route's server-side decision (authed → full
+  // LLM hygiene, anon → off) so the profile's first-paint estimate is computed
+  // by the EXACT pipeline every tuning /preview recompute uses — one number.
+  const ctx = await getActiveContext();
+  const { status, body } = await engineProfile<ProfileResult>({
+    address: payload.address,
+    parcelId: payload.parcelId,
+    aiHygiene: !!ctx,
+  });
+  return respondWithEntitlement(status, body, ctx);
 }
 
 // GET wrapper so the studio can deep-link with ?address= / ?parcelId=.
@@ -56,9 +66,11 @@ export async function GET(req: Request) {
   if (rl.limited) return tooManyRequests(rl.retryAfterSeconds);
 
   const url = new URL(req.url);
+  const ctx = await getActiveContext();
   const { status, body } = await engineProfile<ProfileResult>({
     address: url.searchParams.get("address") ?? "",
     parcelId: url.searchParams.get("parcelId") ?? "",
+    aiHygiene: !!ctx,
   });
-  return respondWithEntitlement(status, body);
+  return respondWithEntitlement(status, body, ctx);
 }

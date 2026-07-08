@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { Pill } from "@/components/compbird/ui";
 import { LeafletMap, type GeoMapPoint } from "@/components/geo/leaflet-map";
@@ -10,7 +10,7 @@ import { dateLong, usd } from "@/lib/compbird/format";
 import type { ProfileResult, ProfileComp } from "@/lib/compbird/types";
 import { SubjectHeader } from "./subject-header";
 import { ValuationPanel } from "./valuation-panel";
-import { CompsTable, compKey } from "./comps-table";
+import { CompsTable, compKey, retainExcludedComps } from "./comps-table";
 import { AddCompSearch } from "./add-comp-search";
 import { PpsfBars } from "./ppsf-bars";
 import { LiveAnalytics } from "./live-analytics";
@@ -219,6 +219,25 @@ export function ReportView({
 
   const excludedCount = excluded?.size ?? 0;
   const forcedSet = forced ?? EMPTY_SET;
+
+  // Excluded-row retention: a recompute response DROPS excluded comps (the
+  // engine filters + backfills — they aren't down-weighted rows), so the table
+  // would silently lose the row the user just excluded. Cache every comp seen
+  // for THIS subject and re-append excluded ones, so they stay visible dimmed
+  // with their Include toggle. The cache resets on a new subject (comp
+  // addresses are only meaningful per lookup); ref mutation during render is
+  // the standard cache pattern — no effects, no extra renders.
+  const compCacheRef = useRef(new Map<string, ProfileComp>());
+  const cacheSubjectRef = useRef<string | null>(null);
+  const subjectKey = facts ? `${facts.parcel_id ?? ""}|${facts.address ?? ""}` : "";
+  if (cacheSubjectRef.current !== subjectKey) {
+    cacheSubjectRef.current = subjectKey;
+    compCacheRef.current = new Map();
+  }
+  const displayComps = useMemo(
+    () => retainExcludedComps(comps, excluded, compCacheRef.current),
+    [comps, excluded],
+  );
 
   // Live UNLOCKED reports only: the user can pin/unpin comps and add new ones.
   // (The studio already withholds these callbacks on locked profiles — the
@@ -462,7 +481,7 @@ export function ReportView({
             </p>
 
             <CompsTable
-              comps={comps}
+              comps={displayComps}
               excluded={excluded}
               forced={forcedSet}
               onToggle={onToggleComp}

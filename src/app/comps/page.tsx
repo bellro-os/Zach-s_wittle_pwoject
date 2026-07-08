@@ -41,7 +41,9 @@ export default async function CompStudioPage() {
   const ctx = await getActiveContext();
   if (!ctx) redirect("/join?redirect=%2Fcomps");
   // ctx.account is the full Prisma row at runtime (the ActiveContext type narrows
-  // it); the Stripe subscription id decides Upgrade vs. Manage-billing.
+  // it). Plan state keys off the TIER (via entitlements) — a comped/dev SOLO
+  // account is Pro with no Stripe record; the Stripe subscription id ONLY
+  // decides whether "Manage billing" exists.
   const acct = ctx.account as unknown as { tier: string; stripeSubscriptionId?: string | null };
   const plan = PLAN_LABEL[acct.tier] ?? "Account";
   const subscribed = Boolean(acct.stripeSubscriptionId);
@@ -80,7 +82,7 @@ export default async function CompStudioPage() {
               </svg>
               Back to compbird
             </Link>
-            <StudioAccountMenu plan={plan} subscribed={subscribed} />
+            <StudioAccountMenu plan={plan} pro={evidence} subscribed={subscribed} />
           </div>
         </div>
       </header>

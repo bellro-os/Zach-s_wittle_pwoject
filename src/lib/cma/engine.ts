@@ -27,7 +27,11 @@ const log = createLogger("cma/engine");
 export type Outcome<T> = { status: number; body: T };
 
 const PROFILE_SPAWN_MS = 115_000;
-const PROFILE_WORKER_MS = 10_000;
+// Warm-worker profile budget. Matches PREVIEW_WORKER_MS because the profile now
+// runs the SAME full valuation as /preview (fullValuation: AVM always on +
+// optional hygiene) so the first-paint number equals every recompute — the old
+// 10s budget fit only the legacy fast path (AVM off, hygiene off).
+const PROFILE_WORKER_MS = 45_000;
 const PREVIEW_SPAWN_MS = 28_000;
 // Warm-worker preview budget. Higher than the legacy fast preview because the
 // worker /preview can run the full prepare_comps + AVM (+ optional hygiene) for
@@ -168,12 +172,20 @@ export async function engineSearch(
 export async function engineProfile<T extends { ok: boolean; error?: string }>(input: {
   address?: string;
   parcelId?: string;
+  /**
+   * SERVER-decided by the route (authed → full LLM hygiene; anon → off) — the
+   * SAME decision the preview route makes, so the first-paint profile number
+   * equals every subsequent /preview recompute for the same caller.
+   */
+  aiHygiene?: boolean;
 }): Promise<Outcome<T | { ok: false; error: string }>> {
   const address = (input.address ?? "").trim();
   const parcelId = (input.parcelId ?? "").trim();
   if (!address && !parcelId) {
     return { status: 400, body: { ok: false, error: "Provide an address or parcelId." } };
   }
+  // `=== true` so a missing value is treated as anonymous — never client-flippable.
+  const aiHygiene = input.aiHygiene === true;
 
   let parsed: T | null = null;
   let stderr = "";
@@ -182,7 +194,17 @@ export async function engineProfile<T extends { ok: boolean; error?: string }>(i
 
   if (workerEnabled()) {
     try {
-      parsed = await callWorker<T>("/profile", { address, parcelId, listingsParquet: COMPBIRD_LISTINGS_PARQUET }, PROFILE_WORKER_MS, COMPBIRD_WORKER_URL);
+      // fullValuation: ALWAYS. Runs build_profile in build_preview's exact
+      // posture (AVM on; aiHygiene gates only the LLM pass) so profile ==
+      // preview == PDF — the estimate painted first never jumps when the user
+      // touches a tuning control. Absent/false = the engine's legacy fast path,
+      // kept for other callers (Ratifyly-compatible default).
+      parsed = await callWorker<T>(
+        "/profile",
+        { address, parcelId, aiHygiene, fullValuation: true, listingsParquet: COMPBIRD_LISTINGS_PARQUET },
+        PROFILE_WORKER_MS,
+        COMPBIRD_WORKER_URL,
+      );
     } catch (err) {
       log.warn("CMA worker unavailable — falling back to spawn", {
         error: err instanceof Error ? err.message : String(err),
@@ -191,7 +213,10 @@ export async function engineProfile<T extends { ok: boolean; error?: string }>(i
   }
 
   if (!parsed) {
-    const args = ["scripts/property_profile.py"];
+    // Same full-valuation posture as the worker call, so the fallback's number
+    // is identical to the warm path's (spawn == worker == preview == PDF).
+    const args = ["scripts/property_profile.py", "--full-valuation"];
+    if (aiHygiene) args.push("--ai-hygiene");
     if (address) args.push(address);
     if (parcelId) args.push("--parcel", parcelId);
     const r = await withCompbirdSlot(() =>
