@@ -329,6 +329,8 @@ export function ReportView({
           <SubjectCard
             facts={facts}
             estimateMid={valuation?.mid ?? null}
+            valuation={valuation ?? null}
+            marketContext={marketContext ?? null}
             canEdit={canEdit}
             overrides={overrides}
             onOverridesChange={canEdit ? onOverridesChange : undefined}
