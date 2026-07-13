@@ -130,6 +130,18 @@ export interface ConfidenceSignals {
   mid?: number | null;
   /** Share (0–1) of comps from the public-records pool — >50% caps the tier at standard. */
   supplementalShare?: number | null;
+  /**
+   * ENGINE-computed tier (`valuation.confidence_tier`, CMA_BLIND_ENSEMBLE
+   * engines) — AUTHORITATIVE when defined: the engine owns every raw input
+   * (unrounded mid, exact comp distances, the blind anchor it fetched) and
+   * computes the tier server-side (build_cma.confidence_signals in the MLS Bot
+   * repo — same gates as this file), so it cannot be spoofed by request inputs
+   * and always matches the generated report's hero treatment. The client-side
+   * gates below remain the fallback for locked/legacy/sample payloads that
+   * don't carry it. Reasons/caution are still computed from the local signals
+   * either way (the tier decides ordering, not content).
+   */
+  engineTier?: ConfidenceTier | null;
 }
 
 /** "0.3", clamped so a 400-ft comp never prints as "0.0 mi". */
@@ -196,10 +208,14 @@ export function computeConfidenceFromSignals(s: ConfidenceSignals): ConfidenceRe
     ? (agreementPct as number) <= HIGH_ENS_MAX_AGREEMENT_PCT
     : methodSpreadPct != null && methodSpreadPct <= HIGH_MAX_SPREAD_PCT;
 
-  const tier: ConfidenceTier =
+  const computedTier: ConfidenceTier =
     mid != null && countOk && distanceOk && evidenceOk && supplementalShare <= 0.5
       ? "high"
       : "standard";
+  // Engine tier is authoritative when the payload carries one (see the
+  // ConfidenceSignals docs) — the client computation is the fallback.
+  const tier: ConfidenceTier =
+    s.engineTier === "high" || s.engineTier === "standard" ? s.engineTier : computedTier;
 
   const caution =
     (compCount != null && compCount < CAUTION_MIN_COMPS) ||
@@ -285,6 +301,8 @@ export interface ConfidenceInput {
     /** Blind-AI ensemble arm — optional, survives redaction (see types.ts). */
     ai_blind?: number | null;
     ai_ensemble?: boolean;
+    /** Engine-computed tier — authoritative when present (see ConfidenceSignals.engineTier). */
+    confidence_tier?: string | null;
   } | null;
 }
 
@@ -330,6 +348,8 @@ export function computeConfidence(profile: ConfidenceInput): ConfidenceResult {
     ? comps.filter((c) => c?.source === "supplemental").length / comps.length
     : 0;
 
+  const engineTier = valuation?.confidence_tier;
+
   return computeConfidenceFromSignals({
     compCount,
     nearestMi,
@@ -340,5 +360,6 @@ export function computeConfidence(profile: ConfidenceInput): ConfidenceResult {
     aiBlind: valuation?.ai_blind ?? null,
     aiEnsemble: valuation?.ai_ensemble ?? null,
     supplementalShare,
+    engineTier: engineTier === "high" || engineTier === "standard" ? engineTier : null,
   });
 }

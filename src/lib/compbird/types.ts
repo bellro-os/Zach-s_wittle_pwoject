@@ -152,6 +152,14 @@ export interface Valuation {
   ai_blind?: number | null;
   /** True when `mid` IS the ensemble mean(engine, ai_blind), not engine-only. */
   ai_ensemble?: boolean;
+  /**
+   * ENGINE-computed measured confidence tier (CMA_BLIND_ENSEMBLE engines) —
+   * AUTHORITATIVE over the client-side computation when present, so the studio
+   * and the generated report tell the same story. Optional: older engine
+   * responses and the static sample omit it (confidence.ts then falls back to
+   * the client-side gates). Survives redaction (redact.ts spreads valuation).
+   */
+  confidence_tier?: "high" | "standard" | null;
 }
 
 export interface ProfileComp extends CompSimilarity {
@@ -341,6 +349,8 @@ export interface PreviewValuation {
   ai_blind?: number | null;
   /** True when `mid` IS the ensemble mean(engine, ai_blind), not engine-only. */
   ai_ensemble?: boolean;
+  /** Engine-computed measured tier — same authoritative contract as `Valuation.confidence_tier`. */
+  confidence_tier?: "high" | "standard" | null;
 }
 
 export interface PreviewResult {

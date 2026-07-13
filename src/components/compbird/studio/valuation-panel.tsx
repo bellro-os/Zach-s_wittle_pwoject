@@ -141,6 +141,9 @@ function ValuationPanelImpl({
     aiBlind: valuation.ai_blind ?? null,
     aiEnsemble: valuation.ai_ensemble ?? null,
     supplementalShare,
+    // Engine-computed tier rides the valuation — authoritative when present,
+    // so the studio badge always matches the generated report's hero.
+    engineTier: valuation.confidence_tier ?? null,
   });
 
   // STANDARD tier flips the hero: the honest low–high RANGE takes the size the

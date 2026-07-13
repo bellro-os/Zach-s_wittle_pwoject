@@ -134,6 +134,10 @@ function previewValuationToProfile(v: PreviewValuation): Valuation {
     // engine without CMA_BLIND_ENSEMBLE=1 simply doesn't send them.
     ai_blind: v.ai_blind ?? null,
     ai_ensemble: v.ai_ensemble,
+    // Engine-computed measured tier — authoritative for the badge; dropping it
+    // here would silently demote the studio to the client-side fallback on
+    // every tuned recompute.
+    confidence_tier: v.confidence_tier ?? null,
   };
 }
 
