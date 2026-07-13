@@ -33,6 +33,19 @@ import { ReportSkeleton } from "./report-skeleton";
  * comparable calls the preview engine for the same subject and re-renders the
  * valuation panel, comps table and $/sqft bars from the recomputed result.
  * Debounced + aborted exactly like the search; a hard no-op on sample data.
+ *
+ * SUBJECT ISOLATION (the carry-over-leak fix): everything the user tunes is
+ * scoped to ONE subject — what-if overrides, the exec-summary override, comp
+ * pins/exclusions, and the untouched engine base the tuning merges onto. Every
+ * path that changes the active subject (search select, preset chip, recents
+ * chip + Cmd-K palette, ?address= deep link, the ?demo=1 branch, retry) funnels
+ * through ONE shared reset, and every async result (profile fetch, preview
+ * recompute, override edit) is stamped with a subject epoch and DISCARDED when
+ * it arrives for a subject the user has already left. Previously the select()
+ * success path applied a resolved profile unguarded, so a superseded lookup
+ * that settled despite the abort could re-key the report to an old subject
+ * underneath live override state — Edited badges from one house on another
+ * house's report.
  */
 
 /** Debounce window for a tuning recompute — matches the search bar's cadence. */
@@ -115,8 +128,113 @@ function previewValuationToProfile(v: PreviewValuation): Valuation {
       value: m.value,
       rationale: m.rationale,
     })),
+    // Blind-AI ensemble arm — carried through so a TUNED recompute keeps the
+    // ensemble-agreement confidence gate (dropping these would silently fall
+    // back to the distance/spread gate mid-session). Optional contract: an
+    // engine without CMA_BLIND_ENSEMBLE=1 simply doesn't send them.
+    ai_blind: v.ai_blind ?? null,
+    ai_ensemble: v.ai_ensemble,
   };
 }
+
+/**
+ * Headless per-subject session — the WIRE-TRUTH for everything scoped to the
+ * active subject, plus the monotonically-increasing epoch that stamps every
+ * async operation touching it. The component mirrors this session into React
+ * state for rendering, but every decision about what rides a preview/generate
+ * wire — and whether an async result is still CURRENT — is made here, in one
+ * framework-free place.
+ *
+ * Rules it enforces:
+ *  - `beginSubjectChange()` bumps the epoch and drops ALL subject-scoped state
+ *    (overrides, report config, the resolved subject + untouched engine base).
+ *    Every subject-change path goes through it, so no path can forget a piece.
+ *  - every mutator/acceptor takes the epoch its caller captured when the work
+ *    started; a mismatch (the user has since switched subjects) is REFUSED, so
+ *    a stale profile response, a stale preview, or a straggler override edit
+ *    can never leak onto the next subject.
+ *  - `base` is set exactly ONCE per subject (on profile success) and is never
+ *    replaced by tuning recomputes — preserving the engineMid baseline ("first
+ *    unmodified engine mid per subject") and the zero-round-trip reset.
+ *
+ * Exported (no React/browser dependencies) for the carry-over-leak regression
+ * test: comp-studio.leak.test.ts drives the exact observed scenario.
+ */
+export function createSubjectSession() {
+  let epoch = 0;
+  let subject: { address?: string; parcelId?: string } | null = null;
+  let base: ProfileResult | null = null;
+  let overrides: SubjectOverrides = {};
+  let reportConfig: ReportConfig = {};
+
+  return {
+    /** Current epoch — capture before async work, hand it back on arrival. */
+    epoch: (): number => epoch,
+    /** True when a captured epoch has been superseded by a subject change. */
+    isStale: (e: number): boolean => e !== epoch,
+
+    /**
+     * EVERY subject change starts here: bump the epoch (instantly staling all
+     * in-flight work) and drop the full subject-scoped state. Returns the new
+     * epoch that stamps the incoming subject's async work.
+     */
+    beginSubjectChange(): number {
+      epoch += 1;
+      subject = null;
+      base = null;
+      overrides = {};
+      reportConfig = {};
+      return epoch;
+    },
+
+    /**
+     * Arm the session with a RESOLVED live profile. Refused (returns false)
+     * when the response is stale, so the stale-fetch race can never key the
+     * tuning surface — or the map/valuation base — to a subject the user left.
+     */
+    armSubject(
+      e: number,
+      s: { address?: string; parcelId?: string },
+      b: ProfileResult,
+    ): boolean {
+      if (e !== epoch) return false;
+      subject = s;
+      base = b;
+      return true;
+    },
+
+    /** Drop the armed subject (live-lookup failure → sample fallback). */
+    disarm(e: number): boolean {
+      if (e !== epoch) return false;
+      subject = null;
+      base = null;
+      return true;
+    },
+
+    /** Record a what-if edit; refused when stamped by a superseded epoch. */
+    setOverrides(e: number, next: SubjectOverrides): boolean {
+      if (e !== epoch) return false;
+      overrides = next;
+      return true;
+    },
+    /** Record a report-config edit; refused when stale, like setOverrides. */
+    setReportConfig(e: number, next: ReportConfig): boolean {
+      if (e !== epoch) return false;
+      reportConfig = next;
+      return true;
+    },
+
+    /** The resolved live subject (null on sample / while a lookup is in flight). */
+    subject: () => subject,
+    /** The untouched engine base for the armed subject — set once per subject. */
+    base: () => base,
+    /** Wire-truth what-if overrides for the armed subject. */
+    overrides: () => overrides,
+    /** Wire-truth report config for the armed subject. */
+    reportConfig: () => reportConfig,
+  };
+}
+export type SubjectSession = ReturnType<typeof createSubjectSession>;
 
 export function CompStudio() {
   const [profile, setProfile] = useState<ProfileResult>(SAMPLE_PROFILE);
@@ -131,33 +249,24 @@ export function CompStudio() {
   const [excluded, setExcluded] = useState<string[]>([]);
   const [forced, setForced] = useState<string[]>([]);
   // Agent-control state, SIBLING to excluded/forced: subject what-if overrides
-  // (sqft/condition) and the report composition (exec-summary override).
+  // (sqft/condition) and the report composition (exec-summary override). These
+  // MIRROR the session (below) for rendering; the session copy is what rides
+  // the wire, so a mirror can never drift ahead of the guarded truth.
   const [overrides, setOverrides] = useState<SubjectOverrides>({});
   const [reportConfig, setReportConfig] = useState<ReportConfig>({});
   const [tuning, setTuning] = useState(false);
 
-  // Refs mirror the override/config state so runPreview (and its callers
-  // toggleComp/addForced/removeForced) always read the latest values without a
-  // stale closure or an extra argument on every call site.
-  const overridesRef = useRef<SubjectOverrides>({});
-  const reportConfigRef = useRef<ReportConfig>({});
+  // The per-subject session: wire-truth overrides/config, the resolved subject
+  // + untouched engine base, and the epoch that stales superseded async work.
+  // useState's lazy initializer gives one stable instance per mounted studio.
+  const [session] = useState(createSubjectSession);
 
   const abortRef = useRef<AbortController | null>(null);
   const previewAbortRef = useRef<AbortController | null>(null);
   const previewTimerRef = useRef<number | null>(null);
 
-  /**
-   * The LIVE base for tuning: the subject we resolved and its original comp
-   * coordinates. Preview always recomputes the same subject; we merge the
-   * returned comps + valuation onto this base so identity/map/market persist.
-   */
-  const subjectRef = useRef<{ address?: string; parcelId?: string } | null>(null);
   /** Last attempted selection — powers the failure banner's real Retry. */
   const lastAttemptRef = useRef<Pick<PropertyMatch, "address" | "parcel_id"> | null>(null);
-  const baseRef = useRef<ProfileResult | null>(null);
-  const coordsRef = useRef<Map<string, { lat: number | null; lng: number | null }>>(
-    new Map(),
-  );
 
   const cancelPreview = useCallback(() => {
     previewAbortRef.current?.abort();
@@ -168,23 +277,36 @@ export function CompStudio() {
     }
   }, []);
 
+  /**
+   * THE one shared subject-change reset. Every path that changes the active
+   * subject funnels through here, so no path can forget a piece of
+   * subject-scoped state (the observed leak: Edited badges + adjusted bd/ba
+   * from a previous subject rendered on the next subject's report). Bumps the
+   * session epoch — instantly staling any in-flight profile fetch or preview
+   * recompute — kills the in-flight work, and mirrors the wiped session into
+   * render state. Returns the new epoch for the incoming subject's async work.
+   */
+  const beginSubjectChange = useCallback((): number => {
+    const epoch = session.beginSubjectChange();
+    abortRef.current?.abort();
+    cancelPreview();
+    setExcluded([]);
+    setForced([]);
+    setOverrides({});
+    setReportConfig({});
+    setTuning(false);
+    return epoch;
+  }, [session, cancelPreview]);
+
   // Accepts the full search-result PropertyMatch as well as the minimal
   // {address, parcel_id} seed the deep-link branch builds — only these two
   // fields are read, so no cast is needed at the call site.
   const select = useCallback(
     async (match: Pick<PropertyMatch, "address" | "parcel_id">) => {
-      abortRef.current?.abort();
-      cancelPreview();
-      // A new subject invalidates any in-progress tuning.
-      setExcluded([]);
-      setForced([]);
-      // A new subject also drops any what-if overrides + narrative edits — they
-      // were keyed to the previous subject's record facts.
-      setOverrides({});
-      setReportConfig({});
-      overridesRef.current = {};
-      reportConfigRef.current = {};
-      setTuning(false);
+      // Shared reset (see beginSubjectChange): a new subject invalidates any
+      // in-progress tuning AND drops what-if overrides + narrative edits —
+      // they were keyed to the previous subject's record facts.
+      const epoch = beginSubjectChange();
 
       const ctrl = new AbortController();
       abortRef.current = ctrl;
@@ -198,18 +320,26 @@ export function CompStudio() {
           : { address: match.address };
         const result = await fetchProfile(input, ctrl.signal);
 
+        // Stale-response guard — the leak's root: the abort SHOULD reject a
+        // superseded fetch, but a response that has already settled when the
+        // user switches subjects resolves anyway. It must be discarded here,
+        // never applied over the newer subject (where it would sit beneath —
+        // or bring along — another subject's override state).
+        if (ctrl.signal.aborted || session.isStale(epoch)) return;
+
         if (result?.ok && result.facts) {
+          // Arm tuning against this resolved subject (epoch-checked in the
+          // session too, so a stale arm is structurally impossible).
+          session.armSubject(
+            epoch,
+            {
+              address: result.facts.address,
+              parcelId: result.facts.parcel_id || undefined,
+            },
+            result,
+          );
           setProfile(result);
           setIsSample(false);
-          // Arm tuning against this resolved subject.
-          subjectRef.current = {
-            address: result.facts.address,
-            parcelId: result.facts.parcel_id || undefined,
-          };
-          baseRef.current = result;
-          const coords = new Map<string, { lat: number | null; lng: number | null }>();
-          for (const c of result.comps ?? []) coords.set(c.address, { lat: c.lat, lng: c.lng });
-          coordsRef.current = coords;
           // Session recents: record the RESOLVED subject (canonical address +
           // parcel), so a chip / Cmd-K re-select hits the same record.
           pushRecent({
@@ -220,7 +350,7 @@ export function CompStudio() {
           throw new Error(result?.error || "no profile");
         }
       } catch (err) {
-        if (ctrl.signal.aborted) return; // superseded by a newer selection
+        if (ctrl.signal.aborted || session.isStale(epoch)) return; // superseded by a newer selection
         // Surface the engine's specific retryable warm-up message verbatim so a
         // user knows to retry; otherwise the generic outage line.
         const msg = err instanceof Error ? err.message : "";
@@ -234,14 +364,15 @@ export function CompStudio() {
         // searched address, so a real address never sits atop fabricated comps.
         setProfile(SAMPLE_PROFILE);
         setIsSample(true);
-        subjectRef.current = null;
-        baseRef.current = null;
-        coordsRef.current = new Map();
+        // No live subject — tuning/override callbacks stay hard no-ops.
+        session.disarm(epoch);
       } finally {
-        if (!ctrl.signal.aborted) setLoading(false);
+        // A superseded selection owns `loading` itself — only the CURRENT
+        // lookup may clear it.
+        if (!ctrl.signal.aborted && !session.isStale(epoch)) setLoading(false);
       }
     },
-    [cancelPreview],
+    [session, beginSubjectChange],
   );
 
   // Deep links. ?demo=1 keeps the sample (already the default mount state).
@@ -251,6 +382,9 @@ export function CompStudio() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("demo") === "1") {
+      // Same shared reset as every other subject-change path — the sample must
+      // start clean even if this branch ever re-runs with state on the board.
+      beginSubjectChange();
       setProfile(SAMPLE_PROFILE);
       setIsSample(true);
       return;
@@ -261,25 +395,32 @@ export function CompStudio() {
       // Minimal, correctly-typed seed — only the fields select() reads. No cast.
       void select({ address, parcel_id: parcelId });
     }
-  }, [select]);
+  }, [select, beginSubjectChange]);
 
   /**
    * Run a tuning recompute for the current excluded/forced sets, merging the
-   * preview result onto the live base. Debounced + aborted like the search.
+   * preview result onto the live base. Debounced + aborted like the search,
+   * and epoch-stamped: a recompute scheduled (or resolving) for a subject the
+   * user has since left is dropped, never merged onto the new subject.
    */
   const runPreview = useCallback(
     (nextExcluded: string[], nextForced: string[]) => {
-      const subject = subjectRef.current;
-      const base = baseRef.current;
+      const subject = session.subject();
+      const base = session.base();
       if (!subject || !base) return; // sample / no live subject ⇒ no-op
 
       cancelPreview();
+
+      // Stamp this recompute to the subject it was requested for. cancelPreview
+      // (run by every subject change) clears the timer and aborts the fetch;
+      // the epoch is the backstop for a response that settles anyway.
+      const epoch = session.epoch();
 
       // The agent's what-if subject edits travel with every recompute (pruned so
       // an empty editor is a no-op on the wire). The exec-summary override is
       // narrative-only and does NOT move the valuation, so it never rides the
       // preview — it travels with generateReport instead.
-      const subjectOverrides = pruneOverrides(overridesRef.current);
+      const subjectOverrides = pruneOverrides(session.overrides());
 
       // Nothing tuned at all (no comp edits AND no subject overrides) ⇒ restore
       // the original live report with no round-trip. Subject overrides re-drive
@@ -296,6 +437,7 @@ export function CompStudio() {
 
       setTuning(true);
       previewTimerRef.current = window.setTimeout(async () => {
+        if (session.isStale(epoch)) return; // subject changed while debouncing
         const ctrl = new AbortController();
         previewAbortRef.current = ctrl;
         try {
@@ -309,9 +451,13 @@ export function CompStudio() {
             },
             ctrl.signal,
           );
-          if (ctrl.signal.aborted) return;
+          if (ctrl.signal.aborted || session.isStale(epoch)) return;
           if (result?.ok && result.comps && result.valuation) {
-            const coords = coordsRef.current;
+            // Original comp coordinates keyed by address — derived from the
+            // untouched base so comps the recompute kept (or re-added) keep
+            // their map pins even when the feed omits coordinates.
+            const coords = new Map<string, { lat: number | null; lng: number | null }>();
+            for (const c of base.comps ?? []) coords.set(c.address, { lat: c.lat, lng: c.lng });
             const mergedComps = result.comps.map((c) => previewCompToProfile(c, coords));
             const mergedValuation = previewValuationToProfile(result.valuation);
             setProfile({
@@ -361,24 +507,26 @@ export function CompStudio() {
             throw new Error(result?.error || "preview failed");
           }
         } catch (err) {
-          if (ctrl.signal.aborted) return;
+          if (ctrl.signal.aborted || session.isStale(epoch)) return;
           const msg = err instanceof Error ? err.message : "";
           const retryable = msg.includes("warming up") || msg.includes("503");
           toast.error(
             retryable ? RETRYABLE_503 : "Couldn't recompute — keeping the prior comp set.",
           );
         } finally {
-          if (!ctrl.signal.aborted) setTuning(false);
+          // A stale recompute must not touch state — the subject change that
+          // staled it already reset `tuning`.
+          if (!ctrl.signal.aborted && !session.isStale(epoch)) setTuning(false);
         }
       }, TUNE_DEBOUNCE_MS);
     },
-    [cancelPreview],
+    [session, cancelPreview],
   );
 
   // Toggle one comp in/out of the valuation and recompute. No-op on sample.
   const toggleComp = useCallback(
     (key: string, exclude: boolean) => {
-      if (isSample || !subjectRef.current) return;
+      if (isSample || !session.subject()) return;
       setExcluded((prev) => {
         const next = exclude ? Array.from(new Set([...prev, key])) : prev.filter((k) => k !== key);
         // `forced` is reserved for re-adding comps the engine dropped; toggling
@@ -387,7 +535,7 @@ export function CompStudio() {
         return next;
       });
     },
-    [isSample, forced, runPreview],
+    [isSample, forced, runPreview, session],
   );
 
   // Pin a searched address IN as a comp (the engine's `forced` list) and
@@ -396,7 +544,7 @@ export function CompStudio() {
   const addForced = useCallback(
     (address: string) => {
       const key = address.trim();
-      if (isSample || !subjectRef.current || !key) return;
+      if (isSample || !session.subject() || !key) return;
       const nextExcluded = excluded.filter((k) => k !== key);
       setExcluded(nextExcluded);
       setForced((prev) => {
@@ -406,13 +554,13 @@ export function CompStudio() {
         return next;
       });
     },
-    [isSample, excluded, runPreview],
+    [isSample, excluded, runPreview, session],
   );
 
   // Drop a previously-pinned address back out of the set and recompute.
   const removeForced = useCallback(
     (address: string) => {
-      if (isSample || !subjectRef.current) return;
+      if (isSample || !session.subject()) return;
       setForced((prev) => {
         if (!prev.includes(address)) return prev;
         const next = prev.filter((k) => k !== address);
@@ -420,39 +568,47 @@ export function CompStudio() {
         return next;
       });
     },
-    [isSample, excluded, runPreview],
+    [isSample, excluded, runPreview, session],
   );
 
   // Subject what-if overrides (sqft/condition) changed — re-estimate live, the
-  // same debounced/aborted path a comp toggle takes. No-op on sample data.
+  // same debounced/aborted path a comp toggle takes. Guarded BEFORE any state
+  // is written: while a subject switch is in flight the session is disarmed,
+  // so a straggler edit surviving from the previous subject's editor can no
+  // longer poison the state the next subject inherits. No-op on sample data.
   const onOverridesChange = useCallback(
     (next: SubjectOverrides) => {
+      if (isSample || !session.subject()) return;
+      session.setOverrides(session.epoch(), next);
       setOverrides(next);
-      overridesRef.current = next;
-      if (isSample || !subjectRef.current) return;
       runPreview(excluded, forced);
     },
-    [isSample, excluded, forced, runPreview],
+    [isSample, excluded, forced, runPreview, session],
   );
 
   // Executive-summary override changed. This is purely narrative (it doesn't
-  // move the valuation), so we update state/ref but DON'T trigger a recompute —
-  // it rides along on the next preview/generate. No-op styling on sample.
-  const onReportConfigChange = useCallback((next: ReportConfig) => {
-    setReportConfig(next);
-    reportConfigRef.current = next;
-  }, []);
+  // move the valuation), so we update the session + state but DON'T trigger a
+  // recompute — it rides along on the next preview/generate. Same disarmed-
+  // session guard as onOverridesChange: stragglers are dropped, not recorded.
+  const onReportConfigChange = useCallback(
+    (next: ReportConfig) => {
+      if (!session.subject()) return;
+      session.setReportConfig(session.epoch(), next);
+      setReportConfig(next);
+    },
+    [session],
+  );
 
   // "Reset to engine picks": clear every pin/exclusion and restore the engine's
   // own comp set. runPreview([], []) short-circuits to the stored base when no
   // subject overrides are active, so the common case is a zero-round-trip snap
   // back; with overrides present it recomputes them against the untouched set.
   const resetTuning = useCallback(() => {
-    if (isSample || !subjectRef.current) return;
+    if (isSample || !session.subject()) return;
     setExcluded([]);
     setForced([]);
     runPreview([], []);
-  }, [isSample, runPreview]);
+  }, [isSample, runPreview, session]);
 
   // Tear down any pending preview on unmount.
   useEffect(() => cancelPreview, [cancelPreview]);
@@ -556,7 +712,7 @@ export function CompStudio() {
               reportConfig={reportConfig}
               onOverridesChange={inert ? undefined : onOverridesChange}
               onReportConfigChange={inert ? undefined : onReportConfigChange}
-              engineMid={inert ? undefined : baseRef.current?.valuation?.mid ?? null}
+              engineMid={inert ? undefined : session.base()?.valuation?.mid ?? null}
               onResetTuning={inert ? undefined : resetTuning}
               tuning={tuning}
             />

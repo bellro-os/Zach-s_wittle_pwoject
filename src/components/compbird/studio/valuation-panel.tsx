@@ -5,25 +5,62 @@ import { memo } from "react";
 import { Pill } from "@/components/compbird/ui";
 import { CountUp } from "@/components/compbird/motion";
 import { usd, ppsf, stripTags } from "@/lib/compbird/format";
-import { computeConfidenceFromSignals } from "@/lib/compbird/confidence";
+import {
+  computeConfidenceFromSignals,
+  HIGH_MIN_COMPS,
+  HIGH_ENS_MAX_NEAREST_MI,
+  HIGH_ENS_MAX_FARTHEST_MI,
+  type ConfidenceResult,
+} from "@/lib/compbird/confidence";
 import { ConfidenceBadge, ConfidenceFactsLine } from "./confidence-badge";
 import type { Valuation } from "@/lib/compbird/types";
 
 /**
- * The headline number. The mid value reads LARGE with an animated count-up; a
- * two-tier confidence badge (src/lib/compbird/confidence.ts) sits beside it
- * with the honest drivers in a popover; the low–high range, comp $/sqft and an
- * always-visible comp-evidence facts line sit beneath, then the valuation
- * methods are itemized as rows with their rationale.
+ * The headline figure — presented by TIER (src/lib/compbird/confidence.ts):
+ *
+ *   HIGH — the measured gate says the number is trustworthy: the mid reads
+ *   LARGE with an animated count-up, the low–high range sits beneath as
+ *   support, and the badge reads as certainty.
+ *
+ *   STANDARD — the honest default: the RANGE is the hero at the size the mid
+ *   holds on high-tier reports, the mid demotes to "midpoint $X" in the
+ *   support row, and one plain line says why ("comparables are farther/fewer —
+ *   treat this as a range"). Same idiom, no scare colors — the shape of the
+ *   layout carries the honesty.
+ *
+ * Both tiers keep the comp $/sqft, the always-visible comp-evidence facts
+ * line, and the itemized method rows (which render whatever methods the engine
+ * ships by name — including the ensemble's "AI comparable read" row — with no
+ * name special-casing).
  *
  * Confidence renders for LOCKED viewers too — it is computed from fields that
- * survive redaction (compsSummary count/nearest + divergence_pct), so it works
- * as a selling point for the unlock without moving any gated data client-side.
+ * survive redaction (compsSummary count/nearest/farthest + divergence_pct +
+ * the optional ai_blind arm), so it works as a selling point for the unlock
+ * without moving any gated data client-side.
  */
+
+/**
+ * The one honest line under a STANDARD-tier range hero — names the dominant
+ * measured driver (distance, then count), falling back to method disagreement.
+ */
+function rangeExplainer(conf: ConfidenceResult): string {
+  const fewer = conf.compCount != null && conf.compCount < HIGH_MIN_COMPS;
+  const farther =
+    (conf.nearestMi != null && conf.nearestMi > HIGH_ENS_MAX_NEAREST_MI) ||
+    (conf.farthestMi != null && conf.farthestMi > HIGH_ENS_MAX_FARTHEST_MI);
+  if (farther && fewer)
+    return "Comparables here are farther away and fewer — treat this as a range, not a point estimate.";
+  if (farther)
+    return "Comparables here are farther away — treat this as a range, not a point estimate.";
+  if (fewer)
+    return "Fewer comparable sales here — treat this as a range, not a point estimate.";
+  return "The valuation methods don't settle on a single number — treat this as a range, not a point estimate.";
+}
 
 function ValuationPanelImpl({
   valuation,
   nearestMi,
+  farthestMi,
   compCount,
   supplementalShare = 0,
   locked = false,
@@ -35,6 +72,12 @@ function ValuationPanelImpl({
   valuation: Valuation;
   /** Distance (mi) of the closest comp — caps confidence when comps aren't local. */
   nearestMi?: number | null;
+  /**
+   * Distance (mi) of the farthest comp — the measured high-tier gate bounds
+   * the WHOLE set, not just the closest sale. Undefined degrades gracefully
+   * (nearest + the evidence gate still hold).
+   */
+  farthestMi?: number | null;
   /**
    * Number of comparable sales behind the estimate. Callers pass comps.length
    * on live reports and compsSummary.count on locked ones (both survive
@@ -91,46 +134,80 @@ function ValuationPanelImpl({
   const conf = computeConfidenceFromSignals({
     compCount: compCount ?? null,
     nearestMi: nearestMi ?? null,
+    farthestMi: farthestMi ?? null,
     methodValues,
     divergencePct: valuation.divergence_pct ?? null,
     mid,
+    aiBlind: valuation.ai_blind ?? null,
+    aiEnsemble: valuation.ai_ensemble ?? null,
     supplementalShare,
   });
+
+  // STANDARD tier flips the hero: the honest low–high RANGE takes the size the
+  // mid holds on high-tier reports, and the mid demotes to "midpoint $X" in the
+  // support row. Needs both ends — a range-less payload keeps the mid hero.
+  const low = valuation.low ?? null;
+  const high = valuation.high ?? null;
+  const hasRange = low != null && low > 0 && high != null && high > 0;
+  const rangeHero = conf.tier === "standard" && hasMid && hasRange;
+  const heroFigureClass =
+    "font-data text-5xl font-semibold leading-none tracking-tight text-[var(--cb-ember-text)] sm:text-6xl";
 
   return (
     <div className="flex flex-col gap-7">
       {/* headline value */}
       <div>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <span className="cb-eyebrow text-muted-foreground">Estimated value</span>
+          <span className="cb-eyebrow text-muted-foreground">
+            {rangeHero ? "Estimated range" : "Estimated value"}
+          </span>
           <span className="inline-flex flex-wrap items-center gap-2">
             {locked ? <Pill tone="neutral">Method breakdown — Pro</Pill> : null}
             {hasMid ? <ConfidenceBadge confidence={conf} /> : null}
           </span>
         </div>
 
-        <div className="mt-2 flex items-baseline gap-3">
-          {hasMid ? (
-            <CountUp
-              to={mid ?? 0}
-              prefix="$"
-              duration={1.4}
-              className="font-data text-5xl font-semibold leading-none tracking-tight text-[var(--cb-ember-text)] sm:text-6xl"
-            />
-          ) : (
-            <span className="font-data text-5xl font-semibold leading-none tracking-tight text-[var(--cb-ember-text)] sm:text-6xl">
-              —
+        {rangeHero ? (
+          /* STANDARD — the range IS the answer */
+          <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <CountUp to={low ?? 0} prefix="$" duration={1.4} className={heroFigureClass} />
+            <span aria-hidden className="font-data text-3xl leading-none text-border sm:text-4xl">
+              –
             </span>
-          )}
-        </div>
+            <span className="sr-only">to</span>
+            <CountUp to={high ?? 0} prefix="$" duration={1.4} className={heroFigureClass} />
+          </div>
+        ) : (
+          /* HIGH (or no range shipped) — the mid IS the answer */
+          <div className="mt-2 flex items-baseline gap-3">
+            {hasMid ? (
+              <CountUp to={mid ?? 0} prefix="$" duration={1.4} className={heroFigureClass} />
+            ) : (
+              <span className={heroFigureClass}>—</span>
+            )}
+          </div>
+        )}
+
+        {/* the honest one-liner a range hero owes the reader */}
+        {rangeHero ? (
+          <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">
+            {rangeExplainer(conf)}
+          </p>
+        ) : null}
 
         {/* comp-evidence facts — always visible, caution copy when comps run thin */}
         {hasMid ? <ConfidenceFactsLine confidence={conf} className="mt-2.5" /> : null}
 
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 font-data text-sm text-muted-foreground">
-          <span>
-            {usd(valuation.low)} <span className="text-border">–</span> {usd(valuation.high)}
-          </span>
+          {rangeHero ? (
+            <span>
+              midpoint <span className="text-foreground">{usd(mid)}</span>
+            </span>
+          ) : (
+            <span>
+              {usd(valuation.low)} <span className="text-border">–</span> {usd(valuation.high)}
+            </span>
+          )}
           {valuation.comp_ppsf != null ? (
             <>
               <span aria-hidden className="text-border">

@@ -142,6 +142,16 @@ export interface Valuation {
   implied_subject_ppsf: number | null;
   divergence_pct: number | null;
   methods: ValuationMethod[];
+  /**
+   * Blind-AI arm of the fast ensemble (engine flag CMA_AI_ENSEMBLE) — the
+   * independent "AI comparable read" estimate, BEFORE averaging. OPTIONAL:
+   * older engine responses and the static sample lack it, and the confidence
+   * tier degrades gracefully to the distance/spread gate when absent. Survives
+   * redaction (redact.ts spreads the valuation object).
+   */
+  ai_blind?: number | null;
+  /** True when `mid` IS the ensemble mean(engine, ai_blind), not engine-only. */
+  ai_ensemble?: boolean;
 }
 
 export interface ProfileComp extends CompSimilarity {
@@ -327,6 +337,10 @@ export interface PreviewValuation {
   ppsf: number | null;
   divergence_pct: number | null;
   methods: PreviewValuationMethod[];
+  /** Blind-AI ensemble arm — same optional contract as `Valuation.ai_blind`. */
+  ai_blind?: number | null;
+  /** True when `mid` IS the ensemble mean(engine, ai_blind), not engine-only. */
+  ai_ensemble?: boolean;
 }
 
 export interface PreviewResult {

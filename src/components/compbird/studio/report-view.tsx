@@ -218,6 +218,17 @@ export function ReportView({
       }, null),
     [comps],
   );
+  // Farthest comp distance — the measured high-confidence gate bounds the whole
+  // comp set (confidence.ts), not just the closest sale.
+  const farthestMi = useMemo(
+    () =>
+      comps.reduce<number | null>((max, c) => {
+        const d = c.distance_mi;
+        if (d == null || !Number.isFinite(d)) return max;
+        return max == null || d > max ? d : max;
+      }, null),
+    [comps],
+  );
   // Share of the comp pool that is public-records (supplemental) evidence —
   // a primitive, so the memo'd ValuationPanel only re-renders on real change.
   const supplementalShare = useMemo(
@@ -346,6 +357,7 @@ export function ReportView({
                 <ValuationPanel
                   valuation={valuation}
                   nearestMi={locked ? profile.compsSummary?.nearest_mi ?? null : nearestMi}
+                  farthestMi={locked ? profile.compsSummary?.farthest_mi ?? null : farthestMi}
                   compCount={locked ? profile.compsSummary?.count ?? null : comps.length}
                   supplementalShare={supplementalShare}
                   locked={locked}
