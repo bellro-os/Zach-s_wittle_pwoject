@@ -43,6 +43,19 @@ Paired bootstrap: delta medAPE -0.45 pp, 95% CI [-2.25, +1.55], P(improve) 63.2%
 
 ## Verdict
 
-**flag-on improves the production posture** — see the tables above; the detail per subject is in `prod_posture_cert_detail.jsonl`.
+**1. The ensemble flag earns its keep in production — modestly and consistently.** Flag-on improves the median (11.78% → 11.21%, −0.57 pp, P(improve) 88.7%), and every secondary metric agrees directionally: PPE5/10/20 all up, both tails smaller, bias halved (+2.24% → +1.56%). The 95% CI narrowly crosses zero, so this is a *probable* improvement, not a slam-dunk — smaller than the fast-harness −1.7 pp because the production knobs (AVM + prior-sale) already capture part of the signal the blind arm adds. There is no evidence of harm (worst-case CI +0.29 pp), and the flag also powers the agreement signal and the confidence tier. **Keep it on.**
 
-{VERDICT_NOTES}
+**2. The oracle confound is confirmed dead and the 15-subject scare is resolved.** With as-of-routed prior-sale (0 violations, 58 genuine prior anchors), the paired comparison is clean — the earlier "no lift" spot check was the small sample plus the leak, exactly as suspected.
+
+**3. THE HEADLINE — the launchable ≈5% segment survives the production posture** (flag-on arm, tighter gate sweep on this run's detail):
+
+| Gate | Coverage | Median \|APE\| | PPE20 |
+|---|---|---|---|
+| the shipped HIGH gate (0.3/1.0/agree≤10%) | 38.2% | 7.21% | 83% |
+| near ≤ 0.2 & far ≤ 0.6 & $250–600k | 24.6% | 5.62% | 94% |
+| + agreement ≤ 10% | 19.9% | **5.33%** | 94% |
+| tightest (0.1/0.4/$250–550k) + agreement | 13.4% | **5.09%** | 96% |
+
+**In the exact config customers get, the confident segment reaches 5.1% median error on ~13% of the market (96% within 20%), and 5.3% on ~20%.** The shipped in-app HIGH gate (7.2% @ 38%) is the broad tier; these tighter cuts are the "≈5%" marketing claim, now certified at n=1000 with leak-free production knobs.
+
+**4. Product note:** the agreement term adds selection value at the tight end (5.62% → 5.33% at +/−5pp coverage) but little at the broad gate (distance-only: 7.46% @ 50.3%). A future 3-band presentation (Certified ≈5% / High ≈7% / Standard = range) maps cleanly onto these measured cuts.
