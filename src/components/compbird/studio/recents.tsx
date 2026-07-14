@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import { cn } from "@/lib/utils/cn";
+import { pickBlocked } from "./search-bar";
 
 /**
  * Session recents: every successful live selection lands in
@@ -112,11 +113,18 @@ function Kbd({ children }: { children: React.ReactNode }) {
 export function Recents({
   onPick,
   busy = false,
+  busySubject = null,
 }: {
   /** Re-runs the studio's select() for a stored entry. */
   onPick: (match: { address: string; parcel_id: string }) => void;
-  /** The studio is mid-fetch — chips disable, matching the preset chips. */
+  /**
+   * The studio is mid-fetch — chips AND palette rows disable (same
+   * `pickBlocked` gate as the search bar's chips/rows). Escape cancels the
+   * lookup (studio-level listener), then everything re-enables.
+   */
   busy?: boolean;
+  /** The subject the in-flight lookup is FOR — named in the palette notice. */
+  busySubject?: string | null;
 }) {
   const [recents, setRecents] = useState<RecentEntry[]>([]);
   const [open, setOpen] = useState(false);
@@ -185,10 +193,13 @@ export function Recents({
 
   const pick = useCallback(
     (r: RecentEntry) => {
+      // Belt-and-braces behind the disabled rows: the palette's Enter path
+      // lands here too, and no pick may start while a lookup is in flight.
+      if (pickBlocked(busy)) return;
       close();
       onPick({ address: r.address, parcel_id: r.parcel_id });
     },
-    [close, onPick],
+    [busy, close, onPick],
   );
 
   const clearAll = useCallback(() => writeRecents([]), []);
@@ -239,8 +250,12 @@ export function Recents({
             <button
               key={keyOf(r)}
               type="button"
-              onClick={() => onPick({ address: r.address, parcel_id: r.parcel_id })}
-              disabled={busy}
+              onClick={() => {
+                if (pickBlocked(busy)) return;
+                onPick({ address: r.address, parcel_id: r.parcel_id });
+              }}
+              disabled={pickBlocked(busy)}
+              aria-disabled={pickBlocked(busy) || undefined}
               title={r.address}
               className="inline-flex min-h-[40px] items-center gap-2 rounded-full border border-border bg-card/60 px-3.5 py-2 text-xs text-muted-foreground transition-colors hover:border-[var(--cb-ember)]/40 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)] disabled:opacity-50"
             >
@@ -299,6 +314,29 @@ export function Recents({
               />
             </div>
 
+            {/* busy notice — which subject is loading while the rows below are
+                gated. Esc here closes the palette AND cancels the lookup (the
+                studio's Escape listener), matching the hint. */}
+            {busy && busySubject ? (
+              <div
+                role="status"
+                aria-live="polite"
+                className="flex items-center gap-2 border-b border-border px-4 py-2 text-xs text-muted-foreground"
+              >
+                <span
+                  className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-[var(--cb-ember)]"
+                  aria-hidden
+                />
+                <span className="truncate">
+                  Pricing{" "}
+                  <span className="font-medium text-foreground">{busySubject}</span>…
+                </span>
+                <span className="shrink-0 text-muted-foreground/80">
+                  Esc cancels
+                </span>
+              </div>
+            ) : null}
+
             {filtered.length > 0 ? (
               <ul
                 id={`${listId}-list`}
@@ -315,9 +353,13 @@ export function Recents({
                       type="button"
                       onMouseEnter={() => setActive(i)}
                       onClick={() => pick(r)}
+                      disabled={pickBlocked(busy)}
+                      aria-disabled={pickBlocked(busy) || undefined}
                       className={cn(
-                        "flex w-full items-baseline gap-3 rounded-xl px-3 py-2.5 text-left transition-colors",
-                        i === activeIdx ? "bg-secondary/70" : "hover:bg-secondary/50",
+                        "flex w-full items-baseline gap-3 rounded-xl px-3 py-2.5 text-left transition-colors disabled:opacity-50",
+                        i === activeIdx && !busy
+                          ? "bg-secondary/70"
+                          : "hover:bg-secondary/50",
                       )}
                     >
                       <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">

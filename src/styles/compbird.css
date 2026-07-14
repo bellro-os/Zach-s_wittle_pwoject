@@ -357,3 +357,16 @@ html:has(.cb-shell-night) {
     animation: none !important;
   }
 }
+
+/* Decorative loops must IDLE. The AnimationGovernor (mounted once in the root
+   layout — src/lib/compbird/idle-animations.ts) stamps
+   `<html data-cb-anim-paused>` while the tab is hidden or the user has gone
+   ~30s without input, and lifts it on the next interaction. Everything tagged
+   [data-cb-anim] (the aerial scanline sweep, the subject-pin pulse, marquee
+   tracks) freezes on its current frame — identical look, just not running.
+   Activity-tied motion (spinners, skeletons, the recompute pulse) is untagged
+   and never governed. */
+html[data-cb-anim-paused] .cb-marquee-track,
+html[data-cb-anim-paused] [data-cb-anim] {
+  animation-play-state: paused !important;
+}

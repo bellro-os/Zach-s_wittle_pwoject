@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Eyebrow, Pill } from "@/components/compbird/ui";
 import { Reveal } from "@/components/compbird/motion";
@@ -240,10 +241,142 @@ export function createSubjectSession() {
 }
 export type SubjectSession = ReturnType<typeof createSubjectSession>;
 
+/* ── Demo autopilot gate — the demo must never fight a real user ─────────────
+ *
+ * Live sessions were observed loading "509 jefferson st" character-by-character
+ * (real /api/compbird/search requests per keystroke) and auto-selecting the
+ * result. That typing loop does NOT live in this tree: the only callers of
+ * /api/compbird/search are the SearchBar / AddCompSearch debounced typeaheads,
+ * both driven purely by controlled user input (verified across src/ and the
+ * built bundles). Whatever drives it — an older deployed bundle, an external
+ * demo script, a kiosk runner — this gate is the contract ANY auto-demo must
+ * pass through, and the studio enforces the user's side of it regardless:
+ *
+ *  (a) at most once per browser: DEMO_FLAG_KEY is written the moment a demo
+ *      starts (the forced ?demo=1 path writes it too);
+ *  (b) any real user interaction — keydown or pointerdown anywhere, focus on
+ *      the search combobox (opening the Cmd/Ctrl-K palette is a keydown) —
+ *      kills it instantly and permanently for this browser (same flag, written
+ *      by capture-phase listeners installed on studio mount);
+ *  (c) it never auto-starts when the input has content, a lookup is in
+ *      flight, an authenticated user already has recents, or the user prefers
+ *      reduced motion;
+ *  (d) explicit ?demo=1 is intentional and always allowed through.
+ *
+ * Any auto-demo must ALSO route its selection through select() — i.e. through
+ * beginSubjectChange — never a parallel path. Pure + storage-injected so the
+ * interaction test (comp-studio.interaction.test.ts) drives it headlessly.
+ */
+export const DEMO_FLAG_KEY = "cb-demo-autopilot";
+
+export type DemoFlagStore = {
+  get(key: string): string | null;
+  set(key: string, value: string): void;
+};
+
+/** localStorage as a DemoFlagStore — only ever touched inside effects. */
+const browserDemoStore: DemoFlagStore = {
+  get: (k) => window.localStorage.getItem(k),
+  set: (k, v) => window.localStorage.setItem(k, v),
+};
+
+/** True once a demo has started or a real user has interacted (rules a+b). */
+export function demoAlreadyDone(store: DemoFlagStore): boolean {
+  try {
+    return store.get(DEMO_FLAG_KEY) != null;
+  } catch {
+    return true; // unreadable storage ⇒ can't prove once-per-browser ⇒ never
+  }
+}
+
+/** Rule (a): write the once-per-browser flag the moment a demo starts. */
+export function markDemoStarted(store: DemoFlagStore): void {
+  try {
+    store.set(DEMO_FLAG_KEY, "ran");
+  } catch {
+    /* unwritable storage — demoAlreadyDone() already fails safe */
+  }
+}
+
+/** Rule (b): a real user interacted — permanently disqualify this browser. */
+export function killDemo(store: DemoFlagStore): void {
+  try {
+    store.set(DEMO_FLAG_KEY, "killed");
+  } catch {
+    /* ditto */
+  }
+}
+
+/** May an UNFORCED auto-demo start right now? (Rule d bypasses everything.) */
+export function shouldAutoRunDemo(env: {
+  /** Explicit ?demo=1 — intentional, always runs. */
+  forced: boolean;
+  store: DemoFlagStore;
+  inputHasContent: boolean;
+  lookupInFlight: boolean;
+  authedWithRecents: boolean;
+  prefersReducedMotion: boolean;
+}): boolean {
+  if (env.forced) return true;
+  if (demoAlreadyDone(env.store)) return false;
+  return !(
+    env.inputHasContent ||
+    env.lookupInFlight ||
+    env.authedWithRecents ||
+    env.prefersReducedMotion
+  );
+}
+
+/* ── Deep-link planner — live ?address= / ?parcelId= / ?demo=1 changes ───────
+ *
+ * The studio reacts to search-param CHANGES while mounted (a same-tab client
+ * nav from the portfolio, back/forward), not just the mount-time read. One
+ * pure decision keeps the guards testable:
+ *
+ *  - a signature dedupes the initial mount double-render (StrictMode re-invokes
+ *    the effect with refs intact) and unrelated param rewrites (?subscribed=1
+ *    stripping, etc.) — same signature ⇒ no re-fire;
+ *  - a param naming the subject ALREADY on the board (parcel id or address,
+ *    case-insensitive) is ignored — no useless refetch/reset;
+ *  - in-studio selections never write the URL, so they can't re-trigger this.
+ */
+export function planDeepLink(
+  raw: { demo: string | null; address: string | null; parcelId: string | null },
+  lastSig: string | null,
+  current: { address?: string; parcelId?: string } | null,
+): { sig: string; action: "none" | "demo" | "select"; address: string; parcelId: string } {
+  const demo = raw.demo === "1";
+  const address = raw.address?.trim() ?? "";
+  const parcelId = raw.parcelId?.trim() ?? "";
+  // JSON-encoded tuple: unambiguous however the params are shaped, so two
+  // different param sets can never share a signature.
+  const sig = JSON.stringify(demo ? ["demo"] : [parcelId, address]);
+  if (sig === lastSig) return { sig, action: "none", address, parcelId };
+  if (demo) return { sig, action: "demo", address, parcelId };
+  if (!address && !parcelId) return { sig, action: "none", address, parcelId };
+  if (current) {
+    const sameParcel =
+      parcelId !== "" &&
+      !!current.parcelId &&
+      parcelId.toLowerCase() === current.parcelId.toLowerCase();
+    const sameAddress =
+      address !== "" &&
+      !!current.address &&
+      address.toLowerCase() === current.address.toLowerCase();
+    if (sameParcel || sameAddress) return { sig, action: "none", address, parcelId };
+  }
+  return { sig, action: "select", address, parcelId };
+}
+
 export function CompStudio() {
   const [profile, setProfile] = useState<ProfileResult>(SAMPLE_PROFILE);
   const [isSample, setIsSample] = useState(true);
   const [loading, setLoading] = useState(false);
+  // WHICH subject the in-flight lookup is for — powers the "Pricing …" busy
+  // affordance on the search bar + Cmd-K palette while every selection surface
+  // is gated (no concurrent lookups, no queue). Cleared wherever `loading`
+  // clears, plus by the Escape cancel.
+  const [pendingLabel, setPendingLabel] = useState<string | null>(null);
   // A live lookup failed and we fell back to the sample — surfaced as a
   // PERSISTENT inline notice (the toast alone evaporates, and a sample report
   // must never quietly pass for the searched address).
@@ -264,6 +397,14 @@ export function CompStudio() {
   // + untouched engine base, and the epoch that stales superseded async work.
   // useState's lazy initializer gives one stable instance per mounted studio.
   const [session] = useState(createSubjectSession);
+
+  // Live search params (fix: deep links while ALREADY mounted). The page wraps
+  // the studio in <Suspense> for this hook, per Next's useSearchParams contract.
+  const searchParams = useSearchParams();
+  // Signature of the last APPLIED deep-link params — dedupes the mount
+  // double-render and unrelated param rewrites. A ref: surviving re-renders is
+  // the point, and it must never itself trigger one.
+  const appliedParamsRef = useRef<string | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
   const previewAbortRef = useRef<AbortController | null>(null);
@@ -317,6 +458,7 @@ export function CompStudio() {
       lastAttemptRef.current = { address: match.address, parcel_id: match.parcel_id };
 
       setLoading(true);
+      setPendingLabel(match.address || match.parcel_id || null);
       setLiveError(null);
       try {
         const input = match.parcel_id
@@ -372,34 +514,107 @@ export function CompStudio() {
         session.disarm(epoch);
       } finally {
         // A superseded selection owns `loading` itself — only the CURRENT
-        // lookup may clear it.
-        if (!ctrl.signal.aborted && !session.isStale(epoch)) setLoading(false);
+        // lookup may clear it (and its pending-subject label).
+        if (!ctrl.signal.aborted && !session.isStale(epoch)) {
+          setLoading(false);
+          setPendingLabel(null);
+        }
       }
     },
     [session, beginSubjectChange],
   );
 
-  // Deep links. ?demo=1 keeps the sample (already the default mount state).
-  // ?address= / ?parcelId= resolve a specific subject live via the same
-  // select/fetch path a search result uses, with the existing sample fallback.
-  // Read client-side to avoid coupling the page to search params.
+  /**
+   * The Escape hatch for the busy-gated selection surfaces: abort the
+   * in-flight profile lookup (the session's existing AbortController), drop
+   * the skeleton, and re-enable every chip/row/palette entry. The aborted
+   * fetch's own catch/finally see `ctrl.signal.aborted` and stand down, so
+   * this owns the loading flags. The previously-rendered report (sample or
+   * prior subject) is still on the board and simply shows again.
+   */
+  const cancelLookup = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setLoading(false);
+    setPendingLabel(null);
+  }, []);
+
+  // Escape cancels the in-flight lookup — listener alive ONLY while one is.
+  // Plain bubble listener: a dropdown/palette Escape (which closes that
+  // surface) reaches here too, so one keypress both dismisses and cancels.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("demo") === "1") {
+    if (!loading) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") cancelLookup();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [loading, cancelLookup]);
+
+  // Demo kill-switch (rule b): the first real user interaction — any keydown
+  // or pointerdown, or focusing the search combobox — permanently disqualifies
+  // this browser from ever auto-running a demo. Capture phase, so no surface
+  // can swallow it first; detaches the moment it has nothing left to do.
+  useEffect(() => {
+    if (demoAlreadyDone(browserDemoStore)) return;
+    const kill = () => {
+      killDemo(browserDemoStore);
+      detach();
+    };
+    const onFocusIn = (e: FocusEvent) => {
+      const el = e.target instanceof HTMLElement ? e.target : null;
+      if (el?.getAttribute("role") === "combobox") kill();
+    };
+    const detach = () => {
+      window.removeEventListener("keydown", kill, true);
+      window.removeEventListener("pointerdown", kill, true);
+      window.removeEventListener("focusin", onFocusIn, true);
+    };
+    window.addEventListener("keydown", kill, true);
+    window.addEventListener("pointerdown", kill, true);
+    window.addEventListener("focusin", onFocusIn, true);
+    return detach;
+  }, []);
+
+  // Deep links — LIVE, not mount-only. ?demo=1 forces the sample demo
+  // (intentional, rule d); ?address= / ?parcelId= resolve a subject via the
+  // same select() flow a search result uses — i.e. through beginSubjectChange,
+  // never a parallel path. useSearchParams (not a one-shot
+  // window.location read) so a param CHANGE while the studio is already
+  // mounted — a same-tab client nav from the portfolio, back/forward — loads
+  // that subject. planDeepLink guards the mount double-render (signature
+  // dedupe) and skips params naming the subject already on the board;
+  // in-studio selections never write the URL, so they can't re-trigger this.
+  useEffect(() => {
+    const plan = planDeepLink(
+      {
+        demo: searchParams.get("demo"),
+        address: searchParams.get("address"),
+        parcelId: searchParams.get("parcelId"),
+      },
+      appliedParamsRef.current,
+      session.subject(),
+    );
+    appliedParamsRef.current = plan.sig;
+    if (plan.action === "demo") {
+      // Rule (a): even the forced path stamps the once-per-browser flag the
+      // moment it starts.
+      markDemoStarted(browserDemoStore);
       // Same shared reset as every other subject-change path — the sample must
-      // start clean even if this branch ever re-runs with state on the board.
+      // start clean even when this branch runs with state on the board. A
+      // lookup in flight was just aborted by the reset, so this branch owns
+      // clearing its loading flags (the aborted fetch stands down).
       beginSubjectChange();
+      setLoading(false);
+      setPendingLabel(null);
+      setLiveError(null);
       setProfile(SAMPLE_PROFILE);
       setIsSample(true);
-      return;
-    }
-    const address = params.get("address")?.trim() ?? "";
-    const parcelId = params.get("parcelId")?.trim() ?? "";
-    if (address || parcelId) {
+    } else if (plan.action === "select") {
       // Minimal, correctly-typed seed — only the fields select() reads. No cast.
-      void select({ address, parcel_id: parcelId });
+      void select({ address: plan.address, parcel_id: plan.parcelId });
     }
-  }, [select, beginSubjectChange]);
+  }, [searchParams, select, beginSubjectChange, session]);
 
   /**
    * Run a tuning recompute for the current excluded/forced sets, merging the
@@ -667,10 +882,15 @@ export function CompStudio() {
         </div>
 
         <div>
-          <SearchBar presets={SAMPLE_PRESETS} onSelect={select} busy={loading} />
+          <SearchBar
+            presets={SAMPLE_PRESETS}
+            onSelect={select}
+            busy={loading}
+            busySubject={pendingLabel}
+          />
           {/* session recents: chip row under the "Try" presets + the Cmd/Ctrl-K
               switcher — both re-run select() on a stored subject */}
-          <Recents onPick={select} busy={loading} />
+          <Recents onPick={select} busy={loading} busySubject={pendingLabel} />
         </div>
       </div>
 

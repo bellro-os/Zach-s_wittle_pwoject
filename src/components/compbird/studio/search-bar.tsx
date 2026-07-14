@@ -11,7 +11,25 @@ import { cn } from "@/lib/utils/cn";
  * Address typeahead. Debounced (~250ms) live search with an accessible listbox
  * dropdown, plus one-tap preset chips. Selection is handed up to the studio,
  * which fetches the dossier.
+ *
+ * CONCURRENT-LOOKUP GATING: while the studio has a profile lookup in flight
+ * (`busy`), EVERY selection surface refuses new picks — preset chips,
+ * suggestion rows, recents chips, and the Cmd/Ctrl-K palette all gate on the
+ * same `pickBlocked` predicate (disabled + dimmed + aria-disabled). No
+ * queueing: the escape hatch is Escape, which the studio wires to the
+ * in-flight lookup's abort — then everything re-enables. The bar shows WHICH
+ * subject is loading (`busySubject`) next to the spinner.
  */
+
+/**
+ * ONE predicate decides whether a selection surface accepts a pick while the
+ * studio is busy — shared by the dropdown rows/preset chips here and the
+ * recents chips + palette rows in recents.tsx, so the surfaces can never
+ * drift apart again. Exported for the interaction test.
+ */
+export function pickBlocked(busy: boolean): boolean {
+  return Boolean(busy);
+}
 
 function SearchIcon({ className }: { className?: string }) {
   return (
@@ -59,11 +77,14 @@ export function SearchBar({
   presets,
   onSelect,
   busy = false,
+  busySubject = null,
 }: {
   presets: PropertyMatch[];
   onSelect: (match: PropertyMatch) => void;
-  /** The studio is mid-fetch — reflected on the chosen row. */
+  /** The studio is mid-fetch — every selection surface gates on this. */
   busy?: boolean;
+  /** The subject the in-flight lookup is FOR — named in the busy notice. */
+  busySubject?: string | null;
 }) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<PropertyMatch[]>([]);
@@ -125,6 +146,9 @@ export function SearchBar({
   }, []);
 
   function choose(m: PropertyMatch) {
+    // Belt-and-braces behind the disabled rows/chips: no pick starts while a
+    // lookup is in flight (Escape cancels it, then this re-enables).
+    if (pickBlocked(busy)) return;
     setQ("");
     setResults([]);
     setOpen(false);
@@ -191,6 +215,22 @@ export function SearchBar({
         ) : null}
       </div>
 
+      {/* busy notice — WHICH subject the in-flight lookup is for, and the
+          escape hatch. Same idiom as the input spinner / dimmed chips. */}
+      {busy && busySubject ? (
+        <p
+          role="status"
+          aria-live="polite"
+          className="mt-3 flex items-center gap-2 text-xs text-muted-foreground"
+        >
+          <Spinner className="h-3.5 w-3.5 shrink-0 text-[var(--cb-ember)]" />
+          <span className="truncate">
+            Pricing <span className="font-medium text-foreground">{busySubject}</span>…
+          </span>
+          <span className="shrink-0 text-muted-foreground/80">Esc to cancel</span>
+        </p>
+      ) : null}
+
       {/* Screen-reader narration of the async result set — the listbox popping
           open is invisible to AT until focus moves into it. Failure states are
           narrated too: the error panel below is otherwise silent for AT. */}
@@ -214,7 +254,8 @@ export function SearchBar({
             key={p.parcel_id}
             type="button"
             onClick={() => choose(p)}
-            disabled={busy}
+            disabled={pickBlocked(busy)}
+            aria-disabled={pickBlocked(busy) || undefined}
             className="group inline-flex min-h-[40px] items-center gap-2 rounded-full border border-border bg-card/60 px-3.5 py-2 text-xs text-muted-foreground transition-colors hover:border-[var(--cb-ember)]/40 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)] disabled:opacity-50"
           >
             <span className="h-1.5 w-1.5 rounded-full bg-[var(--cb-ember)]/70" aria-hidden />
@@ -240,9 +281,11 @@ export function SearchBar({
                 type="button"
                 onMouseEnter={() => setActive(i)}
                 onClick={() => choose(m)}
+                disabled={pickBlocked(busy)}
+                aria-disabled={pickBlocked(busy) || undefined}
                 className={cn(
-                  "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors",
-                  i === active ? "bg-secondary/70" : "hover:bg-secondary/50",
+                  "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors disabled:opacity-50",
+                  i === active && !busy ? "bg-secondary/70" : "hover:bg-secondary/50",
                 )}
               >
                 <span className="min-w-0 flex-1">

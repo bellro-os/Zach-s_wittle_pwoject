@@ -47,33 +47,80 @@ export function compKey(c: ProfileComp): string {
 }
 
 /**
- * Keep excluded comps VISIBLE across recomputes. The engine doesn't
- * down-weight an excluded comp — it drops it from the response entirely and
- * backfills the set (verified against the live worker: /preview with
- * `excluded` returns comps without it). Without retention the row vanishes
- * the instant the recompute settles: no dimmed state, no Include toggle, no
- * way back short of a full reset.
+ * A comp the table has seen for the current subject, remembered together with
+ * the DISPLAYED index it first appeared at. `order` is what lets an excluded
+ * row dim IN PLACE instead of teleporting: it is assigned once (first sight)
+ * and never rewritten, while `comp` is refreshed on every recompute so the row
+ * keeps carrying the engine's latest payload (rescored similarity etc.).
+ */
+export interface CachedComp {
+  comp: ProfileComp;
+  /** First-seen displayed index — the slot an excluded row is re-seated into. */
+  order: number;
+}
+
+/**
+ * Keep excluded comps VISIBLE — and IN PLACE — across recomputes. The engine
+ * doesn't down-weight an excluded comp — it drops it from the response
+ * entirely and backfills the set (verified against the live worker: /preview
+ * with `excluded` returns comps without it). Without retention the row
+ * vanishes the instant the recompute settles: no dimmed state, no Include
+ * toggle, no way back short of a full reset. And without POSITION retention
+ * the row the user just excluded teleports to the bottom of the table.
  *
  * Every comp the table has seen for this subject goes into `cache` (keyed by
- * compKey); any excluded key missing from the live set is re-appended from the
- * cache so it renders dimmed, below the live comps, with its Include toggle.
- * The caller owns the cache's lifetime (reset it per subject).
+ * compKey) stamped with the displayed index it FIRST appeared at. Any excluded
+ * key missing from the live set is re-seated from the cache at that original
+ * index — live rows keep the engine's order around it, and backfilled new
+ * comps take the remaining slots — so it renders dimmed exactly where the
+ * user last saw it, with its Include toggle. The caller owns the cache's
+ * lifetime (reset it per subject).
  */
 export function retainExcludedComps(
   comps: ProfileComp[],
   excluded: Set<string> | undefined,
-  cache: Map<string, ProfileComp>,
+  cache: Map<string, CachedComp>,
 ): ProfileComp[] {
-  for (const c of comps) cache.set(compKey(c), c);
-  if (!excluded || excluded.size === 0) return comps;
+  // Rows to re-seat: excluded keys the engine dropped, in first-seen order.
   const present = new Set(comps.map(compKey));
-  const retained: ProfileComp[] = [];
-  for (const key of excluded) {
-    if (present.has(key)) continue;
-    const row = cache.get(key);
-    if (row) retained.push(row);
+  const retained: CachedComp[] = [];
+  if (excluded && excluded.size) {
+    for (const key of excluded) {
+      if (present.has(key)) continue;
+      const hit = cache.get(key);
+      if (hit) retained.push(hit);
+    }
+    retained.sort((a, b) => a.order - b.order);
   }
-  return retained.length ? [...comps, ...retained] : comps;
+
+  // Single walk over the output slots: a retained row claims the slot matching
+  // its original index (clamped to the end when the set has shrunk past it);
+  // live rows — engine order intact, backfills included — fill everything else
+  // and are cached at the slot they first render in.
+  const out: ProfileComp[] = [];
+  const total = comps.length + retained.length;
+  let live = 0;
+  let next = 0;
+  for (let slot = 0; slot < total; slot++) {
+    if (next < retained.length && (retained[next].order <= slot || live >= comps.length)) {
+      out.push(retained[next].comp);
+      next += 1;
+      continue;
+    }
+    const c = comps[live];
+    live += 1;
+    const key = compKey(c);
+    const prev = cache.get(key);
+    if (prev) {
+      prev.comp = c; // refresh the payload; the first-seen slot is sticky
+    } else {
+      cache.set(key, { comp: c, order: slot });
+    }
+    out.push(c);
+  }
+  // Nothing re-seated ⇒ hand back the engine's array untouched so memoized
+  // consumers keep their referential-equality fast path.
+  return retained.length ? out : comps;
 }
 
 // `mobile: false` columns collapse below sm — phones keep the decision-driving

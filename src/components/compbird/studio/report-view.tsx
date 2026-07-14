@@ -11,7 +11,7 @@ import type { ProfileResult, ProfileComp } from "@/lib/compbird/types";
 import { SubjectCard } from "./subject-card";
 import { DataFreshness } from "./data-freshness";
 import { ValuationPanel } from "./valuation-panel";
-import { CompsTable, compKey, retainExcludedComps } from "./comps-table";
+import { CompsTable, compKey, retainExcludedComps, type CachedComp } from "./comps-table";
 import { AddCompSearch } from "./add-comp-search";
 import { PpsfBars } from "./ppsf-bars";
 import { LiveAnalytics } from "./live-analytics";
@@ -254,11 +254,12 @@ export function ReportView({
   // Excluded-row retention: a recompute response DROPS excluded comps (the
   // engine filters + backfills — they aren't down-weighted rows), so the table
   // would silently lose the row the user just excluded. Cache every comp seen
-  // for THIS subject and re-append excluded ones, so they stay visible dimmed
-  // with their Include toggle. The cache resets on a new subject (comp
-  // addresses are only meaningful per lookup); ref mutation during render is
-  // the standard cache pattern — no effects, no extra renders.
-  const compCacheRef = useRef(new Map<string, ProfileComp>());
+  // for THIS subject (stamped with its first-seen displayed index) and re-seat
+  // excluded ones AT THAT INDEX, so they stay visible dimmed, in place, with
+  // their Include toggle. The cache resets on a new subject (comp addresses
+  // are only meaningful per lookup); ref mutation during render is the
+  // standard cache pattern — no effects, no extra renders.
+  const compCacheRef = useRef(new Map<string, CachedComp>());
   const cacheSubjectRef = useRef<string | null>(null);
   const subjectKey = facts ? `${facts.parcel_id ?? ""}|${facts.address ?? ""}` : "";
   if (cacheSubjectRef.current !== subjectKey) {

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
@@ -100,7 +101,13 @@ export default async function CompStudioPage() {
               <ProPitchBanner />
             </div>
           ) : null}
-          <CompStudio />
+          {/* Suspense: the studio reads useSearchParams so LIVE ?address= /
+              ?parcelId= / ?demo=1 changes load a subject while mounted — Next
+              requires the boundary. The page is force-dynamic, so the fallback
+              never actually paints in practice. */}
+          <Suspense fallback={null}>
+            <CompStudio />
+          </Suspense>
           <p className="mt-12 border-t border-border pt-6 text-xs leading-relaxed text-muted-foreground">
             compbird estimates are model-driven opinions of value based on public
             records and recent comparable sales — they are not appraisals, and no
