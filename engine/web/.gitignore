@@ -1,0 +1,33 @@
+# Next.js
+.next/
+out/
+build/
+dist/
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Environment
+.env*.local
+.env
+
+# Editor
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Prisma
+dev.db
+dev.db-journal
+
+# Audio recordings (Tier 16) — never commit raw audio. Keep the folder shape.
+recordings/**/*
+!recordings/.gitkeep
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts

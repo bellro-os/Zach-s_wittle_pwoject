@@ -1,0 +1,44 @@
+# Gravity Real Estate Group — brand profile
+# Layout style: dark_band (black mastbar + violet accents + PNG lockup)
+# Typography: Helvetica Neue (body) + Georgia (display)
+
+name: gravity
+display_name: Gravity Real Estate Group
+layout_style: dark_band
+
+palette:
+  # Semantic tokens consumed by the skeleton CSS
+  primary:   "#7c22ce"   # brand violet
+  secondary: "#5d1a9c"   # deep violet
+  accent:    "#f0e6fb"   # violet tint (chip backgrounds, soft highlight)
+  ink:       "#141414"   # near-black, primary text + dark mastbar
+  paper:     "#ffffff"   # page background
+  band:      "#f7f5fb"   # zebra-stripe / subtle panel background
+  rule:      "#e6e3ec"   # hairline borders
+  muted:     "#8d8d97"   # secondary text
+  slate:     "#4a4a52"   # tertiary text
+  good:      "#2f7d5b"   # success
+  flag:      "#9a3b34"   # warning
+  # Brand-specific extras (optional, used by accent-class overrides)
+  accent_tint: "#faf4ff"
+
+typography:
+  body_family: '"Helvetica Neue",Arial,system-ui,sans-serif'
+  display_family: 'Georgia,serif'
+  google_fonts_url: ""   # uses system fonts only
+
+# Visual identity assets
+wordmark: "GRAVITY"
+tagline: "REAL ESTATE GROUP"
+logo_path: "Gravity-FullLockup-360-White.png"   # used in dark_band layout's mastbar
+
+# Default agent identity (overridable per-CMA via --agent flag)
+agent:
+  name: "Zachary Stotz"
+  license: ""
+  brokerage: ""
+  jurisdiction: "Commonwealth of Virginia"
+
+# Footer disclaimer — short variant used on dense one-pagers
+disclaimer: "This analysis is an opinion of value for planning purposes, not an appraisal. Figures derive from MLS records and have not been verified by interior inspection; condition, updates, and finished area may differ from record and would adjust value accordingly. Not an offer or guarantee of sale price. © 2026 Gravity Real Estate Group."
+disclaimer_short: "Opinion of value · MLS records · Not an appraisal · © 2026 Gravity Real Estate Group."

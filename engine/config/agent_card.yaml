@@ -1,0 +1,14 @@
+# Agent branding for CMA reports / newsletters / decks.
+# Edit these values to customize the header on every generated client document.
+
+agent:
+  name: "Zach Stotz"
+  license: "0225XXXXXX"           # update with your VA license number
+  brokerage: "[Your Brokerage]"
+  phone: ""
+  email: "zstotz5528@gmail.com"
+  website: ""
+  tagline: "New River Valley specialist · Blacksburg + Christiansburg"
+
+# Optional: path to a logo PNG/JPG. Leave blank if none.
+# logo_path: "config/logo.png"

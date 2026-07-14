@@ -1,0 +1,162 @@
+# DC suitability scoring configuration.
+#
+# Each preset bundles hard-filter thresholds + soft-scoring weights so the
+# whole formula can be swapped in one --preset flag. Add new presets here
+# for different intent profiles (hyperscale, colocation, edge).
+#
+# Total weight should sum to 100. Bonuses (opportunity_zone, tax_rate, etc.)
+# are added on top and the final score is clamped to [0, 100].
+
+presets:
+
+  piedmont:
+    description: "Standard Southside criteria with interstate hard filter."
+    hard:
+      min_acres: 40
+      max_acres: 100000
+      max_slope_pct: 8
+      min_pct_under_8: 70
+      max_dist_substation_mi: 5
+      min_voltage_kv: 115
+      max_dist_interstate_mi: 10    # heavy-haul access for construction
+      forbid_owner_types: ["govt_or_institution"]
+      forbid_floodplain: true
+    soft:
+      substation_voltage_distance: 20
+      acreage: 13              # was 15
+      slope_pct_under_8: 15
+      highway_proximity: 5     # was 10 — halved (overlaps with interstate)
+      interstate_proximity: 7  # NEW — heavy-haul access
+      concrete_plant_proximity: 5  # NEW — slab pour logistics
+      setback_compliance: 7    # was 8
+      queue_tier: 5
+      opportunity_zone: 4      # was 5
+      wastewater_proximity: 0  # dropped — never moved a ranking
+      existing_dc_cluster: 5
+      shape_regularity: 5      # reserved for polygon-rescored parcels
+      tax_incentive: 2         # was 3
+      transmission_line_proximity: 0
+      power_plant_proximity: 0
+      hyperscale_acreage_bonus: 0
+      # Tier-13 capacity signals
+      substation_capacity_proxy: 8     # voltage * sqrt(lines)
+      pjm_queue_density: 5             # penalty if queue MW high at nearest sub
+      regional_supply_pressure: 4      # surplus / balanced / constrained
+      water_withdrawal_proximity: 4    # cumulative permitted MGD within 5 mi
+      wastewater_residual_mgd: 3       # nearest WWTP headroom
+      fiber_carrier_count: 4           # ≥3 carriers = full points
+
+  appalachian:
+    description: "Relaxed slope for SW VA; wider interstate radius."
+    hard:
+      min_acres: 60
+      max_acres: 100000
+      max_slope_pct: 15
+      min_pct_under_8: 50
+      max_dist_substation_mi: 5
+      min_voltage_kv: 115
+      max_dist_interstate_mi: 15    # SW VA interstates are sparser
+      forbid_owner_types: ["govt_or_institution"]
+      forbid_floodplain: true
+    soft:
+      substation_voltage_distance: 18
+      acreage: 15              # was 18 — adjusted for new factors
+      slope_pct_under_8: 12
+      highway_proximity: 5
+      interstate_proximity: 7
+      concrete_plant_proximity: 5
+      setback_compliance: 7
+      queue_tier: 5
+      opportunity_zone: 4
+      wastewater_proximity: 0
+      existing_dc_cluster: 5
+      shape_regularity: 5
+      tax_incentive: 2
+      transmission_line_proximity: 0
+      power_plant_proximity: 0
+      hyperscale_acreage_bonus: 4
+      # Tier-13 capacity signals
+      substation_capacity_proxy: 8     # voltage * sqrt(lines)
+      pjm_queue_density: 5             # penalty if queue MW high at nearest sub
+      regional_supply_pressure: 4      # surplus / balanced / constrained
+      water_withdrawal_proximity: 4    # cumulative permitted MGD within 5 mi
+      wastewater_residual_mgd: 3       # nearest WWTP headroom
+      fiber_carrier_count: 4           # ≥3 carriers = full points
+
+  hyperscale:
+    description: "Strict hyperscale-grade — 200+ ac, 230+ kV, ≤5 mi to interstate."
+    hard:
+      min_acres: 200
+      max_acres: 100000
+      max_slope_pct: 8
+      min_pct_under_8: 75
+      max_dist_substation_mi: 3
+      min_voltage_kv: 230
+      max_dist_interstate_mi: 5     # strict — heavy haul for chillers, transformers
+      forbid_owner_types: ["govt_or_institution"]
+      forbid_floodplain: true
+      min_dist_residential_mi: 0.19   # ~1000 ft
+    soft:
+      substation_voltage_distance: 22
+      acreage: 14
+      slope_pct_under_8: 12
+      highway_proximity: 4
+      interstate_proximity: 8        # weighted higher for hyperscale
+      concrete_plant_proximity: 6    # weighted higher for slab pour scale
+      setback_compliance: 9
+      queue_tier: 4
+      opportunity_zone: 3
+      wastewater_proximity: 0
+      existing_dc_cluster: 6
+      shape_regularity: 5
+      tax_incentive: 2
+      transmission_line_proximity: 0
+      power_plant_proximity: 0
+      hyperscale_acreage_bonus: 0
+      # Tier-13 capacity signals
+      substation_capacity_proxy: 8     # voltage * sqrt(lines)
+      pjm_queue_density: 5             # penalty if queue MW high at nearest sub
+      regional_supply_pressure: 4      # surplus / balanced / constrained
+      water_withdrawal_proximity: 4    # cumulative permitted MGD within 5 mi
+      wastewater_residual_mgd: 3       # nearest WWTP headroom
+      fiber_carrier_count: 4           # ≥3 carriers = full points
+
+# ------------------------------------------------------------------
+# Voltage class multiplier applied inside substation_voltage_distance.
+# Steeper than the original (which was 0.85 → 1.0 from 115 → 500 kV).
+
+voltage_factor:
+  500: 1.0
+  230: 0.85
+  138: 0.65
+  115: 0.55
+  default: 0.4
+
+# Highway-proximity scoring: full credit at <= 2 mi, zero at >= 10 mi
+highway_full_credit_mi: 2
+highway_zero_credit_mi: 10
+
+# Setback compliance: 0 below min, full at full-credit threshold
+setback_min_ft: 500       # below this gets 0
+setback_full_credit_ft: 5280   # 1 mile = full credit
+
+# Existing DC cluster: full credit within 10 mi, zero beyond 30 mi
+existing_dc_full_credit_mi: 10
+existing_dc_zero_credit_mi: 30
+
+# Wastewater proximity (de-emphasized): full at <= 5 mi, zero at >= 25 mi
+wastewater_full_credit_mi: 5
+wastewater_zero_credit_mi: 25
+
+# Acreage curve
+acreage_min: 40
+acreage_max_for_full_score: 500
+
+# Queue tier mapping (utility code → bonus points)
+queue_tier_points:
+  fast: 5      # APCo, RECs (except Mecklenburg)
+  moderate: 3  # Mecklenburg REC, Old Dominion Power
+  slow: 0      # Dominion (multi-year backlog)
+
+# Bad-acreage threshold — drop rows with absurd values from source data
+max_acres_sanity: 100000

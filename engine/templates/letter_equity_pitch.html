@@ -1,0 +1,75 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>{{owner_first}} — {{site_addr}}</title>
+<style>
+  @page { size: letter; margin: 0.85in 0.75in; }
+  body { font-family: "Georgia", serif; color: #1d1d1d; line-height: 1.55; font-size: 12.5pt; }
+  .header { border-bottom: 2px solid #1a5fb4; padding-bottom: 8px; margin-bottom: 22px; }
+  .header .agent-name { font-size: 16pt; font-weight: 700; color: #1a5fb4; }
+  .header .agent-meta { font-size: 10pt; color: #555; margin-top: 2px; }
+  .date { color: #555; font-size: 10.5pt; margin-bottom: 8px; }
+  .recipient { margin-bottom: 18px; font-size: 11pt; }
+  h1 { font-size: 14pt; margin: 14px 0 8px 0; color: #1a5fb4; }
+  .stat-box { background: #f4f7fb; border-left: 4px solid #1a5fb4; padding: 12px 16px; margin: 14px 0; }
+  .stat-box .stat-line { font-size: 11.5pt; margin: 3px 0; }
+  .stat-box .big { font-size: 18pt; font-weight: 700; color: #0a7e2c; }
+  .signature { margin-top: 26px; }
+  .signature .name { font-weight: 700; font-size: 12pt; }
+  .footer { margin-top: 36px; border-top: 1px solid #ddd; padding-top: 10px;
+            display: flex; justify-content: space-between; align-items: center; font-size: 9pt; color: #777; }
+  .qr { width: 100px; height: 100px; }
+  .tracking { font-family: "Courier New", monospace; font-size: 8pt; color: #aaa; }
+</style></head><body>
+
+<div class="header">
+  <div class="agent-name">{{agent_name}}</div>
+  <div class="agent-meta">{{agent_brokerage}} · {{agent_phone}} · {{agent_email}}</div>
+</div>
+
+<div class="date">{{today_long}}</div>
+
+<div class="recipient">
+  {{owner}}<br>
+  {{mail_addr}}
+</div>
+
+<p>Dear {{owner_first}},</p>
+
+<p>I'm a local agent who specializes in the New River Valley, and I came across your home at
+<strong>{{site_addr}}</strong> while pulling recent comp data for the neighborhood.</p>
+
+<p>Based on the most recent sales of similar homes nearby, I have what I think is a useful
+piece of information for you:</p>
+
+<div class="stat-box">
+  <div class="stat-line">Estimated current value of your home:</div>
+  <div class="big">{{avm_value}}</div>
+  <div class="stat-line">You purchased in <strong>{{purchase_year}}</strong>{{purchase_price_clause}}.</div>
+  <div class="stat-line">{{equity_gain_line}}</div>
+</div>
+
+<p>This is genuinely a strong moment for sellers in your price range. Inventory in your area is
+{{inventory_phrase}}, and homes that present well are still moving in
+{{cohort_dom}} days on average.</p>
+
+<p>I'd be happy to put together a no-obligation, line-item Comparable Market Analysis for
+your property — same kind I'd hand a seller before listing. Even if you're not planning to
+sell anytime soon, knowing where you stand is rarely a bad thing. Just call or email; the QR
+code on this letter will take you to a private page with your home's exact comps.</p>
+
+<div class="signature">
+  <p>All my best,</p>
+  <div class="name">{{agent_name}}</div>
+  <div>{{agent_brokerage}}</div>
+  <div>{{agent_phone}} · {{agent_email}}</div>
+</div>
+
+<div class="footer">
+  <div>
+    <div>Your private home report:</div>
+    <div><strong>{{landing_url}}</strong></div>
+    <div class="tracking">ref: {{tracking_id}}</div>
+  </div>
+  <img class="qr" src="{{qr_data_uri}}" alt="QR">
+</div>
+
+</body></html>

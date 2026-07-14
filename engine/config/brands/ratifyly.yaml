@@ -1,0 +1,45 @@
+# Ratifyly — house brand for the Ratifyly CMA / market-analysis reports.
+# Design language: "Ink & Emerald" — near-black ink mast + emerald/sky accents
+# on a clean, light (white) print page. Wordmark only (no logo file).
+# Layout style: dark_band — only the mast, verdict block, and footer are ink
+# surfaces; the body, table, and panels sit on white paper so it prints well.
+
+name: ratifyly
+display_name: Ratifyly
+
+layout_style: dark_band
+
+palette:
+  # --- Ink & Emerald semantic tokens consumed by the skeleton CSS ---
+  primary:   "#0ea5e9"   # sky-500 — primary accent (rules, kickers, KPI numbers, $/sf)
+  secondary: "#34d399"   # emerald-400 — THE accent (chips, glows, highlights)
+  accent:    "#e7f9f1"   # very-light emerald wash — subject-row highlight on white page
+  ink:       "#05070a"   # near-black — mast, verdict block, footer
+  paper:     "#ffffff"   # clean white page — prints well
+  band:      "#f3faf7"   # barely-there emerald zebra stripe on the light page
+  rule:      "#dfe7e4"   # cool hairline borders
+  muted:     "#7c8a86"   # muted slate labels / secondary text
+  slate:     "#33413d"   # tertiary text (deep ink-tinted slate)
+  good:      "#059669"   # emerald-600 success
+  flag:      "#e11d48"   # rose — negative deltas / warnings only
+  accent_tint: "#f3faf7"
+
+typography:
+  body_family: "'Inter','Helvetica Neue',Arial,system-ui,sans-serif"
+  display_family: "'Instrument Serif',Georgia,'Times New Roman',serif"
+  google_fonts_url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap"
+
+# Wordmark only — dark_band mast renders this text (no logo file).
+wordmark: "Ratifyly"
+tagline: "The intelligence layer for modern real estate"
+logo_path: ""
+
+# Default agent identity (overridable per-CMA via --agent / the Generate form).
+agent:
+  name: "Ratifyly"
+  license: ""
+  brokerage: ""
+  jurisdiction: "Commonwealth of Virginia"
+
+disclaimer: "This analysis is an opinion of value for planning purposes, not an appraisal. Figures derive from MLS records and have not been verified by interior inspection; condition, updates, and finished area may differ from record and would adjust value accordingly. Not an offer or guarantee of sale price. © 2026 Ratifyly."
+disclaimer_short: "Opinion of value · MLS records · Not an appraisal · © 2026 Ratifyly."

@@ -1,0 +1,48 @@
+# Keep the image build context small + correct: the multi-GB data/model/output
+# artifacts are gitignored and live on the runtime volume (see
+# deploy/Dockerfile.engine + Compbird/deploy/README.md), NOT baked into the
+# image. Mirrors .gitignore's heavy paths.
+#
+# NOTE on patterns: plain `dir/` in .dockerignore matches ONLY at the context
+# root — nested matches need `**/`. The Node subtrees (web/, web-cma/) carry
+# their own node_modules (~2.5 GB combined), so they are excluded wholesale.
+
+# Large data + generated artifacts (mounted at runtime, never copied in)
+data/
+outputs/
+**/*.parquet
+**/*.sqlite
+**/*.sqlite-*
+.cma_opt_backups/
+scratch/
+reports/
+
+# Secrets + logs
+.env
+.env.*
+!.env.example
+**/*.log
+logs/
+
+# Python caches / virtualenvs
+**/__pycache__/
+**/*.pyc
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Node subtrees (web/ + web-cma/) — not needed by the Python engine, and their
+# node_modules alone are gigabytes
+web/
+web-cma/
+**/node_modules/
+**/.next/
+dist/
+build/
+
+# VCS / tooling / OS
+.git/
+.claude/
+.DS_Store
+Thumbs.db

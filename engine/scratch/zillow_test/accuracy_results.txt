@@ -1,0 +1,77 @@
+
+====================================================================================
+STUDY 1 — ACCURACY (Montgomery County, dense-both)
+====================================================================================
+subjects drawn: 50  | months=18  min_price=$80,000  n_comps=6  months_back=18  typical_dom=21
+Each subject valued TWICE (subject excluded both times); ground truth = its sold price.
+
+  ... 10/50 done (MLS scored 10, ZIL scored 10)
+  ... 20/50 done (MLS scored 20, ZIL scored 20)
+  ... 30/50 done (MLS scored 30, ZIL scored 30)
+  ... 40/50 done (MLS scored 40, ZIL scored 40)
+  ... 50/50 done (MLS scored 50, ZIL scored 50)
+
+mls skipped: {}
+zil skipped: {}
+
+ALL-SCORED (each arm's own scored set)
+  metric                      MLS-only   Zillow-only
+  n                                 50            50
+  median |APE|                  10.73%        14.69%
+  MAPE                          17.76%         19.6%
+  PPE10                          44.0%         42.0%
+  PPE20                          74.0%         66.0%
+  interval coverage              60.0%         48.0%
+  median signed err             -5.39%        -7.88%
+
+PAIRED (both arms scored, n=50 identical subjects)
+  metric                      MLS-only   Zillow-only
+  n                                 50            50
+  median |APE|                  10.73%        14.69%
+  MAPE                          17.76%         19.6%
+  PPE10                          44.0%         42.0%
+  PPE20                          74.0%         66.0%
+  interval coverage              60.0%         48.0%
+  median signed err             -5.39%        -7.88%
+
+====================================================================================
+STUDY 2 — COVERAGE (statewide, many VA counties)
+====================================================================================
+subjects: 28 across 28 counties  (LOCAL = nearest comp within 15 mi)
+
+  county                subject                                        MLS             ZIL
+  Alexander County      620 Liberty Lane                       FAR@61.95mi    FAR@104.15mi
+  Alleghany             3110 Jamison Mountain Road              FAR@35.2mi        L@3.03mi
+  Amelia                11300 Amelia Springs Road              FAR@118.2mi     FAR@34.12mi
+  Ashe County           559 Mouth of Silas Creek Road          FAR@54.87mi    FAR@120.83mi
+  Bath                  1743 Switzerland Trail                 FAR@56.82mi     FAR@55.85mi
+  Bland                 4149 SE Suiter Road SW                 FAR@26.09mi         L@2.8mi
+  Carroll               57 Buck Fever Lane                        L@3.81mi        L@0.36mi
+  Catawba               2137 Old Latter Road                   FAR@83.18mi    FAR@147.78mi
+  Craig                 16 Huffman Store Drive                    L@9.09mi      FAR@38.2mi
+  Dickenson             2019 Coeburn Rd NONE                   FAR@95.33mi        L@0.04mi
+  Franklin              800 Runnett Bag Road                      L@3.99mi        L@2.24mi
+  Galax (City)          104 Oaklawn Avenue                        L@1.11mi        L@0.08mi
+  Giles                 120 River Ridge Drive                     L@0.78mi        L@0.75mi
+  Grayson               1348 Delhart Road                         L@0.69mi         L@2.4mi
+  Mecklenburg           215 W Eastway Drive                   FAR@126.79mi    FAR@154.71mi
+  Montgomery            65 Silverleaf Lane                        L@0.28mi        L@0.28mi
+  Patrick               1436 Mayberry Church Road                 L@2.44mi        L@0.31mi
+  Pittsylvania          5901 Rockford School Road              FAR@53.39mi        L@0.87mi
+  Pulaski               4088 LITTLE CREEK Road                    L@3.99mi        L@6.29mi
+  Roanoke               5410 Warwood Drive                        L@0.58mi         L@0.2mi
+  Roanoke (City)        5001 Hildebrand Road NW                FAR@27.28mi         L@0.2mi
+  Salem                 2127 Tara Lane                            L@0.42mi        L@0.15mi
+  Smyth                 589 Davis Valley Road                     L@7.23mi        L@0.16mi
+  Sullivan              963 Beaver Creek Road                 FAR@101.11mi     FAR@44.26mi
+  Tazewell              332 S College Avenue                   FAR@30.63mi        L@0.33mi
+  Union County          1002 N Hayne Street                   FAR@141.59mi     FAR@191.8mi
+  Washington            31042 Oberlin Drive                    FAR@63.93mi        L@1.22mi
+  Wise                  3928 Happy Hallow Road                 FAR@80.21mi        L@6.55mi
+
+  ------------------------------------------------------------
+  total subjects: 28
+  MLS-only usable valuation : 28/28 (100%)   of which LOCAL (<15mi): 12/28 (43%)
+  Zillow-only usable valuation: 28/28 (100%)   of which LOCAL (<15mi): 19/28 (68%)
+  both usable: 28   MLS-only: 0   Zillow-only: 0   neither: 0
+  LOCAL where the OTHER is not local: Zillow-local-only=8  MLS-local-only=1

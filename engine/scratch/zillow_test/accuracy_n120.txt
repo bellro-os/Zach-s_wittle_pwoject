@@ -1,0 +1,42 @@
+
+====================================================================================
+STUDY 1 — ACCURACY (Montgomery County, dense-both)
+====================================================================================
+subjects drawn: 120  | months=24  min_price=$80,000  n_comps=6  months_back=18  typical_dom=21
+Each subject valued TWICE (subject excluded both times); ground truth = its sold price.
+
+  ... 10/120 done (MLS scored 10, ZIL scored 10)
+  ... 20/120 done (MLS scored 20, ZIL scored 20)
+  ... 30/120 done (MLS scored 30, ZIL scored 30)
+  ... 40/120 done (MLS scored 40, ZIL scored 40)
+  ... 50/120 done (MLS scored 50, ZIL scored 50)
+  ... 60/120 done (MLS scored 60, ZIL scored 60)
+  ... 70/120 done (MLS scored 70, ZIL scored 70)
+  ... 80/120 done (MLS scored 80, ZIL scored 80)
+  ... 90/120 done (MLS scored 90, ZIL scored 90)
+  ... 100/120 done (MLS scored 100, ZIL scored 100)
+  ... 110/120 done (MLS scored 110, ZIL scored 110)
+  ... 120/120 done (MLS scored 120, ZIL scored 120)
+
+mls skipped: {}
+zil skipped: {}
+
+ALL-SCORED (each arm's own scored set)
+  metric                      MLS-only   Zillow-only
+  n                                120           120
+  median |APE|                  11.41%        15.32%
+  MAPE                          16.66%        19.25%
+  PPE10                          47.5%         27.5%
+  PPE20                          71.7%         65.8%
+  interval coverage              57.5%         45.8%
+  median signed err             -3.42%       -10.57%
+
+PAIRED (both arms scored, n=120 identical subjects)
+  metric                      MLS-only   Zillow-only
+  n                                120           120
+  median |APE|                  11.41%        15.32%
+  MAPE                          16.66%        19.25%
+  PPE10                          47.5%         27.5%
+  PPE20                          71.7%         65.8%
+  interval coverage              57.5%         45.8%
+  median signed err             -3.42%       -10.57%

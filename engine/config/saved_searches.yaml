@@ -1,0 +1,46 @@
+# Saved-search criteria for daily-diff alerts.
+# Each named search runs daily; matches that are NEW since last run get
+# surfaced in outputs/mls_analytics/saved_search_alerts/.
+#
+# Add as many as you want. Edit and save — the next mls-watch-saved run
+# picks them up.
+
+searches:
+
+  blacksburg_starter_homes:
+    description: "3+ BR Blacksburg residential under $450k, listed in last 30 days"
+    cities: [Blacksburg]
+    classes: [RE_1]
+    statuses: [Active, Pending]
+    min_beds: 3
+    max_price: 450000
+    listed_within_days: 30
+
+  bburg_or_cburg_under_400:
+    description: "Anything in Blacksburg/Christiansburg under $400k, 2+ BR"
+    cities: [Blacksburg, Christiansburg]
+    classes: [RE_1]
+    statuses: [Active]
+    min_beds: 2
+    max_price: 400000
+
+  vt_commute_under_25min:
+    description: "RES within 25-min drive of VT under $500k"
+    classes: [RE_1]
+    statuses: [Active, Pending]
+    max_price: 500000
+    drive_max_vt: 25
+
+  flips_in_progress:
+    description: "Recently-listed homes priced 30%+ above last deeded sale (likely flips)"
+    classes: [RE_1]
+    statuses: [Active]
+    flips_only: true
+    listed_within_days: 60
+
+  large_acreage:
+    description: "5+ acres in NRV, residential or land, under $750k"
+    classes: [RE_1, LD_3]
+    statuses: [Active]
+    min_acres: 5
+    max_price: 750000

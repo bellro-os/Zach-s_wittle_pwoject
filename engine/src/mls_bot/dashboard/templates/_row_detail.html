@@ -1,0 +1,81 @@
+{# Row-detail expansion panel (HTMX target: afterend of the queue row).
+   Shows conversation opener + full score breakdown + hidden columns.
+   Tier 14.6 refresh: opener-card prominent at top, soft surface-2 bg. #}
+
+{% from "_icons.html" import icon %}
+
+<tr class="row-detail">
+  <td colspan="10">
+    <div class="opener-card">
+      <span class="opener-label">Conversation opener · {{ lead_label(row.get("lead_type") or "unclassified") }}</span>
+      "{{ opener_for(row) }}"
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-5">
+
+      <div>
+        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Score breakdown</h3>
+        <div class="mb-3">
+          <div class="text-xs text-slate-500 mb-1">
+            Positive signals ({{ breakdown.positive | length }}) — total {{ breakdown.positive | sum(attribute='points') }} pts
+          </div>
+          <div>
+            {% for s in breakdown.positive %}
+            <span class="chip chip-accent" title="key: {{ s.key }}">{{ s.label }}<span class="pts">+{{ s.points }}</span></span>
+            {% endfor %}
+            {% if not breakdown.positive %}<span class="text-slate-400 text-sm italic">none</span>{% endif %}
+          </div>
+        </div>
+        {% if breakdown.negative %}
+        <div>
+          <div class="text-xs text-red-700 mb-1">
+            Negative signals ({{ breakdown.negative | length }}) — {{ breakdown.negative | sum(attribute='points') }} pts
+          </div>
+          <div>
+            {% for s in breakdown.negative %}
+            <span class="chip neg" title="key: {{ s.key }}">{{ s.label }}<span class="pts">{{ s.points }}</span></span>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      <div>
+        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Property data</h3>
+        <table class="text-xs w-full">
+          <tbody class="divide-y divide-slate-200">
+            <tr><td class="py-1 pr-3 text-slate-500">Last sale</td>
+                <td class="py-1 text-slate-900">
+                  {{ breakdown.hidden.last_sale_date or '—' }}
+                  {% if breakdown.hidden.last_sale_price %} · {{ breakdown.hidden.last_sale_price | money }}{% endif %}
+                </td></tr>
+            <tr><td class="py-1 pr-3 text-slate-500">Assessed</td>
+                <td class="py-1 text-slate-900">{{ breakdown.hidden.assessed_total | money }}</td></tr>
+            {% if breakdown.hidden.rate_at_purchase %}
+            <tr><td class="py-1 pr-3 text-slate-500">Rate at purchase</td>
+                <td class="py-1 text-slate-900">{{ breakdown.hidden.rate_at_purchase }}
+                  {% if breakdown.hidden.rate_delta_now %}<span class="text-red-700"> (Δ {{ breakdown.hidden.rate_delta_now }})</span>{% endif %}
+                </td></tr>
+            {% endif %}
+            <tr><td class="py-1 pr-3 text-slate-500">Site address</td>
+                <td class="py-1 text-slate-900">{{ breakdown.hidden.site_addr or '—' }}</td></tr>
+            <tr><td class="py-1 pr-3 text-slate-500">Mail address</td>
+                <td class="py-1 text-slate-900">{{ breakdown.hidden.mail_addr or '—' }}</td></tr>
+            {% if breakdown.hidden.is_flipper_pattern %}
+            <tr><td class="py-1 pr-3 text-slate-500">Flag</td>
+                <td class="py-1"><span class="chip chip-warn">{{ icon("alert-triangle", 11) }} flipper pattern</span></td></tr>
+            {% endif %}
+            {% if breakdown.hidden.canonical_owner_id %}
+            <tr><td class="py-1 pr-3 text-slate-500">Canon owner</td>
+                <td class="py-1 text-slate-500 font-mono text-xs">{{ breakdown.hidden.canonical_owner_id }}</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+        <a href="{{ url_for('property_page', parcel_id=parcel_id) }}"
+           class="inline-flex items-center gap-1 mt-3 text-blue-700 hover:underline text-xs font-medium">
+           Open property page {{ icon("external-link", 11) }}</a>
+      </div>
+
+    </div>
+  </td>
+</tr>

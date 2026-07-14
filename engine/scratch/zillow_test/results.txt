@@ -1,0 +1,254 @@
+
+====================================================================================================
+SUBJECT: 509 Jefferson St, Blacksburg, VA
+====================================================================================================
+  subject_source=MLS/parcel
+  resolved: city='BLACKSBURG' county='Montgomery' class='RE_1' sqft=3244.0 beds=4.0 baths=3.0 acres=0.254 lat=37.2338 lng=-80.4055
+
+  --- MLS POOL ---
+    comp_count=6
+    address                                          dist       sold   $/sf       close
+    504 JEFFERSON Street                             0.23     775000    275  2025-08-14
+    612 Kentwood Drive                               0.43     645000    314  2026-06-12
+    609 KELLY Lane                                   0.25     865000    311  2024-07-17
+    605 Kentwood Drive                               0.38     735000    303  2025-12-15
+    602 JEFFERSON Street                              0.3    1350000    498  2026-02-10
+    613 Kentwood Drive                               0.41     648000    270  2024-08-29
+    VALUATION  low=$725,000  mid=$850,000  high=$980,000  $psf=307  conf=High  div=8%
+
+  --- ZILLOW POOL ---
+    comp_count=6
+    address                                          dist       sold   $/sf       close
+    505 Linkous Cir, Blacksburg, VA 24060            0.47     699900    216  2026-04-10
+    510 Floyd St, Blacksburg, VA 24060               0.48     940000    273  2026-04-22
+    609 Kelly Ln, Blacksburg, VA 24060               0.25     865000    247  2024-07-17
+    603 Kelly Ln, Blacksburg, VA 24060               0.27    1100000    327  2025-12-22
+    1018 Oak Pointe Ct, Blacksburg, VA 24060         0.34     470000    142  2024-08-01
+    504 Jefferson St, Blacksburg, VA 24060           0.23     775000    275  2025-08-14
+    VALUATION  low=$695,000  mid=$820,000  high=$940,000  $psf=260  conf=High  div=5%
+
+  >> AGREEMENT: MLS mid=$850,000  ZILLOW mid=$820,000  diff=-3.5%  comp_overlap=0
+
+====================================================================================================
+SUBJECT: 845 JEFFERSON Circle, Christiansburg, VA
+====================================================================================================
+  subject_source=MLS/parcel
+  resolved: city='Christiansburg' county='Montgomery' class='RE_1' sqft=3040.0 beds=5.0 baths=3.0 acres=0.228 lat=37.170449 lng=-80.433149
+
+  --- MLS POOL ---
+    comp_count=6
+    address                                          dist       sold   $/sf       close
+    425 HAMILTON Avenue NW                            0.1     709900    237  2024-08-01
+    705 JEFFERSON Circle                             0.07     795000    231  2025-09-22
+    820 Jefferson Circle                             0.06     590000    256  2026-05-27
+    265 Hamilton Avenue                              0.18     440000    164  2026-04-28
+    195 Hamilton Avenue NW                           0.21     443256    161  2026-06-14
+    860 JEFFERSON Circle                             0.04     619900    238  2024-06-04
+    VALUATION  low=$585,000  mid=$685,000  high=$775,000  $psf=234  conf=High  div=5%
+
+  --- ZILLOW POOL ---
+    comp_count=6
+    address                                          dist       sold   $/sf       close
+    265 Hamilton Ave NW, Christiansburg, VA 24073    0.18     440000    164  2026-04-28
+    820 Jefferson Cir, Christiansburg, VA 24073      0.06     590000    256  2026-05-27
+    130 Somerset St, Christiansburg, VA 24073        0.66     410000    167  2026-05-28
+    35 Heather Dr, Christiansburg, VA 24073          0.48     470000    163  2025-05-29
+    70 Katie Ln, Christiansburg, VA 24073            0.41     428000    178  2026-04-07
+    10 Belmont Dr, Christiansburg, VA 24073          0.43     379000    149  2026-04-02
+    VALUATION  low=$475,000  mid=$555,000  high=$640,000  $psf=165  conf=High  div=4%
+
+  >> AGREEMENT: MLS mid=$685,000  ZILLOW mid=$555,000  diff=-19.0%  comp_overlap=0
+
+====================================================================================================
+SUBJECT: 1410 SHERWOOD Drive, Christiansburg, VA
+====================================================================================================
+  subject_source=MLS/parcel
+  resolved: city='Christiansburg' county='Montgomery' class='RE_1' sqft=1543.0 beds=3.0 baths=3.0 acres=0.31 lat=37.13799634 lng=-80.38183726
+
+  --- MLS POOL ---
+    comp_count=6
+    address                                          dist       sold   $/sf       close
+    370 Robin Hood Drive                             0.43     318500    237  2026-04-21
+    145 Robin Hood Drive                             0.17     345000    201  2026-05-27
+    1555 Sherwood Drive                               0.2     360000    211  2025-12-29
+    40 LITTLE JOHN Circle NE                         0.44     377450    215  2025-12-18
+    155 ROBIN HOOD Drive                             0.21     335000    202  2023-06-28
+    205 Robin Hood Drive                             0.32     387000    202  2024-12-09
+    VALUATION  low=$290,000  mid=$340,000  high=$390,000  $psf=206  conf=High  div=4%
+
+  --- ZILLOW POOL ---
+    comp_count=6
+    address                                          dist       sold   $/sf       close
+    370 Robin Hood Dr, Christiansburg, VA 24073      0.43     318500    208  2026-04-21
+    730 Republic Rd, Christiansburg, VA 24073        0.89     274000    168  2026-06-09
+    145 Robin Hood Dr, Christiansburg, VA 24073      0.17     345000    201  2026-05-27
+    435 Cherokee Dr, Christiansburg, VA 24073        0.63     252500    157  2026-04-17
+    20 Justin Ln, Christiansburg, VA 24073           0.18     286000    202  2026-03-13
+    950 McHenry Ave NE, Christiansburg, VA 24073     0.99     240000    174  2026-06-08
+    VALUATION  low=$270,000  mid=$315,000  high=$365,000  $psf=188  conf=High  div=12%
+
+  >> AGREEMENT: MLS mid=$340,000  ZILLOW mid=$315,000  diff=-7.4%  comp_overlap=2
+
+====================================================================================================
+SUBJECT: 1701 TRILLIUM Lane, Blacksburg, VA
+====================================================================================================
+  subject_source=MLS/parcel
+  resolved: city='Blacksburg' county='Montgomery' class='RE_1' sqft=1628.0 beds=3.0 baths=2.0 acres=0.082 lat=37.244761 lng=-80.437571
+
+  --- MLS POOL ---
+    comp_count=6
+    address                                          dist       sold   $/sf       close
+    1711 HONEYSUCKLE Drive                           0.11     490000    254  2026-02-12
+    706 VILLAGE Way N                                0.11     585000    263  2026-04-24
+    1601 Honeysuckle Drive                           0.09     515000    298  2025-05-28
+    812 Village Way N                                0.09     399000    285  2025-10-16
+    1698 Honeysuckle Drive                           0.06     469500    225  2026-04-28
+    1508 Poplar Ridge Circle                          0.2     470000    325  2025-06-27
+    VALUATION  low=$370,000  mid=$440,000  high=$505,000  $psf=274  conf=High  div=2%
+
+  --- ZILLOW POOL ---
+    comp_count=6
+    address                                          dist       sold   $/sf       close
+    1121 Brook Cir, Blacksburg, VA 24060             0.49     520000    288  2026-06-01
+    710 McBryde Dr, Blacksburg, VA 24060              0.9     450000    319  2026-05-20
+    406 Laurence Ln, Blacksburg, VA 24060            0.59     346000    229  2026-04-24
+    1714 Sage Ln, Blacksburg, VA 24060               0.78     474700    283  2025-12-03
+    1113 Brook Cir, Blacksburg, VA 24060             0.47     460000    235  2026-04-16
+    610 Broce Dr, Blacksburg, VA 24060               0.53     435000    263  2024-08-27
+    VALUATION  low=$385,000  mid=$455,000  high=$525,000  $psf=273  conf=High  div=8%
+
+  >> AGREEMENT: MLS mid=$440,000  ZILLOW mid=$455,000  diff=+3.4%  comp_overlap=0
+
+====================================================================================================
+SUBJECT: 6021 Strawberry Ct, Wise, VA
+====================================================================================================
+  subject_source=Zillow-row (off-MLS subject)
+  resolved: city='Wise' county='Wise' class='RE_1' sqft=1728.0 beds=3.0 baths=2.0 acres=nan lat=36.979443 lng=-82.54816
+
+  --- MLS POOL ---
+    comp_count=6
+    address                                          dist       sold   $/sf       close
+    1525 SLEEPY HOLLOW Road                        117.45     400000    231  2026-06-24
+    1436 Mayberry Church Road                      118.43     645000    373  2026-06-15
+    4805 Shelburne Road                            108.83     341000    191  2026-06-23
+    109 PRAIRIE VIEW Lane                          108.75     284900    162  2026-06-17
+    1670 Brick Haven Lane                           104.2     595000    354  2026-06-16
+    300 MEADOW Drive                               117.07     376000    222  2026-06-17
+    VALUATION  low=$335,000  mid=$395,000  high=$440,000  $psf=227  conf=High  div=2%
+
+  --- ZILLOW POOL ---
+    comp_count=6
+    address                                          dist       sold   $/sf       close
+    111 Dale St NW, Wise, VA 24293                   1.72     143500     81  2026-04-30
+    6023 Crystal Ln, Wise, VA 24293                  0.43     255000    140  2026-05-22
+    6125 Hodges St, Wise, VA 24293                   0.53     165000    102  2025-12-22
+    9790 Ramblewood Dr, Wise, VA 24293               0.27     275000    161  2025-03-18
+    111 Dale St, Wise, VA 24293                      1.71     143500     96  2026-05-01
+    9613 Emory Ave, Wise, VA 24293                   0.43     269000    157  2024-07-01
+    VALUATION  low=$175,000  mid=$205,000  high=$235,000  $psf=121  conf=Moderate  div=19%
+
+  >> AGREEMENT: MLS mid=$395,000  ZILLOW mid=$205,000  diff=-48.1%  comp_overlap=0
+
+====================================================================================================
+SUBJECT: 4040 Poplar St, Fairfax, VA 22030
+====================================================================================================
+  subject_source=Zillow-row (off-MLS subject)
+  resolved: city='Fairfax' county='Fairfax' class='RE_1' sqft=2068.0 beds=4.0 baths=2.0 acres=0.2 lat=38.84774 lng=-77.32229
+
+  --- MLS POOL ---
+    comp_count=6
+    address                                          dist       sold   $/sf       close
+    1375 Providence Boulevard NW                   205.62     320000    155  2026-06-15
+    1415 Hillcrest Drive                           201.46     525000    238  2026-06-22
+    612 Kentwood Drive                             201.68     645000    314  2026-06-12
+    240 Windsor Drive                               205.8     480000    231  2026-06-24
+    5 King Charles Court NW                        205.77     472000    213  2026-06-15
+    1921 Seventh Street                            214.08     290000    159  2026-06-18
+    VALUATION  low=$405,000  mid=$480,000  high=$525,000  $psf=222  conf=High  div=8%
+
+  --- ZILLOW POOL ---
+    comp_count=6
+    address                                          dist       sold   $/sf       close
+    10816 Crest St, Fairfax, VA 22030                0.06     718000    339  2026-05-29
+    10807 Maple St, Fairfax, VA 22030                0.23     687500    318  2026-03-27
+    10927 Decatur Dr, Fairfax, VA 22030              0.34     772000    384  2026-05-19
+    4027 Maple St, Fairfax, VA 22030                 0.14     732500    357  2026-04-02
+    10911 Maple St, Fairfax, VA 22030                0.19     700000    382  2026-03-13
+    4036 Fern St, Fairfax, VA 22030                  0.27     630500    307  2024-08-30
+    VALUATION  low=$680,000  mid=$745,000  high=$855,000  $psf=348  conf=High  div=8%
+
+  >> AGREEMENT: MLS mid=$480,000  ZILLOW mid=$745,000  diff=+55.2%  comp_overlap=0
+
+====================================================================================================
+SUBJECT: 1805 Rich Ct, Virginia Beach, VA 23464
+====================================================================================================
+  subject_source=Zillow-row (off-MLS subject)
+  resolved: city='Virginia Beach' county='Virginia Beach' class='RE_1' sqft=1305.0 beds=3.0 baths=2.0 acres=0.1648989898989899 lat=36.789375 lng=-76.193214
+
+  --- MLS POOL ---
+    comp_count=6
+    address                                          dist       sold   $/sf       close
+    115 Mt Tabor Road                              234.83     346500    265  2026-06-17
+    105 Woodbine Drive                             234.87     400000    300  2026-06-26
+    111 Woodbine Dr Drive                          234.84     300000    237  2026-06-26
+    40 OVERLOOK Drive                              234.46     315000    224  2026-06-25
+    904 Westview Street                             257.0     215000    174  2026-06-25
+    57 Buck Fever Lane                              248.9     325000    257  2026-06-26
+    VALUATION  low=$265,000  mid=$310,000  high=$360,000  $psf=247  conf=High  div=6%
+
+  --- ZILLOW POOL ---
+    comp_count=6
+    address                                          dist       sold   $/sf       close
+    5744 Earnhardt St, Virginia Beach, VA 23464      0.26     247362    182  2026-04-15
+    1725 Delaney St, Virginia Beach, VA 23464        0.14     330000    244  2025-07-11
+    1726 Pope St, Virginia Beach, VA 23464           0.11     329000    243  2025-06-30
+    1813 Pope St, Virginia Beach, VA 23464           0.06     330000    264  2025-04-01
+    5740 Simon St, Virginia Beach, VA 23464          0.24     330000    244  2025-04-15
+    1815 Rich Ct, Virginia Beach, VA 23464           0.06     355000    252  2025-06-11
+    VALUATION  low=$260,000  mid=$305,000  high=$350,000  $psf=244  conf=High  div=3%
+
+  >> AGREEMENT: MLS mid=$310,000  ZILLOW mid=$305,000  diff=-1.6%  comp_overlap=0
+
+====================================================================================================
+SUBJECT: 6717 Dawnwood Rd, Roanoke, VA 24018
+====================================================================================================
+  subject_source=Zillow-row (off-MLS subject)
+  resolved: city='Roanoke' county='Roanoke' class='RE_1' sqft=1682.0 beds=3.0 baths=2.0 acres=1.12 lat=37.189373 lng=-80.05049
+
+  --- MLS POOL ---
+    comp_count=6
+    address                                          dist       sold   $/sf       close
+    5590 New Pleasant Way                            7.74     405000    242  2026-05-27
+    2710 Harborwood Road                             6.51     355000    205  2025-10-20
+    4635 Grandin Road SW                             4.25     230000    145  2024-12-06
+    5520 New Pleasant Drive                          7.85     397500    237  2025-09-15
+    5535 New Pleasant Way                            7.84     389500    233  2024-12-20
+    5540 New Pleasant Drive                          7.81     389500    233  2024-12-30
+    VALUATION  low=$310,000  mid=$365,000  high=$420,000  $psf=233  conf=Moderate  div=13%
+
+  --- ZILLOW POOL ---
+    comp_count=6
+    address                                          dist       sold   $/sf       close
+    6505 Poage Valley Road Ext, Roanoke, VA 24018    0.45     329500    219  2026-05-14
+    6505 Poage Valley Rd, Roanoke, VA 24018          0.45     329500    219  2026-05-14
+    6820 Dawnwood Rd, Roanoke, VA 24018               0.2     450000    263  2025-08-08
+    5962 Two Ford Rd, Roanoke, VA 24018              2.32     335000    184  2026-04-24
+    7464 Marie Dr, Roanoke, VA 24018                 1.46     220000    138  2025-12-05
+    5931 Cotton Hill Rd, Roanoke, VA 24018           1.31     250000    129  2026-06-11
+    VALUATION  low=$290,000  mid=$345,000  high=$395,000  $psf=201  conf=High  div=7%
+
+  >> AGREEMENT: MLS mid=$365,000  ZILLOW mid=$345,000  diff=-5.5%  comp_overlap=0
+
+
+####################################################################################################
+HEAD-TO-HEAD SUMMARY (MLS mid vs ZILLOW mid)
+####################################################################################################
+address                                           MLS mid      ZIL mid    diff%  MLS n  ZIL n  ovlp
+509 Jefferson St, Blacksburg, VA                 $850,000     $820,000    -3.5%      6      6     0
+845 JEFFERSON Circle, Christiansburg, VA         $685,000     $555,000   -19.0%      6      6     0
+1410 SHERWOOD Drive, Christiansburg, VA          $340,000     $315,000    -7.4%      6      6     2
+1701 TRILLIUM Lane, Blacksburg, VA               $440,000     $455,000    +3.4%      6      6     0
+6021 Strawberry Ct, Wise, VA                     $395,000     $205,000   -48.1%      6      6     0
+4040 Poplar St, Fairfax, VA 22030                $480,000     $745,000   +55.2%      6      6     0
+1805 Rich Ct, Virginia Beach, VA 23464           $310,000     $305,000    -1.6%      6      6     0
+6717 Dawnwood Rd, Roanoke, VA 24018              $365,000     $345,000    -5.5%      6      6     0

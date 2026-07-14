@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}{{ "Door-knock routes" if filters.mode == "knock" else "Call queue" }} · Realtor Dashboard{% endblock %}
+
+{% block content %}
+
+<!-- ==================  Inline metrics strip  ================== -->
+<div class="metrics no-print">
+  <div class="metric">
+    <span class="metric-label">Calls today</span>
+    <span class="metric-value">{{ stats.calls_today }}</span>
+  </div>
+  <div class="metric">
+    <span class="metric-label">This week</span>
+    <span class="metric-value">{{ stats.calls_week }}</span>
+  </div>
+  <div class="metric">
+    <span class="metric-label">This month</span>
+    <span class="metric-value">{{ stats.calls_month }}</span>
+  </div>
+  <a class="metric" href="{{ url_for('pipeline') }}">
+    <span class="metric-label">Active deals</span>
+    <span class="metric-value">{{ stats.active_deals }}</span>
+  </a>
+  <a class="metric" href="{{ url_for('pipeline') }}">
+    <span class="metric-label">Pipeline $</span>
+    <span class="metric-value">{{ stats.pipeline_dollars | kmoney }}</span>
+  </a>
+  <a class="metric {% if stats.hot_count %}is-hot{% endif %}"
+     href="{{ url_for('home', mode=filters.mode, min_score=60) }}">
+    <span class="metric-label">Hot</span>
+    <span class="metric-value">{{ stats.hot_count }}</span>
+  </a>
+  {% if stats.followups_due_count %}
+  <a class="metric is-due"
+     href="{{ url_for('home', mode=filters.mode) }}">
+    <span class="metric-label">Follow-ups due</span>
+    <span class="metric-value">{{ stats.followups_due_count }}</span>
+  </a>
+  {% endif %}
+</div>
+
+<!-- ==================  Mode tabs (underline style)  ================== -->
+<div class="tabs mb-5 no-print">
+  <a href="{{ url_for('home', mode='call') }}" data-mode="call"
+     class="tab {% if filters.mode != 'knock' %}active{% endif %}">
+     {{ icon("phone", 16) }} Call queue</a>
+  <a href="{{ url_for('home', mode='knock') }}" data-mode="knock"
+     class="tab {% if filters.mode == 'knock' %}active{% endif %}">
+     {{ icon("door-open", 16) }} Door-knock routes</a>
+  {% if filters.mode == 'knock' %}
+  <a href="{{ url_for('walking_route', subdivision='_queue') }}?min_score={{ filters.min_score }}&suppress_days={{ filters.suppress_days }}{% for c in filters.counties %}&counties={{ c }}{% endfor %}"
+     target="_blank" class="ml-auto self-center text-sm text-blue-700 hover:underline flex items-center gap-1">
+     {{ icon("printer", 14) }} Print full route</a>
+  {% endif %}
+</div>
+
+<!-- ==================  Hot list + follow-ups  ================== -->
+{% if hot or followups %}
+<section class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+  {% if hot %}
+  <div class="section p-4 border-l-4 border-green-500">
+    <h2 class="font-bold text-green-800 mb-2 flex items-center gap-2">
+      {{ icon("flame", 16) }} Hot prospects (last 30 days)
+    </h2>
+    <ul class="text-sm divide-y divide-slate-100">
+      {% for h in hot %}
+      <li class="py-1.5 flex justify-between gap-3">
+        <span><strong>{{ h.owner }}</strong> · {{ h.site_addr }}</span>
+        <span class="text-slate-500">{{ h.outcome }} · {{ h.timestamp[:10] }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+  {% if followups %}
+  <div class="section p-4 border-l-4 border-amber-500">
+    <h2 class="font-bold text-amber-800 mb-2 flex items-center gap-2">
+      {{ icon("clock", 16) }} Follow-ups due (next 3 days)
+    </h2>
+    <ul class="text-sm divide-y divide-slate-100">
+      {% for f in followups %}
+      <li class="py-1.5 flex justify-between gap-3">
+        <span><strong>{{ f.owner }}</strong> · {{ f.site_addr }}</span>
+        <span class="text-slate-500">{{ f._followup_date }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+</section>
+{% endif %}
+
+<!-- ==================  Lead-type filter chip group  ================== -->
+<div class="section p-3 mb-4 no-print">
+  <div class="flex items-center gap-3 mb-2">
+    <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500">Lead type</h3>
+    {% if filters.lead_types %}
+    <a href="{{ url_for('home', mode=filters.mode) }}" class="text-xs text-blue-700 hover:underline">clear</a>
+    {% endif %}
+  </div>
+  <form id="leadtype-form" class="lead-filter"
+        hx-get="{{ url_for('queue_fragment') }}"
+        hx-trigger="change"
+        hx-target="#queue-area" hx-swap="innerHTML"
+        hx-include="#filter-form"
+        hx-push-url="true">
+    <input type="hidden" name="mode" value="{{ filters.mode }}">
+    {% for lt in all_lead_types %}
+    {% set count = lead_type_counts.get(lt, 0) %}
+    {% if count or lt in filters.lead_types %}
+    <label>
+      <input type="checkbox" name="lead_types" value="{{ lt }}" {% if lt in filters.lead_types %}checked{% endif %}>
+      <span>{{ lead_label(lt) }}</span>
+      <span class="lead-count">{{ count }}</span>
+    </label>
+    {% endif %}
+    {% endfor %}
+  </form>
+</div>
+
+<!-- ==================  Main layout: sidebar + queue  ================== -->
+<section class="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-5">
+
+  <!-- ----- Sidebar filters (HTMX-driven) ----- -->
+  <aside class="filter-sidebar section p-4 self-start sticky top-20">
+    <form id="filter-form" class="filter-form text-sm"
+          hx-get="{{ url_for('queue_fragment') }}"
+          hx-trigger="change delay:250ms, input delay:400ms from:input[type=range]"
+          hx-target="#queue-area"
+          hx-swap="innerHTML"
+          hx-include="#leadtype-form"
+          hx-push-url="true">
+      <input type="hidden" name="mode" value="{{ filters.mode }}">
+
+      <div class="filter-block">
+        <h3>Min score</h3>
+        <div class="flex items-center gap-2">
+          <input type="range" name="min_score" min="20" max="100" step="5"
+                 value="{{ filters.min_score }}"
+                 oninput="document.getElementById('ms-val').textContent=this.value"
+                 class="flex-1">
+          <span id="ms-val" class="text-sm font-semibold w-8 text-right">{{ filters.min_score }}</span>
+        </div>
+      </div>
+
+      <div class="filter-block">
+        <h3>Counties</h3>
+        <div id="county-chips" class="mb-2">
+          {% for c in filters.counties %}
+          <span class="county-chip">{{ c }}
+            <input type="hidden" name="counties" value="{{ c }}">
+            <button type="button" onclick="this.parentElement.remove(); htmx.trigger(document.getElementById('filter-form'),'change')">×</button>
+          </span>
+          {% endfor %}
+        </div>
+        <input type="text" list="county-list" placeholder="+ add county"
+               class="w-full border border-slate-300 rounded text-xs px-2 py-1.5"
+               onchange="if(this.value){window.addCountyChip(this.value.toUpperCase()); this.value='';}">
+        <datalist id="county-list">
+          {% for c in counties %}<option value="{{ c }}">{% endfor %}
+        </datalist>
+      </div>
+
+      {% if filters.mode != 'knock' %}
+      <div class="filter-block">
+        <h3>Owner type</h3>
+        <div class="seg">
+          <label><input type="checkbox" name="owner_types" value="person" {% if 'person' in filters.owner_types %}checked{% endif %}>Person</label>
+          <label><input type="checkbox" name="owner_types" value="entity" {% if 'entity' in filters.owner_types %}checked{% endif %}>Entity / Trust</label>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="filter-block">
+        <h3>Required signals</h3>
+        {% for sk, label in [
+          ('estate_pattern', 'Estate / trust'),
+          ('expired', 'Expired listing'),
+          ('multi_prop', 'Multi-property owner'),
+          ('intra_family_recent', 'Recent intra-family'),
+          ('mail_addr_changed_18mo', 'Mail-addr changed'),
+          ('tax_delinquent', 'Tax delinquent'),
+        ] %}
+        <label class="cb">
+          <input type="checkbox" name="signals" value="{{ sk }}" {% if sk in filters.signals %}checked{% endif %}>
+          {{ label }}</label>
+        {% endfor %}
+      </div>
+
+      <div class="filter-block">
+        <h3>Suppress contacted ≤ <span id="sd-val">{{ filters.suppress_days }}</span>d</h3>
+        <input type="range" name="suppress_days" min="0" max="180" step="15"
+               value="{{ filters.suppress_days }}"
+               oninput="document.getElementById('sd-val').textContent=this.value"
+               class="w-full">
+      </div>
+
+      {% if filters.mode != 'knock' %}
+      <div class="filter-block">
+        <h3>Sort by</h3>
+        <select name="sort_by" class="w-full border border-slate-300 rounded text-sm px-2 py-1.5">
+          {% for v, lbl in [('score', 'Score (high→low)'), ('tenure', 'Tenure (long→short)'),
+                            ('equity', 'Equity (high→low)'), ('county', 'County')] %}
+          <option value="{{ v }}" {% if filters.sort_by == v %}selected{% endif %}>{{ lbl }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+
+      <div class="filter-block">
+        <h3>Show top</h3>
+        <select name="max_rows" class="w-full border border-slate-300 rounded text-sm px-2 py-1.5">
+          {% for n in [25, 50, 100, 200] %}
+          <option value="{{ n }}" {% if filters.max_rows == n %}selected{% endif %}>{{ n }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      {% if filters.mode != 'knock' %}
+      <div class="filter-block">
+        <label class="cb">
+          <input type="checkbox" name="skip_flippers" value="1" {% if filters.skip_flippers %}checked{% endif %}>
+          Skip flipper-pattern owners</label>
+      </div>
+      {% endif %}
+
+      <a href="{{ url_for('home', mode=filters.mode) }}"
+         class="block text-center text-xs text-slate-500 hover:text-slate-700 underline pt-2">Reset all filters</a>
+
+      <p class="text-xs text-slate-400 italic mt-2">Filters apply automatically.</p>
+    </form>
+  </aside>
+
+  <!-- ----- Queue area ----- -->
+  <div>
+
+    <!-- Bulk-select bar (hidden until ≥1 checkbox checked) -->
+    <div id="bulk-bar" class="bulk-bar hidden no-print">
+      <span class="count"><span id="bulk-count">0</span> selected</span>
+      <span class="dot">·</span>
+      {% if filters.mode == 'knock' %}
+      <button onclick="window.applyBulkOutcome('left_flyer')"      class="btn-outcome bo-flyer">Left flyer</button>
+      <button onclick="window.applyBulkOutcome('nobody_home')"     class="btn-outcome bo-nobody">Nobody home</button>
+      <button onclick="window.applyBulkOutcome('not_interested')"  class="btn-outcome bo-notint">Not interested</button>
+      {% else %}
+      <button onclick="window.applyBulkOutcome('left_voicemail')"  class="btn-outcome bo-voicemail">Voicemail</button>
+      <button onclick="window.applyBulkOutcome('no_answer')"       class="btn-outcome bo-noanswer">No answer</button>
+      <button onclick="window.applyBulkOutcome('not_interested')"  class="btn-outcome bo-notint">Not interested</button>
+      {% endif %}
+      <button onclick="window.clearBulkSelection()" class="ml-auto text-xs text-slate-300 hover:text-white underline">Clear</button>
+    </div>
+
+    <div id="queue-area" class="section overflow-hidden">
+      {% include "_queue_fragment.html" %}
+    </div>
+
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,18 @@
+This engine/ directory is a VENDORED COPY of the MLS Bot CMA engine.
+
+Canonical source repo: MLS Bot  (branch feature/cma-engine-split)
+Vendored at commit:     bb30d43e600670b0b689eabd053b2544f3e73481
+Vendored on:            2026-07-14
+
+It contains only git-tracked code (via `git archive`) — never data
+(*.parquet/*.jsonl), models, caches, or .env. Production data reaches the
+running engine via the R2 object-storage sync (see deploy/data-sync/), not
+this directory.
+
+To refresh this copy after engine changes, run from the app repo root:
+    pwsh deploy/sync-engine.ps1        # or: bash deploy/sync-engine.sh
+
+That re-mirrors the engine repo's tracked files here and re-stamps this file.
+Do NOT hand-edit engine code here — edit it in the MLS Bot repo and re-sync,
+so the two copies cannot silently drift (the certified accuracy depends on
+the engine being byte-for-byte the tested code).

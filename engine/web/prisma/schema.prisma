@@ -1,0 +1,250 @@
+// Prisma 5 schema — SQLite-backed persistence for the realtor dashboard.
+//
+// Prospect data lives in the Python-produced seller_scores.csv and is read
+// directly server-side. This schema tracks the MUTABLE state: outreach
+// outcomes, the CRM (clients + touches + recordings), and deals.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// One row per logged phone-call outcome on a parcel.
+model Call {
+  id           Int      @id @default(autoincrement())
+  timestamp    DateTime @default(now())
+  parcelId     String
+  county       String
+  owner        String?
+  siteAddr     String?
+  outcome      String
+  notes        String?
+  nextFollowup DateTime?
+
+  @@index([parcelId, county])
+  @@index([timestamp])
+}
+
+// One row per door-knock outcome.
+model Doorknock {
+  id        Int      @id @default(autoincrement())
+  timestamp DateTime @default(now())
+  parcelId  String
+  county    String
+  owner     String?
+  siteAddr  String?
+  outcome   String
+  notes     String?
+
+  @@index([parcelId, county])
+  @@index([timestamp])
+}
+
+// Free-form notes on a prospect (parcel) WITHOUT converting them to a client.
+// Tier 15 — lets you scribble "house has new roof" without polluting the CRM.
+model ProspectNote {
+  id        String   @id @default(cuid())
+  timestamp DateTime @default(now())
+  parcelId  String
+  county    String
+  body      String
+
+  @@index([parcelId, county])
+}
+
+// CRM client — name + contact info + segmentation + optional own-parcel link.
+model Client {
+  id          String    @id @default(cuid())
+  displayId   String    @unique // C0001 ...
+  created     DateTime  @default(now())
+  updated     DateTime  @updatedAt
+  // Soft-delete: hides from lists but preserves referral chains + history.
+  deletedAt   DateTime?
+  name        String
+  phone       String?
+  altPhone    String?
+  email       String?
+  source      String?   // referral | past_client | SOI | cold | website | open_house | other
+  category    String?   // A | B | C  (priority tier)
+  tags        String?   // comma-separated tags: "VIP, dinner-list, blacksburg"
+  anniversary DateTime? // home-anniversary
+  birthday    DateTime?
+  // Track when reminders were last dismissed so they don't reappear daily.
+  anniversaryAckYear Int?    // year of last dismissal
+  birthdayAckYear    Int?
+  // Optional link to the client's own parcel (lets us surface seller-score).
+  parcelId    String?
+  county      String?
+  // Optional referrer (who introduced them) — points at another Client.id.
+  referredById String?
+  referredBy   Client?  @relation("Referrals", fields: [referredById], references: [id])
+  referrals    Client[] @relation("Referrals")
+  notes        String?
+  deals        Deal[]
+  touches      Touch[]
+  recordings   Recording[]
+  savedSearches SavedSearch[]
+
+  @@index([category])
+  @@index([source])
+  @@index([deletedAt])
+}
+
+// One row per touchpoint with a client — call, text, email, in-person, note.
+// Distinct from Call/Doorknock (which are parcel-keyed, used for the prospect
+// queue suppression). A Touch is client-keyed and powers the CRM timeline.
+model Touch {
+  id        String     @id @default(cuid())
+  timestamp DateTime   @default(now())
+  clientId  String
+  client    Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  kind      String     // call | text | email | in_person | note | letter | meeting
+  direction String?    // outbound | inbound
+  notes     String?
+  duration  Int?       // minutes (optional, useful for calls/meetings)
+  recording Recording?
+
+  @@index([clientId, timestamp])
+}
+
+// Tier 16 — audio recording of a client interaction (call / meeting / voice
+// memo) plus its transcript. Status field drives the pipeline:
+//   uploaded → transcribing → done   (or error at any step)
+model Recording {
+  id           String    @id @default(cuid())
+  clientId     String
+  client       Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  touchId      String?   @unique
+  touch        Touch?    @relation(fields: [touchId], references: [id])
+  filename     String    // relative path under web/recordings/<clientId>/
+  title        String?   // optional human label ("Listing consult", "Buyer call")
+  mimeType     String
+  durationSec  Int?
+  sizeBytes    Int?
+  transcript   String?   // full text
+  segmentsJson String?   // JSON: paragraphs/sentences with speaker labels + timestamps
+  status       String    @default("uploaded") // uploaded | transcribing | done | error
+  error        String?
+  // Tier 17 — set once the agent has reviewed AI-extracted detail from this call.
+  reviewed     Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  completedAt  DateTime?
+
+  @@index([clientId, createdAt])
+  @@index([status])
+}
+
+model Deal {
+  id              String   @id @default(cuid())
+  displayId       String   @unique // D0001 ...
+  created         DateTime @default(now())
+  updated         DateTime @updatedAt
+  deletedAt       DateTime?
+  clientId        String?
+  client          Client?  @relation(fields: [clientId], references: [id])
+  stage           String   // lead | showing | offer | contract | closing | closed | lost
+  side            String   // sell | buy | rent
+  property        String
+  listPrice       Float?
+  expectedClose   DateTime?
+  estCommissionPct Float?
+  // Actual agent-net commission when known (e.g. imported from brokerage
+  // transaction data). When set, analytics uses this instead of the
+  // listPrice × estCommissionPct estimate.
+  commissionEarned Float?
+  notes           String?
+  // Auto-promotion fields — populated when a hot call outcome creates a Deal.
+  parcelId        String?
+  county          String?
+  leadType        String?  // mirrored from prospect.lead_type at promotion time
+  // Provenance for imported deals, e.g. "brokerage:<transactionGuid>".
+  // Lets a re-import update in place instead of duplicating.
+  sourceRef       String?
+  stageHistory    DealStage[]
+
+  @@index([deletedAt])
+  @@index([parcelId, county])
+  @@index([sourceRef])
+}
+
+// Append-only log of stage transitions for a deal. Powers the deal-detail
+// timeline (Tier 15 — drill-down view).
+model DealStage {
+  id        String   @id @default(cuid())
+  dealId    String
+  deal      Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  stage     String
+  changedAt DateTime @default(now())
+  notes     String?
+
+  @@index([dealId, changedAt])
+}
+
+// User-defined MLS saved search. Criteria is a JSON blob whose keys mirror
+// the watch_listings() Python signature (price_max, sqft_min, beds_min,
+// baths_min, acres_min/max, school_districts[], center_lat/lng + radius_mi,
+// classes[], statuses[]). Python tasks.mls-saved-searches reads this table
+// directly from the SQLite file, executes each search against DuckDB, and
+// upserts results into SavedSearchResult.
+model SavedSearch {
+  id              String    @id @default(cuid())
+  displayId       String    @unique // S0001 ...
+  name            String
+  // Optional buyer the search belongs to (Miriam's dental site, etc.).
+  // A standalone watchlist search just leaves this null.
+  clientId        String?
+  client          Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  // Free-form description / why-we-care, surfaced in the detail view.
+  description     String?
+  // JSON blob — see model docstring above.
+  criteria        String    // stored as JSON text in SQLite
+  // Resolved address text for the center-of-radius (if any), kept for display.
+  centerLabel     String?
+  isPaused        Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  lastRunAt       DateTime?
+  lastMatchCount  Int       @default(0)
+  // Comma-joined error message from the last failed run, if any.
+  lastError       String?
+  results         SavedSearchResult[]
+
+  @@index([clientId])
+  @@index([isPaused])
+}
+
+// Snapshot row for one matching listing within a saved search. firstSeenAt
+// = when this listing first matched; lastSeenAt = the most recent run that
+// still saw it. A result counts as "NEW" if firstSeenAt == search.lastRunAt.
+// When a listing drops out, the row is deleted by the runner.
+model SavedSearchResult {
+  id            String   @id @default(cuid())
+  searchId      String
+  search        SavedSearch @relation(fields: [searchId], references: [id], onDelete: Cascade)
+  listingId     String
+  firstSeenAt   DateTime @default(now())
+  lastSeenAt    DateTime @default(now())
+  // Snapshot — denormalized so /searches/[id] never has to round-trip
+  // through DuckDB to render the list.
+  address       String?
+  city          String?
+  highSchool    String?
+  price         Float?
+  sqft          Int?
+  beds          Int?
+  fullBaths     Int?
+  acres         Float?
+  yearBuilt     Int?
+  feedDom       Int?
+  listOffice    String?
+  latitude      Float?
+  longitude     Float?
+  milesToCenter Float?
+
+  @@unique([searchId, listingId])
+  @@index([searchId, firstSeenAt])
+}

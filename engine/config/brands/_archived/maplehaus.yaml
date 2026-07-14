@@ -1,0 +1,43 @@
+# Maplehaus Realty — brand profile
+# Layout style: cream_serif (cream page + sage text wordmark + serif display)
+# Typography: Montserrat (body) + Cormorant Garamond (display)
+
+name: maplehaus
+display_name: Maplehaus Realty
+layout_style: cream_serif
+
+palette:
+  # Semantic tokens consumed by the skeleton CSS
+  primary:   "#95978A"   # sage — main brand color, verdict block bg, wordmark
+  secondary: "#9F877A"   # mauve — accent borders, kickers, section headers
+  accent:    "#D8CFC4"   # warm beige — footer band
+  ink:       "#0a0a0a"   # near-black, primary text
+  paper:     "#FAF6F2"   # cream page background
+  band:      "rgba(149,151,138,.04)"   # very subtle sage zebra
+  rule:      "#e7e0d8"   # warm hairline
+  muted:     "#8c8881"   # warm muted text
+  slate:     "#6e7065"   # deeper sage for borders / accents
+  good:      "#5a7a5e"   # earth green
+  flag:      "#8a4a3a"   # earth red
+  # Brand-specific extras
+  primary_light: "#c2c4ba"   # lighter sage for accent on dark backgrounds
+
+typography:
+  body_family: "'Montserrat','Helvetica Neue',Arial,sans-serif"
+  display_family: "'Cormorant Garamond',serif"
+  google_fonts_url: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600;700&family=Montserrat:wght@300;400;500;600;700&display=swap"
+
+# Visual identity assets — cream_serif uses text wordmark, no logo PNG
+wordmark: "MAPLEHAUS"
+tagline: "REALTY"
+logo_path: ""
+
+# Default agent identity (overridable per-CMA via --agent flag)
+agent:
+  name: "Jamie Criner"
+  license: ""
+  brokerage: ""
+  jurisdiction: "Commonwealth of Virginia"
+
+disclaimer: "Comparative market analysis prepared for planning purposes — not an appraisal. Comparable sales sourced from MLS closed-sale records; interior condition not verified and may adjust value. Not an offer or solicitation. © 2026 Maplehaus Realty."
+disclaimer_short: "© 2026 Maplehaus Realty."

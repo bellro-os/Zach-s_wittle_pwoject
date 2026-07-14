@@ -1,0 +1,45 @@
+# Compbird — brand for the public compbird comp / market reports.
+# Design language: "Aerial / Precision Instrument" — warm bone paper + warm-ink
+# mast + a single ember accent. Bricolage Grotesque (display) + Inter Tight (body).
+# Wordmark only (no logo file).
+# Layout style: dark_band — warm-ink mast/verdict/footer over a warm paper page.
+
+name: compbird
+display_name: Compbird
+
+layout_style: dark_band
+
+palette:
+  # --- Aerial / ember semantic tokens consumed by the skeleton CSS ---
+  primary:   "#ff5a2c"   # ember — primary accent (rules, kickers, KPI numbers, $/sf)
+  secondary: "#e64718"   # deep ember — chips / highlights / section heads
+  accent:    "#fceae2"   # very-light ember wash — subject-row highlight on paper
+  ink:       "#15140f"   # warm near-black — mast, verdict block, footer
+  paper:     "#f4f1e9"   # warm bone page background — prints well
+  band:      "#faf6f0"   # barely-there warm zebra stripe
+  rule:      "#e4ddd0"   # warm hairline borders
+  muted:     "#6b6555"   # warm muted labels / secondary text
+  slate:     "#3a382f"   # warm tertiary text
+  good:      "#1b7a4b"   # editorial green — positive deltas
+  flag:      "#c0392b"   # editorial red — negative deltas / warnings
+  accent_tint: "#fceae2"
+
+typography:
+  body_family: "'Inter Tight','Inter','Helvetica Neue',Arial,system-ui,sans-serif"
+  display_family: "'Bricolage Grotesque','Inter Tight',Georgia,serif"
+  google_fonts_url: "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Inter+Tight:wght@400;500;600;700&display=swap"
+
+# Wordmark only — dark_band mast renders this text (no logo file).
+wordmark: "compbird"
+tagline: "Property intelligence"
+logo_path: ""
+
+# Default agent identity (overridable per-CMA via the Generate form).
+agent:
+  name: "Compbird"
+  license: ""
+  brokerage: ""
+  jurisdiction: "Commonwealth of Virginia"
+
+disclaimer: "This analysis is a model-driven opinion of value for planning purposes, not an appraisal. Comparable sales derive from MLS records and have not been verified by interior inspection; condition, updates, and finished area may differ from record and would adjust value accordingly. Not an offer or guarantee of sale price. © 2026 Compbird."
+disclaimer_short: "Opinion of value · MLS records · Not an appraisal · © 2026 Compbird."

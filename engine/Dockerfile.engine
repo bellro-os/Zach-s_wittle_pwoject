@@ -1,0 +1,84 @@
+# Dockerfile.engine — the warm CMA worker as a shared HTTP engine service.
+#
+# Builds an image that keeps the heavy sklearn import + AVM model resident so
+# every /profile and /generate request is warm (see worker/cma_worker.py).
+#
+# IMPORTANT — data is NOT baked into the image. The large parquet/sqlite inputs
+# and the AVM model are gitignored and multi-GB, so they MUST be mounted as a
+# volume at runtime (see DEPLOY_ENGINE.md). At minimum the worker needs:
+#   /app/data/mls_lookup.parquet
+#   /app/data/parcel_lookup.parquet
+#   /app/data/search_index.sqlite
+#   /app/outputs/mls_analytics/avm_model/{regressor.joblib,meta.joblib}
+# Mount the whole host data/ and outputs/ dirs to be safe:
+#   -v /host/MLS Bot/data:/app/data -v /host/MLS Bot/outputs:/app/outputs
+#
+# Build:  docker build -f Dockerfile.engine -t cma-engine .
+# Run:    docker run --rm -p 8765:8765 \
+#             -e CMA_WORKER_HOST=0.0.0.0 -e CMA_WORKER_TOKEN=changeme \
+#             -v "$PWD/data:/app/data" -v "$PWD/outputs:/app/outputs" \
+#             cma-engine
+
+FROM python:3.12-slim
+
+# ── system deps: Chromium for headless PDF rendering + CA certs for httpx TLS ──
+# build_cma renders the one-page PDF via headless Chrome; CHROME_PATH tells the
+# engine where the binary lives (Debian/slim installs it at /usr/bin/chromium).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        chromium \
+        ca-certificates \
+        fonts-liberation \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV CHROME_PATH=/usr/bin/chromium \
+    PYTHONUNBUFFERED=1 \
+    PYTHONUTF8=1
+
+WORKDIR /app
+
+# ── python deps ───────────────────────────────────────────────────────────────
+# Install the engine's runtime libs explicitly (a superset of pyproject's deps;
+# adds the analytics/AVM stack: duckdb pandas scikit-learn joblib Pillow). We
+# install these first, in their own layer, so editing source doesn't re-pull pip
+# wheels on every rebuild.
+# NOTE: the AVM/DOM/price-cut models are joblib pickles trained on the workstation
+# with scikit-learn 1.8.0 / numpy 2.4.1 / scipy 1.17.1 / joblib 1.5.3. Pin all four
+# to the training versions — an unpinned scikit-learn pulls 1.9.x, whose moved
+# internal modules make joblib.load raise "No module named '_loss'".
+RUN pip install --no-cache-dir \
+        duckdb \
+        pandas \
+        numpy==2.4.1 \
+        scipy==1.17.1 \
+        scikit-learn==1.8.0 \
+        joblib==1.5.3 \
+        Pillow \
+        pyyaml \
+        anthropic \
+        jinja2 \
+        selectolax \
+        pydantic \
+        typer \
+        python-dotenv \
+        httpx \
+        tenacity
+
+# Copy the repo (code only — data/ and outputs/ are .dockerignore'd / mounted).
+COPY . /app
+
+# The worker puts src/ and scripts/ on sys.path itself, but set PYTHONPATH too
+# so `python -m tasks ...` (the refresh scheduler shells out to it) resolves
+# `from mls_bot...` without an explicit prefix.
+ENV PYTHONPATH=/app/src
+
+# The worker binds CMA_WORKER_PORT (default 8765). EXPOSE the default.
+EXPOSE 8765
+
+# Health endpoint is open (no auth) by design — see cma_worker.do_GET.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+    CMD python -c "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:'+os.environ.get('CMA_WORKER_PORT','8765')+'/healthz', timeout=4)" || exit 1
+
+# Run the warm worker. Override CMA_WORKER_HOST=0.0.0.0 at `docker run` time so
+# the service is reachable from outside the container (default is localhost-only).
+CMD ["python", "-X", "utf8", "worker/cma_worker.py"]

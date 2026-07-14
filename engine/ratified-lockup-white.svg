@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 230 48" fill="none" role="img" aria-label="Ratified">
+  <!-- Ratified check mark: rounded square, emerald->sky gradient, dark check (matches ratified.com Logo) -->
+  <rect x="6" y="6" width="36" height="36" rx="11" fill="url(#ratified-mark)"/>
+  <path d="M16.5 24.5 22 30l9.5-11" stroke="#05070a" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Wordmark "Ratified" — Inter-style, white on the ink mast -->
+  <text x="56" y="33" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="26" font-weight="600" letter-spacing="-0.5" fill="#ffffff">Ratified</text>
+  <defs>
+    <linearGradient id="ratified-mark" x1="6" y1="6" x2="42" y2="42" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#34d399"/>
+      <stop offset="1" stop-color="#0ea5e9"/>
+    </linearGradient>
+  </defs>
+</svg>

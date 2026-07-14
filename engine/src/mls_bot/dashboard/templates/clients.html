@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Clients · Realtor Dashboard{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-4">
+  <h1 class="text-2xl font-bold flex items-center gap-2">
+    {{ icon("users", 22) }} Clients
+    <span class="text-slate-500 font-normal text-base">({{ clients | length }})</span>
+  </h1>
+  <button onclick="document.getElementById('add-modal').classList.remove('hidden')"
+          class="btn btn-primary">{{ icon("plus", 14) }} Add client</button>
+</div>
+
+<div class="section overflow-hidden">
+{% if not clients %}
+  <div class="p-12 text-center text-slate-500">
+    No clients yet. Click <strong>+ Add client</strong> to start.
+  </div>
+{% else %}
+  <table class="w-full text-sm">
+    <thead class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+      <tr>
+        <th class="px-3 py-2 text-left">ID</th>
+        <th class="px-3 py-2 text-left">Name</th>
+        <th class="px-3 py-2 text-left">Phone</th>
+        <th class="px-3 py-2 text-left">Email</th>
+        <th class="px-3 py-2 text-left">Source</th>
+        <th class="px-3 py-2 text-left">Anniversary</th>
+        <th class="px-3 py-2 text-left">Created</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100">
+      {% for c in clients %}
+      <tr class="hover:bg-slate-50">
+        <td class="px-3 py-2 font-mono text-xs text-slate-500">{{ c.client_id }}</td>
+        <td class="px-3 py-2 font-semibold">{{ c.name }}</td>
+        <td class="px-3 py-2">{{ c.phone }}</td>
+        <td class="px-3 py-2 text-blue-700"><a href="mailto:{{ c.email }}">{{ c.email }}</a></td>
+        <td class="px-3 py-2">{{ c.source }}</td>
+        <td class="px-3 py-2">{{ c.anniversary }}</td>
+        <td class="px-3 py-2 text-slate-500 text-xs">{{ c.created }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endif %}
+</div>
+
+<!-- Add modal -->
+<div id="add-modal" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center z-20">
+  <div class="section p-6 w-full max-w-md">
+    <h2 class="text-lg font-bold mb-3">Add client</h2>
+    <form method="post" action="{{ url_for('clients_add') }}" class="space-y-3">
+      <input type="text" name="name" placeholder="Full name" required class="w-full border rounded px-3 py-2">
+      <input type="text" name="phone" placeholder="Phone" class="w-full border rounded px-3 py-2">
+      <input type="email" name="email" placeholder="Email" class="w-full border rounded px-3 py-2">
+      <select name="source" class="w-full border rounded px-3 py-2">
+        <option value="">— Source —</option>
+        <option value="referral">Referral</option>
+        <option value="past_client">Past client</option>
+        <option value="SOI">Sphere of influence</option>
+        <option value="cold">Cold prospect</option>
+        <option value="website">Website</option>
+        <option value="open_house">Open house</option>
+        <option value="other">Other</option>
+      </select>
+      <label class="block text-xs text-slate-500">House anniversary (yyyy-mm-dd)
+        <input type="date" name="anniversary" class="w-full border rounded px-3 py-2 mt-1">
+      </label>
+      <textarea name="notes" placeholder="Notes" rows="2" class="w-full border rounded px-3 py-2"></textarea>
+      <div class="flex justify-end gap-2">
+        <button type="button" onclick="document.getElementById('add-modal').classList.add('hidden')"
+                class="btn btn-ghost">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

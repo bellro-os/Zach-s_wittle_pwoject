@@ -1,0 +1,51 @@
+# Ratified — DEFAULT house brand for agents without their own white-label profile.
+# Design language: "Ink & Emerald" (see ratified.com/DESIGN.md).
+# Layout style: dark_band — near-black ink mast + emerald accents on a clean,
+#   light report page. This is a PRINT one-pager (white/very-light page so it
+#   prints well), NOT a dark screen UI: only the mast, verdict block, and footer
+#   are ink surfaces; the body, table, and panels sit on white paper.
+# Typography: Inter (body) + Instrument Serif (display, the emerald accent serif).
+# Identity: "Ratified" wordmark + the Ratified check logo (emerald->sky gradient).
+
+name: ratified
+display_name: Ratified
+
+layout_style: dark_band
+
+palette:
+  # --- Ink & Emerald semantic tokens consumed by the skeleton CSS ---
+  primary:   "#0ea5e9"   # sky-500 — primary accent (rules, kickers, KPI numbers, $/sf)
+  secondary: "#34d399"   # emerald-400 — THE Ratified accent (chips, glows, highlights)
+  accent:    "#e7f9f1"   # very-light emerald wash — subject-row highlight on white page
+  ink:       "#05070a"   # ink-950 near-black — mast, verdict block, footer
+  paper:     "#ffffff"   # clean white page — prints well
+  band:      "#f3faf7"   # barely-there emerald zebra stripe on the light page
+  rule:      "#dfe7e4"   # cool hairline borders
+  muted:     "#7c8a86"   # muted slate labels / secondary text
+  slate:     "#33413d"   # tertiary text (deep ink-tinted slate)
+  good:      "#059669"   # emerald-600 success
+  flag:      "#e11d48"   # rose — negative deltas / warnings only
+  # Brand-specific extras (optional)
+  accent_tint: "#f3faf7"
+
+typography:
+  # Inter for everything; Instrument Serif (italic-capable) for display.
+  body_family: "'Inter','Helvetica Neue',Arial,system-ui,sans-serif"
+  display_family: "'Instrument Serif',Georgia,'Times New Roman',serif"
+  google_fonts_url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap"
+
+# Visual identity assets — dark_band mast renders this PNG/SVG lockup.
+wordmark: "Ratified"
+tagline: "The intelligence layer for modern real estate"
+logo_path: "ratified-lockup-white.svg"
+
+# Default agent identity (overridable per-CMA via --agent flag).
+agent:
+  name: "Ratified"
+  license: ""
+  brokerage: ""
+  jurisdiction: "Commonwealth of Virginia"
+
+# Footer disclaimer — short variant used on dense one-pagers.
+disclaimer: "This analysis is an opinion of value for planning purposes, not an appraisal. Figures derive from MLS records and have not been verified by interior inspection; condition, updates, and finished area may differ from record and would adjust value accordingly. Not an offer or guarantee of sale price. © 2026 Ratified."
+disclaimer_short: "Opinion of value · MLS records · Not an appraisal · © 2026 Ratified."

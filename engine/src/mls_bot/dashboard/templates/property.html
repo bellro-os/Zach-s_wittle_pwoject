@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}{{ latest.address }} · Property{% endblock %}
+{% block content %}
+
+<a href="{{ url_for('search') }}" class="text-sm text-blue-700 hover:underline inline-flex items-center gap-1">
+  {{ icon("arrow-left", 14) }} back to search</a>
+
+<h1 class="text-2xl font-bold mt-2 mb-1">{{ latest.address }}</h1>
+<div class="text-slate-600 mb-4">{{ latest.city }} · parcel {{ parcel_id }}</div>
+
+<section class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+  <div class="section p-3">
+    <div class="text-xs text-slate-500 uppercase tracking-wider">Status</div>
+    <div class="font-bold">{{ latest.status_category }}</div>
+  </div>
+  <div class="section p-3">
+    <div class="text-xs text-slate-500 uppercase tracking-wider">List $</div>
+    <div class="font-bold">{{ latest.list_price | money }}</div>
+  </div>
+  <div class="section p-3">
+    <div class="text-xs text-slate-500 uppercase tracking-wider">Sold $</div>
+    <div class="font-bold">{{ latest.sold_price | money }}</div>
+  </div>
+  <div class="section p-3">
+    <div class="text-xs text-slate-500 uppercase tracking-wider">Owner</div>
+    <div class="font-semibold text-sm">{{ latest.parcel_owner1 or '—' }}</div>
+  </div>
+</section>
+
+<section class="mb-6 section overflow-hidden">
+  <div class="section-header">
+    <span class="section-title">MLS history ({{ listings | length }} records)</span>
+  </div>
+  <table class="w-full text-sm">
+    <thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+      <tr>
+        <th class="px-3 py-2 text-left">List date</th>
+        <th class="px-3 py-2 text-left">Close date</th>
+        <th class="px-3 py-2 text-left">Status</th>
+        <th class="px-3 py-2 text-left">Original $</th>
+        <th class="px-3 py-2 text-left">List $</th>
+        <th class="px-3 py-2 text-left">Sold $</th>
+        <th class="px-3 py-2 text-left">DOM</th>
+        <th class="px-3 py-2 text-left">MLS#</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100">
+      {% for r in listings %}
+      <tr>
+        <td class="px-3 py-2">{{ r.list_date or '' }}</td>
+        <td class="px-3 py-2">{{ r.close_date or '' }}</td>
+        <td class="px-3 py-2">{{ r.status_category }}</td>
+        <td class="px-3 py-2">{{ r.original_list_price | money }}</td>
+        <td class="px-3 py-2">{{ r.list_price | money }}</td>
+        <td class="px-3 py-2">{{ r.sold_price | money }}</td>
+        <td class="px-3 py-2">{{ r.feed_dom or '' }}</td>
+        <td class="px-3 py-2 text-xs text-slate-400">{{ r.mls_number or '' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="section p-4">
+  <h2 class="font-bold mb-2 flex items-center gap-2">{{ icon("phone", 16) }} Call history</h2>
+  {% if calls %}
+  <ul class="divide-y divide-slate-100 text-sm">
+    {% for c in calls %}
+    <li class="py-2 flex justify-between gap-3">
+      <span><strong>{{ c.outcome }}</strong> · {{ c.notes }}</span>
+      <span class="text-slate-500 text-xs">{{ c.timestamp[:16] }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="text-slate-500 text-sm">Never called this owner before.</p>
+  {% endif %}
+</section>
+
+{% endblock %}

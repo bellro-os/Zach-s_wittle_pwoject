@@ -1,0 +1,119 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-instrument), Georgia, serif;
+}
+
+@theme {
+  --color-ink-950: #05070a;
+  --color-ink-900: #090d12;
+  --color-ink-800: #0e141b;
+  --color-ink-700: #16202a;
+  --animate-marquee: marquee 45s linear infinite;
+  --animate-float: float 7s ease-in-out infinite;
+  --animate-float-slow: float 10s ease-in-out infinite;
+
+  @keyframes marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0px);
+    }
+    50% {
+      transform: translateY(-14px);
+    }
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #05070a;
+  color: #eef2f1;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: rgba(16, 185, 129, 0.35);
+  color: #ffffff;
+}
+
+/* Faint blueprint grid that fades out radially */
+.bg-grid-fade {
+  background-image: linear-gradient(to right, rgba(148, 163, 184, 0.07) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(148, 163, 184, 0.07) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 35%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 35%, transparent 75%);
+}
+
+.bg-grid-soft {
+  background-image: linear-gradient(to right, rgba(148, 163, 184, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(148, 163, 184, 0.06) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+
+/* Thin conic ring used behind the CTA panel */
+.glow-ring {
+  background: conic-gradient(
+    from 180deg at 50% 50%,
+    rgba(16, 185, 129, 0) 0deg,
+    rgba(16, 185, 129, 0.35) 120deg,
+    rgba(56, 189, 248, 0.25) 200deg,
+    rgba(16, 185, 129, 0) 360deg
+  );
+  filter: blur(48px);
+}
+
+/* Spotlight cards: radial highlight follows the cursor via --mx / --my */
+.spot-card {
+  position: relative;
+}
+
+.spot-card::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  background: radial-gradient(
+    420px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(16, 185, 129, 0.09),
+    transparent 65%
+  );
+}
+
+.spot-card:hover::after {
+  opacity: 1;
+}
+
+/* Subtle top edge light on dark panels */
+.edge-light {
+  position: relative;
+}
+
+.edge-light::before {
+  content: "";
+  position: absolute;
+  inset: 0 10% auto 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.55), transparent);
+}
+
+.text-balance {
+  text-wrap: balance;
+}

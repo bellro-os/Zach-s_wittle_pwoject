@@ -1,0 +1,151 @@
+{# Queue table fragment — returned both by GET / (inside the wrapper) and
+   by GET /_fragments/queue (for HTMX filter swaps). Tier 14.6 layout. #}
+
+{% from "_icons.html" import icon %}
+
+<div class="section-header">
+  <h1 class="section-title flex items-center gap-2">
+    {% if filters.mode == 'knock' %}{{ icon("door-open", 18) }} Door-knock routes
+    {% else %}{{ icon("phone", 18) }} Call queue{% endif %}
+    <span class="text-slate-400 font-normal text-sm ml-1">{{ queue | length }} prospects</span>
+  </h1>
+  {% if queue %}
+  <label class="text-xs text-slate-500 flex items-center gap-1.5 cursor-pointer">
+    <input type="checkbox" id="check-all"
+           onchange="document.querySelectorAll('input.bulk-check').forEach(c=>{c.checked=this.checked}); window.updateBulkBar();">
+    select all
+  </label>
+  {% endif %}
+</div>
+
+{% if not queue %}
+<div class="p-12 text-center text-slate-500">
+  No prospects match these filters. Try lowering the min score, clearing the lead-type filter, or expanding the county set.
+</div>
+{% else %}
+
+{% macro action_buttons(r, mode) %}
+  <form hx-post="{{ url_for('log_doorknock') if mode == 'knock' else url_for('log_call') }}"
+        hx-target="#row-{{ r.parcel_id }}" hx-swap="outerHTML"
+        class="action-row">
+    <input type="hidden" name="parcel_id" value="{{ r.parcel_id }}">
+    <input type="hidden" name="county"    value="{{ r.county }}">
+    <input type="hidden" name="owner"     value="{{ r.owner }}">
+    <input type="hidden" name="site_addr" value="{{ r.site_addr }}">
+    <button class="btn-oc bo-interested" name="outcome" value="interested"
+            data-outcome="interested" title="Interested (i) · +1d">I</button>
+    <button class="btn-oc bo-talklater" name="outcome" value="talk_later"
+            data-outcome="talk_later" title="Talk later (l) · +14d">L</button>
+    {% if mode == 'knock' %}
+    <button class="btn-oc bo-flyer" name="outcome" value="left_flyer"
+            data-outcome="left_flyer" title="Left flyer (v) · +21d">V</button>
+    <button class="btn-oc bo-nobody" name="outcome" value="nobody_home"
+            data-outcome="nobody_home" title="Nobody home (n) · +7d">N</button>
+    {% else %}
+    <button class="btn-oc bo-voicemail" name="outcome" value="left_voicemail"
+            data-outcome="left_voicemail" title="Voicemail (v) · +7d">V</button>
+    <button class="btn-oc bo-noanswer" name="outcome" value="no_answer"
+            data-outcome="no_answer" title="No answer (n) · +3d">N</button>
+    {% endif %}
+    <button class="btn-oc bo-notint" name="outcome" value="not_interested"
+            data-outcome="not_interested" title="Not interested (x) · suppress 1yr">X</button>
+    {% if mode != 'knock' %}
+    <button class="btn-oc bo-badnumber" name="outcome" value="bad_number"
+            data-outcome="bad_number" title="Bad number (b) · suppress permanently">B</button>
+    {% endif %}
+  </form>
+{% endmacro %}
+
+{% macro row(r, mode) %}
+<tr class="queue-row" id="row-{{ r.parcel_id }}"
+    data-parcel-id="{{ r.parcel_id }}" data-county="{{ r.county }}"
+    data-owner="{{ r.owner }}" data-addr="{{ r.site_addr }}">
+  <td class="col-check">
+    <input type="checkbox" class="bulk-check" onchange="window.updateBulkBar()">
+  </td>
+  <td class="col-score">
+    {% set ch = r.channel_hint %}
+    <button type="button"
+            class="detail-toggle score-circle {% if r.score >= 60 %}tier-hi{% elif r.score >= 45 %}tier-mid{% else %}tier-lo{% endif %}"
+            title="{{ ch.reason }} — click for breakdown (e)"
+            data-detail-url="{{ url_for('row_detail_fragment', parcel_id=r.parcel_id) }}?county={{ r.county }}"
+            data-row-id="row-{{ r.parcel_id }}"
+            onclick="window.toggleRowDetail(this)">{{ r.score }}</button>
+    <div class="channel-icon {% if ch.channel == 'call' %}is-call{% elif ch.channel == 'knock' %}is-knock{% endif %} mt-1"
+         title="{{ ch.reason }}">
+      {% if ch.channel == 'call' %}{{ icon("phone", 12) }}
+      {% elif ch.channel == 'knock' %}{{ icon("door-open", 12) }}
+      {% else %}{{ icon("scale", 12) }}{% endif %}
+    </div>
+  </td>
+  <td class="col-lead">
+    <span class="chip {{ lead_chip_class(r.lead_type) }}" title="{{ opener_for(r) }}">
+      {{ lead_label(r.lead_type) }}
+    </span>
+  </td>
+  <td class="col-owner">
+    <div class="font-semibold text-slate-900 truncate" style="max-width: 320px;">{{ r.owner | truncate(40, true) }}</div>
+    <a class="property-link text-blue-700 hover:underline text-sm"
+       href="{{ url_for('property_page', parcel_id=r.parcel_id) }}">{{ r.site_addr }}</a>
+    <div class="text-xs text-slate-500 mt-0.5">{{ r.county }}{% if r.subdivision %} · {{ r.subdivision }}{% endif %}{% if r.year_built %} · {{ r.year_built }}{% endif %}{% if r.bedrooms %} · {{ r.bedrooms }}BR{% endif %}</div>
+  </td>
+  <td class="col-signals">
+    {% for s in r.top_signals %}
+    <span class="chip chip-accent">{{ s.label }}<span class="pts">+{{ s.points }}</span></span>
+    {% endfor %}
+  </td>
+  <td class="col-tenure">
+    {% if r.tenure_years %}<span class="font-semibold">{{ "%.0f"|format(r.tenure_years) }}y</span>{% endif %}
+    <span class="text-xs text-slate-500 block">{{ r.estimated_equity | kmoney }}</span>
+  </td>
+  <td class="col-lc">
+    {% set lc = r.last_contact %}
+    {% if lc.days_since is none %}
+      <span class="last-contact lc-never">Never</span>
+    {% elif lc.days_since < 7 %}
+      <span class="last-contact lc-fresh">{{ lc.days_since }}d ago</span>
+    {% elif lc.days_since < 30 %}
+      <span class="last-contact lc-recent">{{ lc.days_since }}d ago</span>
+    {% else %}
+      <span class="last-contact lc-stale">{{ lc.days_since }}d ago</span>
+    {% endif %}
+  </td>
+  <td class="col-actions">{{ action_buttons(r, mode) }}</td>
+</tr>
+{% endmacro %}
+
+<table class="queue">
+  <thead>
+    <tr>
+      <th class="col-check"></th>
+      <th class="col-score">Score</th>
+      <th class="col-lead">Lead type</th>
+      <th class="col-owner">Owner / Address</th>
+      <th class="col-signals">Top signals</th>
+      <th class="col-tenure">Tenure</th>
+      <th class="col-lc">Last contact</th>
+      <th class="col-actions">Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% if filters.mode == 'knock' and groups %}
+      {% for g in groups %}
+        <tr class="subdivision-header">
+          <td colspan="10">
+            <span>{{ icon("map-pin", 14) }} {{ g.name }}</span>
+            <span class="sub-meta">{{ g.count }} {{ "parcel" if g.count == 1 else "parcels" }} · avg {{ g.avg_score }} · top {{ g.top_score }}</span>
+            {% if g.name != "(no subdivision)" %}
+            <a href="{{ url_for('walking_route', subdivision=g.name) }}?min_score={{ filters.min_score }}&suppress_days={{ filters.suppress_days }}{% for c in filters.counties %}&counties={{ c }}{% endfor %}"
+               target="_blank"
+               class="sub-route">Build walking route →</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% for r in g.rows %}{{ row(r, filters.mode) }}{% endfor %}
+      {% endfor %}
+    {% else %}
+      {% for r in queue %}{{ row(r, filters.mode) }}{% endfor %}
+    {% endif %}
+  </tbody>
+</table>
+{% endif %}

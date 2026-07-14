@@ -1,0 +1,90 @@
+<!-- DEPRECATED: this legacy Flask dashboard is superseded by the web/ app and is a deprecation candidate. -->
+<!doctype html>
+{% from "_icons.html" import icon %}
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{% block title %}Realtor Dashboard{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
+</head>
+<body>
+
+<header class="px-6 py-3 flex items-center gap-6 sticky top-0 z-10 shadow no-print"
+        style="background: var(--surface); color: var(--ink); border-bottom: 1px solid var(--border);">
+  <a href="{{ url_for('home') }}" class="text-lg font-bold tracking-tight flex items-center gap-2"
+     style="color: var(--accent);">
+    {{ icon("home", 20) }} <span>Realtor</span>
+  </a>
+  <nav class="flex gap-1 text-sm">
+    <a href="{{ url_for('home') }}"
+       class="px-3 py-1.5 rounded nav-link {% if request.endpoint == 'home' %}is-active{% endif %}">
+       Queue</a>
+    <a href="{{ url_for('pipeline') }}"
+       class="px-3 py-1.5 rounded nav-link {% if request.endpoint == 'pipeline' %}is-active{% endif %}">
+       Pipeline</a>
+    <a href="{{ url_for('clients_index') }}"
+       class="px-3 py-1.5 rounded nav-link {% if request.endpoint == 'clients_index' %}is-active{% endif %}">
+       Clients</a>
+    <a href="{{ url_for('search') }}"
+       class="px-3 py-1.5 rounded nav-link {% if request.endpoint == 'search' %}is-active{% endif %}">
+       Search</a>
+  </nav>
+  <form action="{{ url_for('search') }}" class="ml-auto relative">
+    <span class="absolute left-2.5 top-1/2 -translate-y-1/2" style="color: var(--ink-3);">{{ icon("search", 14) }}</span>
+    <input type="text" name="q" placeholder="Search address, owner, client..."
+           class="pl-8 pr-3 py-1.5 rounded text-sm w-72 focus:outline-none nav-search"
+           style="background: var(--surface-2); color: var(--ink); border: 1px solid var(--border);">
+  </form>
+  <button type="button" id="kb-help-trigger"
+          class="nav-icon-btn"
+          title="Keyboard shortcuts (?)">{{ icon("keyboard", 16) }}</button>
+</header>
+
+<main class="max-w-[1400px] mx-auto px-5 py-4">
+  {% block content %}{% endblock %}
+</main>
+
+<!-- Keyboard shortcut help modal -->
+<div id="kb-help-modal" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center z-30 no-print">
+  <div class="section p-6 w-full max-w-md">
+    <div class="flex justify-between items-center mb-3">
+      <h2 class="text-lg font-bold" style="color: var(--ink);">Keyboard shortcuts</h2>
+      <button onclick="document.getElementById('kb-help-modal').classList.add('hidden')"
+              class="nav-icon-btn">{{ icon("x", 18) }}</button>
+    </div>
+    <table class="text-sm w-full kb-help-table">
+      <tbody>
+        <tr><td class="py-1.5 pr-4"><kbd class="kb-key px-2 py-0.5 rounded font-mono text-xs">j</kbd> / <kbd class="kb-key px-2 py-0.5 rounded font-mono text-xs">k</kbd></td>
+            <td class="py-1.5 kb-desc">Next / previous row</td></tr>
+        <tr><td class="py-1.5 pr-4"><kbd class="kb-key px-2 py-0.5 rounded font-mono text-xs">i</kbd></td>
+            <td class="py-1.5 kb-desc">Mark <span class="font-semibold" style="color: var(--positive-ink);">Interested</span></td></tr>
+        <tr><td class="py-1.5 pr-4"><kbd class="kb-key px-2 py-0.5 rounded font-mono text-xs">l</kbd></td>
+            <td class="py-1.5 kb-desc">Mark <span class="font-semibold" style="color: var(--accent-ink);">Talk later</span></td></tr>
+        <tr><td class="py-1.5 pr-4"><kbd class="kb-key px-2 py-0.5 rounded font-mono text-xs">v</kbd></td>
+            <td class="py-1.5 kb-desc">Voicemail (call) / Left flyer (door-knock)</td></tr>
+        <tr><td class="py-1.5 pr-4"><kbd class="kb-key px-2 py-0.5 rounded font-mono text-xs">n</kbd></td>
+            <td class="py-1.5 kb-desc">No answer / Nobody home</td></tr>
+        <tr><td class="py-1.5 pr-4"><kbd class="kb-key px-2 py-0.5 rounded font-mono text-xs">x</kbd></td>
+            <td class="py-1.5 kb-desc">Mark <span class="font-semibold" style="color: var(--danger-ink);">Not interested</span></td></tr>
+        <tr><td class="py-1.5 pr-4"><kbd class="kb-key px-2 py-0.5 rounded font-mono text-xs">b</kbd></td>
+            <td class="py-1.5 kb-desc">Bad number (call mode only)</td></tr>
+        <tr><td class="py-1.5 pr-4"><kbd class="kb-key px-2 py-0.5 rounded font-mono text-xs">e</kbd></td>
+            <td class="py-1.5 kb-desc">Expand / collapse "why" panel</td></tr>
+        <tr><td class="py-1.5 pr-4"><kbd class="kb-key px-2 py-0.5 rounded font-mono text-xs">o</kbd></td>
+            <td class="py-1.5 kb-desc">Open property page in new tab</td></tr>
+        <tr><td class="py-1.5 pr-4"><kbd class="kb-key px-2 py-0.5 rounded font-mono text-xs">?</kbd></td>
+            <td class="py-1.5 kb-desc">Open this help</td></tr>
+        <tr><td class="py-1.5 pr-4"><kbd class="kb-key px-2 py-0.5 rounded font-mono text-xs">Esc</kbd></td>
+            <td class="py-1.5 kb-desc">Close modal / collapse row</td></tr>
+      </tbody>
+    </table>
+    <p class="text-xs mt-3" style="color: var(--ink-3);">Shortcuts pause when you're typing in an input or text area.</p>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+</body>
+</html>

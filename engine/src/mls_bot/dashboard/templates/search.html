@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Search · Realtor Dashboard{% endblock %}
+{% block content %}
+
+<form action="{{ url_for('search') }}" class="mb-6">
+  <input type="text" name="q" value="{{ q }}" placeholder="Address, owner, client name..." autofocus
+         class="w-full text-lg border-2 border-slate-300 rounded-lg px-4 py-3 focus:border-blue-500 focus:outline-none">
+</form>
+
+{% if q %}
+  {% if results.clients %}
+  <section class="mb-6">
+    <h2 class="text-lg font-bold mb-2 flex items-center gap-2">
+      {{ icon("users", 18) }} Clients
+      <span class="text-slate-500 font-normal text-sm">({{ results.clients | length }})</span>
+    </h2>
+    <div class="section divide-y divide-slate-100">
+      {% for c in results.clients %}
+      <div class="p-3 flex justify-between gap-3">
+        <div><strong>{{ c.name }}</strong> · {{ c.phone }} · {{ c.email }}</div>
+        <span class="text-xs text-slate-500">{{ c.source }} · {{ c.client_id }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if results.properties %}
+  <section>
+    <h2 class="text-lg font-bold mb-2 flex items-center gap-2">
+      {{ icon("home", 18) }} Properties
+      <span class="text-slate-500 font-normal text-sm">({{ results.properties | length }})</span>
+    </h2>
+    <div class="section overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+          <tr>
+            <th class="px-3 py-2 text-left">Address</th>
+            <th class="px-3 py-2 text-left">City</th>
+            <th class="px-3 py-2 text-left">Status</th>
+            <th class="px-3 py-2 text-left">List $</th>
+            <th class="px-3 py-2 text-left">Sold $</th>
+            <th class="px-3 py-2 text-left">Closed</th>
+            <th class="px-3 py-2 text-left">Owner</th>
+            <th class="px-3 py-2 text-left">Parcel</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for r in results.properties %}
+          <tr class="hover:bg-slate-50">
+            <td class="px-3 py-2">
+              <a href="{{ url_for('property_page', parcel_id=r.parcel_id) }}" class="text-blue-700 hover:underline">{{ r.address }}</a>
+            </td>
+            <td class="px-3 py-2">{{ r.city }}</td>
+            <td class="px-3 py-2"><span class="chip {% if r.status_category == 'Active' %}chip-success{% elif r.status_category == 'Closed' %}chip-neutral{% else %}chip-warn{% endif %}">{{ r.status_category }}</span></td>
+            <td class="px-3 py-2">{{ r.list_price | money }}</td>
+            <td class="px-3 py-2">{{ r.sold_price | money }}</td>
+            <td class="px-3 py-2 text-xs text-slate-500">{{ r.close_date or '' }}</td>
+            <td class="px-3 py-2 text-xs">{{ r.parcel_owner1 or '—' }}</td>
+            <td class="px-3 py-2 text-xs text-slate-400">{{ r.parcel_id }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if not results.clients and not results.properties %}
+  <div class="section p-12 text-center text-slate-500">
+    No matches for <strong>"{{ q }}"</strong>. Try part of an address, an owner name, or a client name.
+  </div>
+  {% endif %}
+
+{% else %}
+<div class="section p-8 text-slate-600">
+  <p class="mb-2"><strong>Search across:</strong></p>
+  <ul class="list-disc list-inside text-sm space-y-1">
+    <li>43,000+ MLS listings (active, pending, closed, expired) by address or owner</li>
+    <li>Your client roster by name</li>
+  </ul>
+</div>
+{% endif %}
+
+{% endblock %}

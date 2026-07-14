@@ -1,0 +1,45 @@
+# General — the NEUTRAL, de-branded default for general CMA + market-analysis
+# documents. No company identity: a clean slate/blue instrument palette on a
+# white page, system-stack typography. This is the one-stop-shop baseline; a
+# brand (logo/colors/agent) is layered in only when a tenant supplies one.
+# Layout style: dark_band (the proven structure compbird/ratifyly share).
+
+name: general
+display_name: Comparative Market Analysis
+
+layout_style: dark_band
+
+palette:
+  # --- Neutral slate/blue tokens consumed by the skeleton CSS ---
+  primary:   "#2563eb"   # blue — primary accent (rules, kickers, KPI numbers, $/sf)
+  secondary: "#1e40af"   # deep blue — chips / highlights / section heads
+  accent:    "#eff6ff"   # very-light blue wash — subject-row highlight on paper
+  ink:       "#0f172a"   # slate near-black — mast, verdict block, footer
+  paper:     "#ffffff"   # white page background — prints clean
+  band:      "#f8fafc"   # barely-there cool zebra stripe
+  rule:      "#e2e8f0"   # cool hairline borders
+  muted:     "#64748b"   # muted labels / secondary text
+  slate:     "#334155"   # tertiary text
+  good:      "#15803d"   # positive deltas
+  flag:      "#b91c1c"   # negative deltas / warnings
+  accent_tint: "#eff6ff"
+
+typography:
+  body_family: "'Inter','Helvetica Neue',Arial,system-ui,sans-serif"
+  display_family: "'Inter','Helvetica Neue',Arial,system-ui,sans-serif"
+  google_fonts_url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+
+# Neutral document label — no company wordmark or logo.
+wordmark: "Comparative Market Analysis"
+tagline: "Valuation & market context"
+logo_path: ""
+
+# No default agent identity — overridable per-CMA via the Generate form.
+agent:
+  name: ""
+  license: ""
+  brokerage: ""
+  jurisdiction: "Commonwealth of Virginia"
+
+disclaimer: "This analysis is a model-driven opinion of value for planning purposes, not an appraisal. Comparable sales derive from public and MLS records and have not been verified by interior inspection; condition, updates, and finished area may differ from record and would adjust value accordingly. Not an offer or guarantee of sale price."
+disclaimer_short: "Opinion of value · Not an appraisal · For planning purposes only."

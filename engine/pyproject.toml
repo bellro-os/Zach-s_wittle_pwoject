@@ -1,0 +1,42 @@
+[project]
+name = "mls-bot"
+version = "0.1.0"
+description = "NRV MLS + Montgomery County VA lead gen"
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.27",
+    "psycopg[binary]>=3.2",
+    "python-dotenv>=1.0",
+    "typer>=0.12",
+    "pydantic>=2.7",
+    "tenacity>=8.5",
+    "selectolax>=0.3.21",
+    "jinja2>=3.1",
+    # Runtime deps the CMA engine imports but were previously unpinned.
+    "duckdb>=1.0",
+    "pandas>=2.0",
+    "scikit-learn>=1.3",
+    "joblib>=1.3",
+    "Pillow>=10.0",
+]
+
+[project.optional-dependencies]
+rets = ["rets-python>=0.3"]
+dev = ["ruff>=0.5", "pytest>=8.2"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mls_bot"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.pytest.ini_options]
+# Put src/ on sys.path so `from mls_bot...` resolves without an explicit
+# PYTHONPATH=src (conftest.py also inserts it as a belt-and-suspenders).
+pythonpath = ["src"]
+testpaths = ["tests"]

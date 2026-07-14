@@ -1,0 +1,77 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>{{owner_first}} — {{site_addr}}</title>
+<style>
+  @page { size: letter; margin: 0.85in 0.75in; }
+  body { font-family: "Georgia", serif; color: #1d1d1d; line-height: 1.55; font-size: 12.5pt; }
+  .header { border-bottom: 2px solid #1a5fb4; padding-bottom: 8px; margin-bottom: 22px; }
+  .header .agent-name { font-size: 16pt; font-weight: 700; color: #1a5fb4; }
+  .header .agent-meta { font-size: 10pt; color: #555; margin-top: 2px; }
+  .date { color: #555; font-size: 10.5pt; margin-bottom: 8px; }
+  .recipient { margin-bottom: 18px; font-size: 11pt; }
+  .stat-box { background: #fff7e0; border-left: 4px solid #f5a623; padding: 12px 16px; margin: 14px 0; }
+  .stat-box .stat-line { font-size: 11.5pt; margin: 3px 0; }
+  .stat-box .big { font-size: 18pt; font-weight: 700; color: #c47800; }
+  .signature { margin-top: 26px; }
+  .signature .name { font-weight: 700; font-size: 12pt; }
+  .footer { margin-top: 36px; border-top: 1px solid #ddd; padding-top: 10px;
+            display: flex; justify-content: space-between; align-items: center; font-size: 9pt; color: #777; }
+  .qr { width: 100px; height: 100px; }
+  .tracking { font-family: "Courier New", monospace; font-size: 8pt; color: #aaa; }
+</style></head><body>
+
+<div class="header">
+  <div class="agent-name">{{agent_name}}</div>
+  <div class="agent-meta">{{agent_brokerage}} · {{agent_phone}} · {{agent_email}}</div>
+</div>
+
+<div class="date">{{today_long}}</div>
+
+<div class="recipient">
+  {{owner}}<br>
+  {{mail_addr}}
+</div>
+
+<p>Dear {{owner_first}},</p>
+
+<p>You've been at <strong>{{site_addr}}</strong> for <strong>{{tenure_years}} years</strong>.
+That's a meaningful tenure — long enough that the market around you has gone through several full
+cycles since you bought. I wanted to write because the {{city}} market today probably looks
+nothing like the one you bought into.</p>
+
+<div class="stat-box">
+  <div class="stat-line">Your home's estimated current value:</div>
+  <div class="big">{{avm_value}}</div>
+  <div class="stat-line">You purchased in <strong>{{purchase_year}}</strong>{{purchase_price_clause}}.</div>
+  <div class="stat-line">{{equity_gain_line}}</div>
+</div>
+
+<p>A few things have changed in your neighborhood that you might find interesting:</p>
+
+<ul>
+  <li>The median sold price in {{subdivision_or_city}} has shifted significantly.</li>
+  <li>Buyer profiles in your price range are different — more relocations, more dual-income
+      households moving for VT or the Carilion campus.</li>
+  <li>Days-on-market for clean, well-presented homes is currently around <strong>{{cohort_dom}} days</strong>.</li>
+</ul>
+
+<p>If you've ever wondered "what would my house actually sell for today, if I listed it?" — I'd be
+glad to show you. No pressure, no high-touch follow-up. Just real comps and a number you can
+file away in case you ever need it. Scan the QR code, or call/email anytime.</p>
+
+<div class="signature">
+  <p>Warm regards,</p>
+  <div class="name">{{agent_name}}</div>
+  <div>{{agent_brokerage}}</div>
+  <div>{{agent_phone}} · {{agent_email}}</div>
+</div>
+
+<div class="footer">
+  <div>
+    <div>Your private home report:</div>
+    <div><strong>{{landing_url}}</strong></div>
+    <div class="tracking">ref: {{tracking_id}}</div>
+  </div>
+  <img class="qr" src="{{qr_data_uri}}" alt="QR">
+</div>
+
+</body></html>

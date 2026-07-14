@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+
+<style>
+  .route-card .order-num { font-size: 32px; font-weight: 800; color: var(--ink-3); line-height: 1; }
+  @media print {
+    .route-card { border:1px solid #cbd5e1 !important; box-shadow: none !important; }
+    .order-num { color: #334155 !important; }
+  }
+</style>
+
+<div class="flex justify-between items-start mb-5 no-print">
+  <div>
+    <a href="{{ url_for('home', mode='knock') }}" class="text-sm text-blue-700 hover:underline inline-flex items-center gap-1">
+      {{ icon("arrow-left", 14) }} back to dashboard</a>
+    <h1 class="text-2xl font-bold mt-2">{{ title }}</h1>
+    <p class="text-sm text-slate-600 mt-1">Ordered by nearest-neighbor walking sequence starting from the highest-score parcel.</p>
+  </div>
+  <button onclick="window.print()" class="btn btn-primary">{{ icon("printer", 14) }} Print route</button>
+</div>
+
+{% if not rows %}
+<div class="section p-12 text-center text-slate-500">
+  No parcels match for this subdivision under the current filters.
+</div>
+{% else %}
+
+<div class="space-y-3">
+  {% for r in rows %}
+  <div class="route-card section p-4 flex items-start gap-4">
+    <div class="text-center" style="min-width:64px">
+      <div class="order-num">{{ r.route_order }}</div>
+      <div class="mt-2 text-xs text-slate-400">□</div>
+    </div>
+
+    <div class="flex-1">
+      <div class="text-lg font-bold text-slate-900 leading-tight">{{ r.site_addr }}</div>
+      <div class="text-sm text-slate-600 mt-0.5">{{ r.owner }}{% if r.subdivision %} · {{ r.subdivision }}{% endif %}</div>
+      <div class="text-xs text-slate-500 mt-2 flex items-center gap-2 flex-wrap">
+        <div class="score-circle {% if r.score >= 60 %}tier-hi{% elif r.score >= 45 %}tier-mid{% else %}tier-lo{% endif %}" style="width:28px;height:28px;font-size:11px;">{{ r.score }}</div>
+        <span class="chip {{ lead_chip_class(r.lead_type) }}">{{ lead_label(r.lead_type) }}</span>
+        {% for s in r.top_signals %}<span class="chip chip-accent">{{ s.label }}</span>{% endfor %}
+        {% if r._dist_from_prev is defined %}
+          <span class="text-slate-400 ml-1">{{ "%.2f"|format(r._dist_from_prev) }} mi from previous</span>
+        {% endif %}
+      </div>
+      <div class="text-xs text-slate-400 mt-1">
+        Parcel {{ r.parcel_id }} · {{ r.county }}{% if r.year_built %} · built {{ r.year_built }}{% endif %}
+        {% if r.tenure_years %} · {{ "%.0f"|format(r.tenure_years) }}y tenure{% endif %}
+      </div>
+    </div>
+
+    <div class="text-xs text-slate-500" style="min-width:240px">
+      <div class="border-b border-slate-300 h-5"></div>
+      <div class="border-b border-slate-300 h-5"></div>
+      <div class="border-b border-slate-300 h-5"></div>
+      <div class="border-b border-slate-300 h-5"></div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<p class="text-xs text-slate-400 mt-5 no-print">
+  Walking route generated from {{ rows | length }} parcels.
+  Routes break every 6 entries on print.
+</p>
+{% endif %}
+
+{% endblock %}
