@@ -79,24 +79,21 @@ ENV NEXT_PUBLIC_GOOGLE_ADS_SIGNUP_LABEL=${NEXT_PUBLIC_GOOGLE_ADS_SIGNUP_LABEL}
 ENV NEXT_PUBLIC_GOOGLE_ADS_SUBSCRIBE_LABEL=${NEXT_PUBLIC_GOOGLE_ADS_SUBSCRIBE_LABEL}
 
 RUN npx prisma generate
+# Plain SQL DDL from the datamodel. The runtime boot applies this with
+# better-sqlite3 (deploy/apply-schema.mjs), NOT the Prisma CLI (its dep
+# closure effect/c12/@prisma/config is absent from Next's standalone trace).
+# --from-empty needs no DB connection; the dummy DATABASE_URL only satisfies
+# schema parsing. `test -s` fails the build loudly if it emits nothing.
+RUN DATABASE_URL="file:/tmp/schema-build.db" \
+      npx prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script \
+      > prisma/schema.sql \
+  && test -s prisma/schema.sql
 # `next build` can exceed Node's default heap (same OOM class the sibling
 # app's CI hit: "Ineffective mark-compacts near heap limit"). Ceiling with
 # headroom — a max, not a reservation.
 RUN NODE_OPTIONS="--max-old-space-size=4096" npm run build
 
 # ─── runner ───────────────────────────────────────────────────
-# ─── prisma CLI (isolated closure) ────────────────────
-# The runtime `prisma db push` (schema sync onto the volume DB) needs the
-# CLI's ENTIRE dependency closure: @prisma/config pulls c12/effect/empathic/
-# deepmerge-ts, which pull more. Next's standalone trace carries only
-# @prisma/client (the app runtime), NOT the CLI, so cherry-picking
-# node_modules/prisma crashes at boot with "Cannot find module 'effect'".
-# Install the version-pinned CLI into an isolated prefix (npm resolves the
-# full closure) and copy it whole into the runner. Keep the version in sync
-# with package.json's prisma devDependency.
-FROM base AS prismacli
-RUN npm install --no-save --prefix /opt/prismacli prisma@6.19.3 && rm -rf /root/.npm /tmp/*
-
 FROM base AS runner
 ENV NODE_ENV=production
 # Local-run default only — Railway injects PORT at runtime and the standalone
@@ -118,11 +115,9 @@ COPY --from=builder /app/.next/static ./.next/static
 # engine resolution deterministic (the client probes <cwd>/src/generated/prisma).
 COPY --from=builder /app/src/generated ./src/generated
 
-# Prisma CLI (isolated full closure from the `prismacli` stage) for the
-# boot-time `db push`. Cherry-picking node_modules/prisma misses its
-# transitive deps (effect/c12/...) and crashes at runtime; the whole prefix
-# is self-contained. The entrypoint invokes it at /opt/prismacli/....
-COPY --from=prismacli /opt/prismacli/node_modules /opt/prismacli/node_modules
+# @prisma/client's engine helpers for the app runtime, plus the prisma/ dir:
+# schema.prisma AND the build-generated schema.sql that deploy/apply-schema.mjs
+# applies at boot (no Prisma CLI ships in this image; see that script header).
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/prisma ./prisma
 

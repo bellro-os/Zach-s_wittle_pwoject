@@ -42,9 +42,12 @@ if command -v litestream >/dev/null 2>&1 && [ -n "${LITESTREAM_REPLICA_URL:-}" ]
 fi
 
 # ── 2) schema sync ───────────────────────────────────────────────────────────
-echo "-> Syncing database schema (prisma db push)..."
-CHECKPOINT_DISABLE=1 node /opt/prismacli/node_modules/prisma/build/index.js db push \
-  --skip-generate --schema prisma/schema.prisma
+# Apply the build-generated prisma/schema.sql with better-sqlite3 (a guaranteed
+# runtime dep) rather than the Prisma CLI, whose transitive closure (effect/c12/
+# @prisma/config) is absent from Next's standalone trace and crash-looped boot
+# with "Cannot find module 'effect'". Idempotent; see deploy/apply-schema.mjs.
+echo "-> Syncing database schema (apply-schema.mjs)..."
+node /app/deploy/apply-schema.mjs
 
 # ── 3) search-index seed (blocking, NON-FATAL) ───────────────────────────────
 # The seeder pulls data/search_index.sqlite onto the app volume, then RETURNS
