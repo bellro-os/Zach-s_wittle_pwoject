@@ -32,9 +32,13 @@
 # ─── base ─────────────────────────────────────────────────────
 FROM node:20-slim AS base
 WORKDIR /app
-# Prisma needs openssl + ca-certificates at build and run time.
+# Prisma needs openssl + ca-certificates at build and run time. curl + python3
+# are for the runner stage (Litestream R2 uploads / fallback use curl; the
+# search-index seeder — deploy/data-sync/entrypoint.app.sh — probes the pulled
+# SQLite with python3's stdlib sqlite3). node:20-slim ships neither, so add them
+# here in the shared base (deps/builder/runner all inherit it).
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends openssl ca-certificates \
+  && apt-get install -y --no-install-recommends openssl ca-certificates curl python3 \
   && rm -rf /var/lib/apt/lists/*
 
 # ─── deps ─────────────────────────────────────────────────────
@@ -120,6 +124,14 @@ COPY --from=builder /app/deploy ./deploy
 RUN find ./deploy -name '*.sh' -exec sed -i 's/\r$//' {} + \
   && find ./deploy -name '*.sh' -exec chmod +x {} + \
   && mkdir -p /data
+
+# ── Litestream: continuous SQLite backup to R2 (deploy/ops/README.md) ────────
+ARG LITESTREAM_VERSION=0.5.14
+ADD https://github.com/benbjohnson/litestream/releases/download/v${LITESTREAM_VERSION}/litestream-${LITESTREAM_VERSION}-linux-x86_64.tar.gz /tmp/litestream.tar.gz
+RUN tar -xzf /tmp/litestream.tar.gz -C /usr/local/bin litestream && rm /tmp/litestream.tar.gz
+COPY deploy/ops/litestream.yml /etc/litestream.yml
+COPY deploy/ops/restore.sh /usr/local/bin/compbird-restore
+RUN sed -i 's/\r$//' /usr/local/bin/compbird-restore && chmod +x /usr/local/bin/compbird-restore
 
 EXPOSE 3000
 

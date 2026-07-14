@@ -7,7 +7,12 @@ import {
   spawnPython,
   parseBuilderResult,
 } from "@/lib/cma/paths";
-import { callWorker, workerEnabled, COMPBIRD_WORKER_URL } from "@/lib/cma/worker";
+import {
+  callWorker,
+  workerEnabled,
+  workerAuthHeaders,
+  COMPBIRD_WORKER_URL,
+} from "@/lib/cma/worker";
 import { searchProperties, searchIndexAvailable } from "@/lib/cma/search-index";
 import type { PropertyMatch } from "@/lib/cma/search-index";
 import { createLogger } from "@/lib/utils/logger";
@@ -41,6 +46,10 @@ const GENERATE_SPAWN_MS = 115_000;
 const GENERATE_WORKER_MS = 113_000;
 const SEARCH_SPAWN_MS = 7_000;
 const MARKETS_SPAWN_MS = 18_000;
+// Warm-worker markets budget. The worker computes the same DuckDB aggregate the
+// spawn runs, but with the engine already imported (no cold start), so a tighter
+// budget than the spawn is fine; on timeout/failure we fall back to the spawn.
+const MARKETS_WORKER_MS = 18_000;
 
 /**
  * OPT-IN comp-pool override for compbird. When COMPBIRD_LISTINGS_PARQUET points at
@@ -575,213 +584,24 @@ export interface EngineMarket {
  *
  * The runner NEVER raises: on any failure (missing parquet, DuckDB error, no
  * rows) it prints `{ok: true, markets: []}` so the landing keeps its sample.
+ *
+ * This is the SPAWN fallback for when the warm worker is down. It imports and
+ * calls the engine's canonical `build_markets()` (scripts/build_markets.py) —
+ * the SAME function the worker's GET /markets handler runs — so the two paths
+ * can never drift. It does NOT duplicate the SQL.
  */
 const MARKETS_RUNNER = `
-import json, math, os, sys, traceback
+import json, os, sys
 from pathlib import Path
 ROOT = Path(os.environ["PROJECT_ROOT"])
 sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT / "src"))
-
-WINDOW_MONTHS = 12          # same window as _market_context
-MIN_SOLD = 6                # only surface neighborhoods with a credible sample
-MAX_CARDS = 6
-CLASS = "RE_1"
-# Subdivision placeholders the feed uses for "no real subdivision" — never a card.
-PLACEHOLDERS = ("", "NONE", "OTHER", "N/A", "NA", "UNKNOWN", "TBD")
-
-def _f(v):
-    try:
-        if v is None: return None
-        v = float(v)
-        return None if (math.isnan(v) or math.isinf(v)) else v
-    except Exception:
-        return None
-
-def _emit(markets):
-    print("__JSON__" + json.dumps({"ok": True, "markets": markets}, allow_nan=False))
-
-def _trend_series(con, scope_clause):
-    """12-point oldest->newest price series for the sparkline. Per-month median,
-    then forward/back-filled and lightly smoothed toward the overall median so a
-    thin month doesn't spike the line. Cosmetic only — headline figures are the
-    real aggregates."""
-    try:
-        rows = con.execute(
-            f"""WITH sold AS (
-                    SELECT TRY_CAST(sold_price AS DOUBLE) sp,
-                           11 - date_diff('month', date_trunc('month', close_date),
-                                          date_trunc('month', CURRENT_DATE)) AS idx
-                    FROM l
-                    WHERE _class = '{CLASS}' AND status_category = 'Closed'
-                      AND TRY_CAST(sold_price AS DOUBLE) > 0
-                      AND close_date >= (CURRENT_DATE - INTERVAL '{WINDOW_MONTHS} months')
-                      AND {scope_clause}
-                )
-                SELECT idx, MEDIAN(sp) m FROM sold
-                WHERE idx BETWEEN 0 AND 11 GROUP BY idx ORDER BY idx"""
-        ).fetchall()
-    except Exception:
-        return None
-    by_idx = {int(i): _f(m) for i, m in rows if _f(m) is not None}
-    if not by_idx:
-        return None
-    vals = list(by_idx.values())
-    overall = sorted(vals)[len(vals) // 2]
-    # Forward-fill gaps; seed the head from the first known value.
-    series, last = [], None
-    for i in range(12):
-        v = by_idx.get(i)
-        if v is None:
-            v = last if last is not None else overall
-        series.append(v)
-        last = v
-    # Light smoothing (3-pt moving avg, ends held) so the line reads clean.
-    sm = []
-    for i in range(12):
-        lo, hi = max(0, i - 1), min(11, i + 1)
-        win = series[lo:hi + 1]
-        sm.append(round(sum(win) / len(win)))
-    return sm
-
-def _note(scope_label, med_dom, moi, trend_pct, n_sold):
-    bits = []
-    if moi is not None:
-        if moi < 3:
-            bits.append("tight supply favors sellers")
-        elif moi < 6:
-            bits.append("supply and demand are balanced")
-        else:
-            bits.append("ample supply favors buyers")
-    if med_dom is not None:
-        if med_dom <= 14:
-            bits.append("homes clear in under two weeks")
-        elif med_dom <= 30:
-            bits.append(f"a typical sale takes about {int(med_dom)} days")
-        else:
-            bits.append(f"listings sit ~{int(med_dom)} days before closing")
-    if trend_pct is not None and abs(trend_pct) >= 1.0:
-        bits.append(f"$/sqft is {'up' if trend_pct > 0 else 'down'} {abs(trend_pct):.1f}% year over year")
-    head = "; ".join(bits[:2]) if bits else f"{int(n_sold)} closings in the trailing year"
-    return head[:1].upper() + head[1:] + "."
-
 try:
-    import duckdb
-    parquet = ROOT / "data" / "mls_lookup.parquet"
-    if not parquet.exists():
-        _emit([]); sys.exit(0)
-
-    con = duckdb.connect(":memory:")
-    con.execute(f"CREATE VIEW l AS SELECT * FROM read_parquet('{parquet.as_posix()}')")
-
-    placeholders_sql = ", ".join("'" + p + "'" for p in PLACEHOLDERS)
-    # Top neighborhoods by recent sold count. Group on the raw subdivision but
-    # drop feed placeholders so we only surface real, named neighborhoods.
-    ranked = con.execute(
-        f"""WITH sold AS (
-                SELECT subdivision, city, county,
-                       TRY_CAST(sold_price AS DOUBLE) sp,
-                       TRY_CAST(sqft AS DOUBLE) sf,
-                       TRY_CAST(feed_dom AS INT) dom
-                FROM l
-                WHERE _class = '{CLASS}' AND status_category = 'Closed'
-                  AND TRY_CAST(sold_price AS DOUBLE) > 0
-                  AND close_date >= (CURRENT_DATE - INTERVAL '{WINDOW_MONTHS} months')
-                  AND subdivision IS NOT NULL
-                  AND UPPER(TRIM(subdivision)) NOT IN ({placeholders_sql})
-            )
-            SELECT subdivision,
-                   ANY_VALUE(city) city, ANY_VALUE(county) county,
-                   COUNT(*) n_sold,
-                   MEDIAN(sp) med_price,
-                   MEDIAN(CASE WHEN sf > 0 THEN sp / sf END) med_ppsf,
-                   MEDIAN(dom) med_dom
-            FROM sold
-            GROUP BY subdivision
-            HAVING COUNT(*) >= {MIN_SOLD}
-            ORDER BY n_sold DESC
-            LIMIT {MAX_CARDS}"""
-    ).fetchall()
-
-    markets = []
-    for sub, city, county, n_sold, med_price, med_ppsf, med_dom in ranked:
-        sub_sql = str(sub).replace("'", "''")
-        scope_clause = f"subdivision = '{sub_sql}'"
-
-        active = con.execute(
-            f"SELECT COUNT(*) FROM l WHERE _class = '{CLASS}' "
-            f"AND status_category = 'Active' AND {scope_clause}"
-        ).fetchone()
-        active_count = int(active[0]) if active and active[0] is not None else 0
-
-        n = int(n_sold)
-        moi = None
-        if n > 0:
-            per_month = n / float(WINDOW_MONTHS)
-            if per_month > 0:
-                moi = active_count / per_month
-
-        # Split-half $/sqft trend — identical idea to _market_context.
-        trend_pct = None
-        try:
-            halves = con.execute(
-                f"""WITH sold AS (
-                        SELECT TRY_CAST(sold_price AS DOUBLE) sp,
-                               TRY_CAST(sqft AS DOUBLE) sf, close_date
-                        FROM l
-                        WHERE _class = '{CLASS}' AND status_category = 'Closed'
-                          AND TRY_CAST(sold_price AS DOUBLE) > 0
-                          AND TRY_CAST(sqft AS DOUBLE) > 0
-                          AND close_date >= (CURRENT_DATE - INTERVAL '{WINDOW_MONTHS} months')
-                          AND {scope_clause}
-                    ),
-                    tagged AS (
-                        SELECT sp / sf AS ppsf,
-                               CASE WHEN close_date >=
-                                    (CURRENT_DATE - INTERVAL '{WINDOW_MONTHS // 2} months')
-                                    THEN 'recent' ELSE 'older' END AS half
-                        FROM sold
-                    )
-                    SELECT half, MEDIAN(ppsf) med, COUNT(*) c FROM tagged GROUP BY half"""
-            ).fetchall()
-            by_half = {h: (m, c) for h, m, c in halves}
-            recent, older = by_half.get("recent"), by_half.get("older")
-            if recent and older and recent[1] >= 3 and older[1] >= 3 and older[0]:
-                trend_pct = (recent[0] - older[0]) / older[0] * 100.0
-        except Exception:
-            trend_pct = None
-
-        trend = _trend_series(con, scope_clause)
-        med_price_f = _f(med_price)
-        med_ppsf_f = _f(med_ppsf)
-        if med_price_f is None or med_ppsf_f is None:
-            continue  # a card with no headline is useless — skip it
-        if not trend:
-            trend = [round(med_price_f)] * 12
-
-        med_dom_i = int(med_dom) if med_dom is not None else 0
-        trend_pct_r = round(trend_pct, 1) if trend_pct is not None else 0.0
-        moi_r = round(moi, 1) if moi is not None else 0.0
-        area = ", ".join([str(x) for x in (city, (str(county) + " County") if county else None) if x]) or "New River Valley, VA"
-        markets.append({
-            "name": str(sub),
-            "area": area,
-            "medianPrice": int(round(med_price_f)),
-            "ppsf": int(round(med_ppsf_f)),
-            "ppsfTrendPct": trend_pct_r,
-            "medianDom": med_dom_i,
-            "monthsOfInventory": moi_r,
-            "soldCount": n,
-            "activeCount": active_count,
-            "trend": trend,
-            "note": _note(str(sub), med_dom_i, moi, trend_pct, n),
-        })
-
-    _emit(markets)
-except Exception as e:
+    from build_markets import build_markets
+    print("__JSON__" + json.dumps({"ok": True, "markets": build_markets()}, allow_nan=False))
+except Exception:
     # Never crash the landing — fall back to the sample by returning empty.
-    sys.stderr.write(traceback.format_exc())
-    _emit([])
+    print("__JSON__" + json.dumps({"ok": True, "markets": []}))
 `;
 
 // Neighborhood aggregates change slowly (a closing here and there), but the
@@ -793,7 +613,55 @@ const MARKETS_EMPTY_TTL_MS = 60_000; // retry an empty/failed result sooner
 let _marketsCache: { at: number; body: { markets: EngineMarket[] } } | null = null;
 let _marketsInflight: Promise<Outcome<{ markets: EngineMarket[] }>> | null = null;
 
+/**
+ * Fetch the live cards from the warm worker's GET /markets, mirroring
+ * engineProfile's callWorker posture (COMPBIRD_WORKER_URL + workerAuthHeaders +
+ * a hard timeout). GET (not callWorker's POST) because /markets takes no body
+ * and carries no secrets. Returns the markets array on success, or throws so the
+ * caller falls back to the spawn — same "worker is a pure optimization" contract
+ * as the other engine calls. This is the ONLY path that reaches a worker-only
+ * prod app (spawnPython has no Python there), which is the whole point of the fix.
+ */
+async function fetchMarketsFromWorker(): Promise<EngineMarket[]> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), MARKETS_WORKER_MS);
+  try {
+    const res = await fetch(`${COMPBIRD_WORKER_URL}/markets`, {
+      method: "GET",
+      headers: { ...workerAuthHeaders() },
+      signal: ctrl.signal,
+      cache: "no-store",
+    });
+    if (!res.ok) throw new Error(`cma-worker /markets ${res.status}`);
+    const parsed = (await res.json()) as { ok?: boolean; markets?: EngineMarket[] };
+    if (!parsed?.ok || !Array.isArray(parsed.markets)) {
+      throw new Error("cma-worker /markets malformed response");
+    }
+    return parsed.markets;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function computeMarkets(): Promise<Outcome<{ markets: EngineMarket[] }>> {
+  // Warm-worker first (mirrors engineProfile/enginePreview/engineGenerate): on
+  // Railway the app is worker-only, so this is the path that actually returns
+  // real cards. Fall back to the spawn runner (same build_markets()) only when
+  // the worker is unreachable. On TOTAL failure we soft-fail to [] so the landing
+  // keeps its built-in sample — never throw.
+  if (workerEnabled()) {
+    try {
+      const markets = await fetchMarketsFromWorker();
+      const body = { markets };
+      _marketsCache = { at: Date.now(), body };
+      return { status: 200, body };
+    } catch (err) {
+      log.warn("CMA worker /markets unavailable — falling back to spawn", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
   const { stdout, stderr, code, timedOut } = await withCompbirdSlot(() =>
     spawnPython(
       ["-c", MARKETS_RUNNER],

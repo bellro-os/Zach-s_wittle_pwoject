@@ -132,9 +132,12 @@ Boot-time seams this pipeline guarantees (already wired in the entrypoints):
   when present. That script is the container's supervisor: initial pull from
   R2 → start the worker → hourly pull loop. No kit present ⇒ the worker starts
   directly and the entrypoint prints loud `!! WARNING` lines for missing data.
-- **app:** `entrypoint.app.sh` runs `prisma db push`, then execs
-  `deploy/data-sync/entrypoint.app.sh` when present (search-index pull /
-  refresh; contract: it must end with `exec node /app/server.js`).
+- **app:** `entrypoint.app.sh` sequence is `litestream restore` (if a replica
+  is configured; BEFORE the push so a fresh volume can be recovered) →
+  `prisma db push` → **calls** `deploy/data-sync/entrypoint.app.sh` when present
+  (blocking search-index seed; it RETURNS, it does NOT start the server) →
+  starts the server UNDER Litestream (`litestream replicate -exec "node
+  server.js"`) when `LITESTREAM_REPLICA_URL` is set, else plain `node server.js`.
 
 What must land where:
 

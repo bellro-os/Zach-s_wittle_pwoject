@@ -1,7 +1,7 @@
 This engine/ directory is a VENDORED COPY of the MLS Bot CMA engine.
 
 Canonical source repo: MLS Bot  (branch feature/cma-engine-split)
-Vendored at commit:     893faaa9d552c62d163cea66ecb2f20f75399810
+Vendored at commit:     c6188dc39e263e58a6b600f36444fadfb55fac86
 Vendored on:            2026-07-14
 
 It contains only git-tracked code (via `git archive`) — never data

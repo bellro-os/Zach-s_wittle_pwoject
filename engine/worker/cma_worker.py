@@ -9,6 +9,8 @@ worker is a pure optimization that can never regress the app.
 
 Endpoints (all JSON):
   GET  /healthz            -> {"ok": true, "warm": bool}
+  GET  /markets            -> {"ok": true, "markets": [...]}   (landing cards;
+                              un-gated public read-only aggregate, no body)
   POST /profile  {address?, parcelId?, n?, months?}   -> build_profile(...) dict
   POST /generate {address?, parcelId?, brand?, brandProfile?, agent?, comps?,
                   excluded?, months?, nComps?, allowMultiPage?, aiHygiene?}
@@ -172,6 +174,16 @@ def _generate(body: dict) -> dict:
     return out
 
 
+def _markets(body: dict) -> dict:
+    # Live landing-showcase neighborhood cards. Pure/read-only aggregate over the
+    # SAME data/mls_lookup.parquet the per-subject market context reads; no
+    # secrets, no body, never raises (build_markets returns [] on any failure).
+    # Imported lazily so a bad parquet can never break worker boot. The app
+    # TTL-caches this, so we compute fresh each call.
+    from build_markets import build_markets
+    return {"ok": True, "markets": build_markets()}
+
+
 def _preview(body: dict) -> dict:
     # Interactive comp set + valuation, NO PDF — runs the SAME prepare_comps +
     # _estimate_value pipeline as /generate (via build_preview) so the on-screen
@@ -295,6 +307,17 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith("/healthz"):
             return self._send(200, {"ok": True, "warm": _WARM["ok"]})
+        if self.path.startswith("/markets"):
+            # Landing-showcase neighborhood cards. GET + un-gated ON PURPOSE:
+            # the payload is a public read-only aggregate (no secrets), mirroring
+            # /healthz, and has no request body. Same _run_with_timeout guard as
+            # the POST endpoints so a slow parquet scan can't hang the server.
+            try:
+                return self._send(200, _run_with_timeout(_markets, {}))
+            except _RequestTimeout as e:
+                return self._send(504, {"ok": False, "error": str(e), "timeout": True})
+            except Exception as e:  # never crash — landing falls back to sample
+                return self._send(200, {"ok": True, "markets": [], "error": str(e)})
         if self.path.startswith("/outputs/"):
             return self._serve_output()
         self._send(404, {"ok": False, "error": "not found"})
