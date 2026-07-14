@@ -43,7 +43,7 @@ fi
 
 # ── 2) schema sync ───────────────────────────────────────────────────────────
 echo "-> Syncing database schema (prisma db push)..."
-CHECKPOINT_DISABLE=1 node node_modules/prisma/build/index.js db push \
+CHECKPOINT_DISABLE=1 node /opt/prismacli/node_modules/prisma/build/index.js db push \
   --skip-generate --schema prisma/schema.prisma
 
 # ── 3) search-index seed (blocking, NON-FATAL) ───────────────────────────────

@@ -85,6 +85,18 @@ RUN npx prisma generate
 RUN NODE_OPTIONS="--max-old-space-size=4096" npm run build
 
 # ─── runner ───────────────────────────────────────────────────
+# ─── prisma CLI (isolated closure) ────────────────────
+# The runtime `prisma db push` (schema sync onto the volume DB) needs the
+# CLI's ENTIRE dependency closure: @prisma/config pulls c12/effect/empathic/
+# deepmerge-ts, which pull more. Next's standalone trace carries only
+# @prisma/client (the app runtime), NOT the CLI, so cherry-picking
+# node_modules/prisma crashes at boot with "Cannot find module 'effect'".
+# Install the version-pinned CLI into an isolated prefix (npm resolves the
+# full closure) and copy it whole into the runner. Keep the version in sync
+# with package.json's prisma devDependency.
+FROM base AS prismacli
+RUN npm install --no-save --prefix /opt/prismacli prisma@6.19.3 && rm -rf /root/.npm /tmp/*
+
 FROM base AS runner
 ENV NODE_ENV=production
 # Local-run default only — Railway injects PORT at runtime and the standalone
@@ -106,10 +118,11 @@ COPY --from=builder /app/.next/static ./.next/static
 # engine resolution deterministic (the client probes <cwd>/src/generated/prisma).
 COPY --from=builder /app/src/generated ./src/generated
 
-# Prisma CLI for the boot-time `db push` (schema sync against the volume DB).
-# Copied from the builder so versions stay lockfile-pinned; @prisma/* includes
-# the linux schema-engine the CLI shells out to.
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+# Prisma CLI (isolated full closure from the `prismacli` stage) for the
+# boot-time `db push`. Cherry-picking node_modules/prisma misses its
+# transitive deps (effect/c12/...) and crashes at runtime; the whole prefix
+# is self-contained. The entrypoint invokes it at /opt/prismacli/....
+COPY --from=prismacli /opt/prismacli/node_modules /opt/prismacli/node_modules
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/prisma ./prisma
 
