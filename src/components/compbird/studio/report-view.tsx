@@ -10,7 +10,14 @@ import { readFreshness } from "@/lib/compbird/freshness";
 import type { ProfileResult, ProfileComp } from "@/lib/compbird/types";
 import { SubjectCard } from "./subject-card";
 import { DataFreshness } from "./data-freshness";
-import { ValuationPanel } from "./valuation-panel";
+import {
+  ValuationPanel,
+  ADD_COMP_SECTION_ID,
+  COMPS_SECTION_ID,
+  computeMethodDeltas,
+  largestMoverSentence,
+  type MethodSnapshot,
+} from "./valuation-panel";
 import { CompsTable, compKey, retainExcludedComps, type CachedComp } from "./comps-table";
 import { AddCompSearch } from "./add-comp-search";
 import { PpsfBars } from "./ppsf-bars";
@@ -261,10 +268,33 @@ export function ReportView({
   // standard cache pattern — no effects, no extra renders.
   const compCacheRef = useRef(new Map<string, CachedComp>());
   const cacheSubjectRef = useRef<string | null>(null);
+  // Aria-live method-delta narration (the panel's row deltas are aria-hidden;
+  // THIS is the accessible story): track the previous methods per subject and
+  // name the largest mover when a recompute settles — same render-phase ref
+  // pattern as the comp cache above.
+  const methodSnapRef = useRef<MethodSnapshot[] | null>(null);
+  const narratedValuationRef = useRef<ProfileResult["valuation"]>(null);
+  const moverRef = useRef<string | null>(null);
   const subjectKey = facts ? `${facts.parcel_id ?? ""}|${facts.address ?? ""}` : "";
   if (cacheSubjectRef.current !== subjectKey) {
     cacheSubjectRef.current = subjectKey;
     compCacheRef.current = new Map();
+    methodSnapRef.current = null;
+    narratedValuationRef.current = null;
+    moverRef.current = null;
+  }
+  if (narratedValuationRef.current !== (valuation ?? null)) {
+    const snap: MethodSnapshot[] = (valuation?.methods ?? []).map((m) => ({
+      name: m.name,
+      value: m.value,
+    }));
+    // First sight of a subject (no prior snapshot) never narrates a delta.
+    moverRef.current =
+      methodSnapRef.current && narratedValuationRef.current
+        ? largestMoverSentence(computeMethodDeltas(methodSnapRef.current, snap))
+        : null;
+    methodSnapRef.current = snap;
+    narratedValuationRef.current = valuation ?? null;
   }
   const displayComps = useMemo(
     () => retainExcludedComps(comps, excluded, compCacheRef.current),
@@ -366,6 +396,9 @@ export function ReportView({
                   tunedCount={(excluded?.size ?? 0) + (forced?.size ?? 0)}
                   onResetTuning={onResetTuning}
                   busy={tuning}
+                  subjectKey={subjectKey}
+                  canPinComp={canControl}
+                  canReviewComps={!isSample && !locked}
                 />
               </div>
             ) : null}
@@ -435,8 +468,13 @@ export function ReportView({
           aria-label="Evidence"
           className="flex flex-col gap-8 rounded-2xl border border-border bg-card/70 p-5 sm:p-7"
         >
-          {/* comps — the evidence the value rests on */}
-          <div className="flex flex-col gap-5">
+          {/* comps — the evidence the value rests on. Anchored + focusable:
+              the STANDARD-tier "Review the comp set" chip jumps here. */}
+          <div
+            id={COMPS_SECTION_ID}
+            tabIndex={-1}
+            className="flex scroll-mt-6 flex-col gap-5 outline-none"
+          >
             <ZoneHeading
               eyebrow="Evidence"
               title={`The ${comps.length} comps the value rests on`}
@@ -461,9 +499,14 @@ export function ReportView({
               </span>
             ) : null}
 
-            {/* add-a-comparable affordance — LIVE reports only */}
+            {/* add-a-comparable affordance — LIVE reports only. Anchored: the
+                STANDARD-tier "Pin a closer comparable" chip jumps here and
+                focuses the search. */}
             {canControl ? (
-              <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-secondary/30 p-3.5 sm:p-4">
+              <div
+                id={ADD_COMP_SECTION_ID}
+                className="flex scroll-mt-6 flex-col gap-3 rounded-xl border border-border/70 bg-secondary/30 p-3.5 sm:p-4"
+              >
                 <AddCompSearch onAdd={onAddComp!} busy={tuning} pinned={forcedSet} />
                 {forcedComps.length ? (
                   <div className="flex flex-wrap items-center gap-2">
@@ -501,13 +544,23 @@ export function ReportView({
 
             {/* Screen-reader narration for the recompute cycle: a comp toggle
                 visually dims + re-numbers the panel, but without this a
-                keyboard/AT user gets silence between click and settled value. */}
+                keyboard/AT user gets silence between click and settled value.
+                A settled recompute also names the largest method mover
+                ("Direct comparison moved up 2 percent.") — the accessible twin
+                of the panel's aria-hidden row deltas. */}
             <p aria-live="polite" role="status" className="sr-only">
               {tuning
                 ? "Recomputing the valuation…"
-                : excludedCount > 0
-                  ? `${excludedCount} comparable${excludedCount === 1 ? "" : "s"} excluded. Valuation updated.`
-                  : ""}
+                : [
+                    excludedCount > 0
+                      ? `${excludedCount} comparable${excludedCount === 1 ? "" : "s"} excluded. Valuation updated.`
+                      : moverRef.current
+                        ? "Valuation updated."
+                        : "",
+                    moverRef.current ?? "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
             </p>
 
             <CompsTable

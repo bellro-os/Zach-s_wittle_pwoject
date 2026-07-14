@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Eyebrow, Pill } from "@/components/compbird/ui";
@@ -23,12 +23,28 @@ import { FirstRun } from "./first-run";
 import { Recents, pushRecent } from "./recents";
 import { ReportView } from "./report-view";
 import { ReportSkeleton } from "./report-skeleton";
+import {
+  SubjectPreview,
+  buildSubjectPreview,
+  previewReducer,
+  INITIAL_PREVIEW_STATE,
+  SLOW_LOOKUP_MS,
+  type LookupSelection,
+} from "./subject-preview";
 
 /**
  * The comp studio. Paints SAMPLE_PROFILE instantly on mount (always impressive,
  * never a spinner on first load), then runs live against the engine on demand.
  * Live failures fall back to the canonical 509 Jefferson sample (never re-keyed
  * to the user's address — a real address must never sit atop fabricated comps).
+ *
+ * PROGRESSIVE FIRST PAINT: a cold lookup takes 8–15s, but the picked search
+ * suggestion already carries a PropertyMatch — those facts render immediately
+ * (subject-preview.tsx) with the estimate slot as an honest working state,
+ * and the real ReportView upgrades in place when the profile resolves.
+ * Identity-only selections (deep links, retry, recents) keep the skeleton,
+ * enriched with the address being looked up. ONE NUMBER EVERYWHERE: neither
+ * loading surface ever shows a provisional value.
  *
  * On a LIVE report the user can tune the comp set: excluding (or re-forcing) a
  * comparable calls the preview engine for the same subject and re-renders the
@@ -382,6 +398,27 @@ export function CompStudio() {
   // must never quietly pass for the searched address).
   const [liveError, setLiveError] = useState<string | null>(null);
 
+  // Progressive first paint: what the in-flight lookup already KNOWS. A
+  // selection carrying a PropertyMatch paints a SubjectPreview (facts fast,
+  // the estimate slot as an honest working state); identity-only selections
+  // (deep links, retry, recents) keep the skeleton, enriched with the address.
+  // Epoch-stamped like every other async surface: the shared subject-change
+  // reset dispatches "reset", each lookup's finally dispatches "settled" with
+  // ITS epoch (the reducer refuses stale settles), so a cancelled/superseded
+  // lookup can never leave an orphaned preview. Pure + tested in
+  // subject-preview.test.ts.
+  const [previewState, dispatchPreview] = useReducer(
+    previewReducer,
+    INITIAL_PREVIEW_STATE,
+  );
+  // The current lookup has been pending ~6s — both loading surfaces append
+  // one quiet honesty line ("first analysis takes a few extra seconds…").
+  const [slowLookup, setSlowLookup] = useState(false);
+  // The resolving profile was PRECEDED by a subject preview — the report then
+  // swaps in with a fade only (Reveal y=0), so the already-painted subject
+  // header doesn't jump.
+  const [softSwap, setSoftSwap] = useState(false);
+
   // Tuning state — only meaningful on a LIVE report.
   const [excluded, setExcluded] = useState<string[]>([]);
   const [forced, setForced] = useState<string[]>([]);
@@ -440,18 +477,32 @@ export function CompStudio() {
     setOverrides({});
     setReportConfig({});
     setTuning(false);
+    // The outgoing lookup's first-paint preview dies with its subject.
+    dispatchPreview({ type: "reset" });
     return epoch;
   }, [session, cancelPreview]);
 
   // Accepts the full search-result PropertyMatch as well as the minimal
-  // {address, parcel_id} seed the deep-link branch builds — only these two
-  // fields are read, so no cast is needed at the call site.
+  // {address, parcel_id} seed the deep-link branch builds (LookupSelection =
+  // identity required, every other match fact optional). Facts beyond identity
+  // feed the progressive first paint; identity is all the fetch needs.
   const select = useCallback(
-    async (match: Pick<PropertyMatch, "address" | "parcel_id">) => {
+    async (match: LookupSelection) => {
       // Shared reset (see beginSubjectChange): a new subject invalidates any
       // in-progress tuning AND drops what-if overrides + narrative edits —
       // they were keyed to the previous subject's record facts.
       const epoch = beginSubjectChange();
+
+      // First paint: whatever this selection already knows, stamped with the
+      // new epoch. null preview (identity-only pick) ⇒ the skeleton path,
+      // which still names the address being looked up.
+      const preview = buildSubjectPreview(match);
+      dispatchPreview({
+        type: "start",
+        epoch,
+        data: preview,
+        address: match.address.trim() || null,
+      });
 
       const ctrl = new AbortController();
       abortRef.current = ctrl;
@@ -486,6 +537,9 @@ export function CompStudio() {
           );
           setProfile(result);
           setIsSample(false);
+          // A preview held this exact subject header on screen — swap the real
+          // report in with a fade only, so the header geometry doesn't jump.
+          setSoftSwap(preview != null);
           // Session recents: record the RESOLVED subject (canonical address +
           // parcel), so a chip / Cmd-K re-select hits the same record.
           pushRecent({
@@ -510,9 +564,16 @@ export function CompStudio() {
         // searched address, so a real address never sits atop fabricated comps.
         setProfile(SAMPLE_PROFILE);
         setIsSample(true);
+        // The failure banner + sample arrive with the normal reveal, not the
+        // preview's in-place fade (the preview header is being replaced).
+        setSoftSwap(false);
         // No live subject — tuning/override callbacks stay hard no-ops.
         session.disarm(epoch);
       } finally {
+        // This lookup is settled either way — clear ITS first-paint preview.
+        // Deliberately unguarded: the reducer's epoch check is the guard, so a
+        // superseded lookup's settle can't blank the newer lookup's preview.
+        dispatchPreview({ type: "settled", epoch });
         // A superseded selection owns `loading` itself — only the CURRENT
         // lookup may clear it (and its pending-subject label).
         if (!ctrl.signal.aborted && !session.isStale(epoch)) {
@@ -537,7 +598,24 @@ export function CompStudio() {
     abortRef.current = null;
     setLoading(false);
     setPendingLabel(null);
+    // The cancelled lookup's first paint goes with it — the previously
+    // rendered report (sample or prior subject) simply shows again.
+    dispatchPreview({ type: "reset" });
   }, []);
+
+  // Progress honesty: after ~6s of one still-pending lookup, both loading
+  // surfaces (preview + skeleton) append the quiet first-analysis line. Keyed
+  // on the preview epoch too, so a NEW selection made while a lookup is
+  // already in flight (loading never flips false) restarts the clock.
+  useEffect(() => {
+    if (!loading) {
+      setSlowLookup(false);
+      return;
+    }
+    setSlowLookup(false);
+    const id = window.setTimeout(() => setSlowLookup(true), SLOW_LOOKUP_MS);
+    return () => window.clearTimeout(id);
+  }, [loading, previewState.epoch]);
 
   // Escape cancels the in-flight lookup — listener alive ONLY while one is.
   // Plain bubble listener: a dropdown/palette Escape (which closes that
@@ -610,6 +688,7 @@ export function CompStudio() {
       setLiveError(null);
       setProfile(SAMPLE_PROFILE);
       setIsSample(true);
+      setSoftSwap(false);
     } else if (plan.action === "select") {
       // Minimal, correctly-typed seed — only the fields select() reads. No cast.
       void select({ address: plan.address, parcel_id: plan.parcelId });
@@ -918,12 +997,20 @@ export function CompStudio() {
         </div>
       ) : null}
 
-      {/* report area */}
+      {/* report area — progressive first paint while a lookup runs: known
+          facts render immediately (SubjectPreview) or the skeleton names the
+          address; the estimate slot is an honest working state on BOTH paths,
+          never a provisional number. The resolved ReportView replaces a
+          preview in place (fade only — softSwap), keeping the header put. */}
       <div aria-busy={loading}>
         {loading ? (
-          <ReportSkeleton />
+          previewState.data ? (
+            <SubjectPreview data={previewState.data} slow={slowLookup} />
+          ) : (
+            <ReportSkeleton pendingAddress={previewState.address} slow={slowLookup} />
+          )
         ) : (
-          <Reveal key={subjectAddress + String(isSample)} y={16}>
+          <Reveal key={subjectAddress + String(isSample)} y={softSwap ? 0 : 16}>
             <ReportView
               profile={profile}
               isSample={isSample}
