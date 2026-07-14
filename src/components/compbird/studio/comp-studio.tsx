@@ -42,9 +42,11 @@ import {
  * suggestion already carries a PropertyMatch — those facts render immediately
  * (subject-preview.tsx) with the estimate slot as an honest working state,
  * and the real ReportView upgrades in place when the profile resolves.
- * Identity-only selections (deep links, retry, recents) keep the skeleton,
- * enriched with the address being looked up. ONE NUMBER EVERYWHERE: neither
- * loading surface ever shows a provisional value.
+ * Recents re-picks carry the facts snapshot stored when the subject resolved
+ * (recents.tsx), so they get the same instant preview; identity-only
+ * selections (deep links, retry) keep the skeleton, enriched with the address
+ * being looked up. ONE NUMBER EVERYWHERE: neither loading surface ever shows
+ * a provisional value.
  *
  * On a LIVE report the user can tune the comp set: excluding (or re-forcing) a
  * comparable calls the preview engine for the same subject and re-renders the
@@ -399,9 +401,11 @@ export function CompStudio() {
   const [liveError, setLiveError] = useState<string | null>(null);
 
   // Progressive first paint: what the in-flight lookup already KNOWS. A
-  // selection carrying a PropertyMatch paints a SubjectPreview (facts fast,
-  // the estimate slot as an honest working state); identity-only selections
-  // (deep links, retry, recents) keep the skeleton, enriched with the address.
+  // selection carrying facts paints a SubjectPreview (facts fast, the estimate
+  // slot as an honest working state) — search suggestions/presets pass a
+  // PropertyMatch, recents re-picks pass the stored resolved-facts snapshot;
+  // identity-only selections (deep links, retry, pre-snapshot recents entries)
+  // keep the skeleton, enriched with the address.
   // Epoch-stamped like every other async surface: the shared subject-change
   // reset dispatches "reset", each lookup's finally dispatches "settled" with
   // ITS epoch (the reducer refuses stale settles), so a cancelled/superseded
@@ -541,10 +545,25 @@ export function CompStudio() {
           // report in with a fade only, so the header geometry doesn't jump.
           setSoftSwap(preview != null);
           // Session recents: record the RESOLVED subject (canonical address +
-          // parcel), so a chip / Cmd-K re-select hits the same record.
+          // parcel) plus a facts snapshot from the profile — the truth source,
+          // richer than the search match — so a chip / Cmd-K re-pick hits the
+          // same record AND paints the instant fact preview (recents.tsx
+          // toSelection → buildSubjectPreview).
           pushRecent({
             address: result.facts.address,
             parcel_id: result.facts.parcel_id,
+            facts: {
+              sqft: result.facts.sqft,
+              bedrooms: result.facts.beds, // ProfileFacts names it `beds`
+              full_baths: result.facts.full_baths,
+              half_baths: result.facts.half_baths,
+              acres: result.facts.acres,
+              year_built: result.facts.year_built,
+              status: result.facts.status,
+              city: result.facts.city,
+              county: result.facts.county,
+              subdivision: result.facts.subdivision,
+            },
           });
         } else {
           throw new Error(result?.error || "no profile");
@@ -897,8 +916,8 @@ export function CompStudio() {
     [session],
   );
 
-  // "Reset to engine picks": clear every pin/exclusion and restore the engine's
-  // own comp set. runPreview([], []) short-circuits to the stored base when no
+  // "Reset to suggested comps": clear every pin/exclusion and restore the
+  // engine's own comp set. runPreview([], []) short-circuits to the stored base when no
   // subject overrides are active, so the common case is a zero-round-trip snap
   // back; with overrides present it recomputes them against the untouched set.
   const resetTuning = useCallback(() => {
@@ -968,7 +987,8 @@ export function CompStudio() {
             busySubject={pendingLabel}
           />
           {/* session recents: chip row under the "Try" presets + the Cmd/Ctrl-K
-              switcher — both re-run select() on a stored subject */}
+              switcher — both re-run select() on a stored subject, passing its
+              resolved-facts snapshot so the instant preview paints */}
           <Recents onPick={select} busy={loading} busySubject={pendingLabel} />
         </div>
       </div>

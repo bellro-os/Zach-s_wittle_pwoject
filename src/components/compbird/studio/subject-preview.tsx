@@ -42,7 +42,8 @@ import { Bar, EstimateWorkingState, EvidenceSkeleton } from "./report-skeleton";
 /**
  * What every subject-changing selection hands the studio: identity for sure,
  * plus whatever record facts the surface knows. Search suggestions and preset
- * chips pass a full PropertyMatch; deep links, retry, and recents chips pass
+ * chips pass a full PropertyMatch; recents chips/palette rows pass identity +
+ * stored facts (enriched once the subject resolves); deep links and retry pass
  * identity only (⇒ no preview, the enriched skeleton path).
  */
 export type LookupSelection = Pick<PropertyMatch, "address" | "parcel_id"> &

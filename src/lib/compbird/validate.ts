@@ -108,6 +108,36 @@ export function parseLatLng(
 export const LIST_CAPS = { maxItems: 50, maxLen: 200 } as const;
 
 /**
+ * Identity/name string caps (chars) for the public routes. address/parcelId
+ * match LIST_CAPS.maxLen (the same strings, singular); `agent` is a letterhead
+ * name; `brand` is allowlisted downstream anyway (belt + suspenders here);
+ * `runId` comfortably covers a cuid (~25 chars) — a longer string can never
+ * name a real row, so truncation preserves the 404; `fileName` is the
+ * filesystem's own 255-byte basename ceiling — a longer name cannot exist on
+ * disk, so it's a nonsensical request (→ 400), not a miss.
+ */
+export const STRING_CAPS = {
+  address: 200,
+  parcelId: 200,
+  brand: 40,
+  agent: 120,
+  runId: 64,
+  fileName: 255,
+} as const;
+
+/**
+ * Trim + length-cap a free-text string field (clamp, never 400 — a too-long
+ * address is still an ask; its first 200 chars either resolve or they don't).
+ * Non-string/empty input → `undefined`, so garbage degrades to "absent" and the
+ * route's own absent-field handling applies unchanged.
+ */
+export function capString(v: unknown, maxLen: number): string | undefined {
+  if (typeof v !== "string") return undefined;
+  const s = v.trim().slice(0, maxLen);
+  return s === "" ? undefined : s;
+}
+
+/**
  * Clamp a numeric knob to an integer in [min, max]. Absent/non-numeric/NaN input
  * → `undefined` (engine default) rather than a 400 — the knobs are tuning
  * parameters, not required fields.

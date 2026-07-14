@@ -36,8 +36,8 @@ export function RunsStrip({
   if (!runs.length) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="cb-eyebrow mr-1 text-muted-foreground">Previous runs</span>
+    <div role="group" aria-label="Previous runs" className="flex flex-wrap items-center gap-2">
+      <span aria-hidden className="cb-eyebrow mr-1 text-muted-foreground">Previous runs</span>
       {runs.map((r) => {
         const label = r.firstLabel || dateLong(r.createdAt);
         const isArmed = armed === r.id;
@@ -61,6 +61,7 @@ export function RunsStrip({
                     onDelete(r.id);
                   }}
                   disabled={busy}
+                  aria-label={`Confirm delete of run ${label}`}
                   className="rounded-full px-1.5 py-0.5 font-semibold text-[var(--negative-foreground)] transition-colors hover:bg-[var(--negative)]/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cb-ember)] disabled:opacity-50"
                 >
                   Yes
@@ -68,6 +69,7 @@ export function RunsStrip({
                 <button
                   type="button"
                   onClick={() => setArmed(null)}
+                  aria-label={`Keep run ${label}`}
                   className="rounded-full px-1.5 py-0.5 transition-colors hover:bg-secondary/70 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cb-ember)]"
                 >
                   No

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { OUTPUTS_DIR } from "@/lib/cma/engine";
+import { STRING_CAPS } from "@/lib/compbird/validate";
 import { checkRateLimit, getClientIp } from "@/lib/compbird-ratelimit";
 import { getActiveContext } from "@/lib/session";
 import { can as canFeature } from "@/lib/entitlements";
@@ -58,9 +59,19 @@ export async function GET(_req: Request, ctx: { params: Promise<{ name: string }
   }
 
   const { name } = await ctx.params;
-  const safe = decodeURIComponent(name ?? "");
+  // decodeURIComponent throws on malformed percent-encoding ("%zz") — that's a
+  // nonsensical request shape, so it 400s instead of bubbling into a 500.
+  let safe: string;
+  try {
+    safe = decodeURIComponent(name ?? "");
+  } catch {
+    return NextResponse.json({ error: "Invalid file name" }, { status: 400 });
+  }
 
-  if (!safe || safe.includes("..") || safe.includes("/") || safe.includes("\\")) {
+  // Length bound: a basename over the filesystem's 255-byte ceiling cannot
+  // exist on disk (tokenized names are 65 chars), so an oversized name is a
+  // bad request — and never reaches the fs layer.
+  if (!safe || safe.length > STRING_CAPS.fileName || safe.includes("..") || safe.includes("/") || safe.includes("\\")) {
     return NextResponse.json({ error: "Invalid file name" }, { status: 400 });
   }
   const ext = path.extname(safe).toLowerCase();

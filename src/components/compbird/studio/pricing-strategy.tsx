@@ -193,7 +193,7 @@ function PricingStrategyImpl({
                 {band.label}
               </span>
               {band.isAnchor ? (
-                <span className="cb-eyebrow ml-auto text-[var(--cb-ember-text)]">Anchor</span>
+                <span className="cb-eyebrow ml-auto text-[var(--cb-ember-text)]">Market value</span>
               ) : null}
             </div>
 
@@ -238,7 +238,7 @@ function PricingStrategyImpl({
           <>
             Time on market modeled from {area}&rsquo;s median pace of {num(baseDom)} days at
             market price; pricing above market typically extends time and raises the chance
-            of a price reduction. A directional model, not a guarantee.
+            of a price reduction. A directional estimate, not a guarantee.
           </>
         ) : (
           <>Pace data unavailable for {area} — prices shown without a time-on-market model.</>

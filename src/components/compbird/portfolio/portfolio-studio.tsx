@@ -90,6 +90,11 @@ function downloadCsv(run: PortfolioRun) {
 
 export function PortfolioStudio({ pro }: { pro: boolean }) {
   const [runs, setRuns] = useState<PortfolioRunSummary[]>([]);
+  // Until the first runs fetch settles, history is UNKNOWN — the input panel
+  // treats unknown as "has runs" so a returning user never sees the first-visit
+  // empty state flash before their strip loads. FREE never fetches (the panel
+  // sits behind the upsell blur), so it counts as settled immediately.
+  const [runsLoaded, setRunsLoaded] = useState(false);
   const [run, setRun] = useState<PortfolioRun | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
@@ -100,11 +105,19 @@ export function PortfolioStudio({ pro }: { pro: boolean }) {
   const failedToastFor = useRef<string | null>(null);
 
   const refreshRuns = useCallback(() => {
-    if (!pro) return;
+    if (!pro) {
+      setRunsLoaded(true);
+      return;
+    }
     fetchRuns()
-      .then(setRuns)
+      .then((rs) => {
+        setRuns(rs);
+        setRunsLoaded(true);
+      })
       .catch(() => {
-        /* the strip just doesn't refresh — never toast a background list */
+        // The strip just doesn't refresh — never toast a background list. For
+        // the empty-state decision a failed first fetch reads as "no history".
+        setRunsLoaded(true);
       });
   }, [pro]);
 
@@ -219,7 +232,12 @@ export function PortfolioStudio({ pro }: { pro: boolean }) {
 
   return (
     <div className="flex flex-col gap-8">
-      <PortfolioInputPanel pro={pro} busy={starting || running === true} onRun={(items) => void startRun(items)} />
+      <PortfolioInputPanel
+        pro={pro}
+        busy={starting || running === true}
+        hasRuns={(pro && !runsLoaded) || runs.length > 0 || activeId !== null}
+        onRun={(items) => void startRun(items)}
+      />
 
       {pro ? (
         <RunsStrip
@@ -233,12 +251,18 @@ export function PortfolioStudio({ pro }: { pro: boolean }) {
 
       {/* ── Results panel ───────────────────────────────────────────────── */}
       {activeId && (run || loadingRun) ? (
-        <div className="rounded-2xl border border-border bg-card/70 p-5 sm:p-7">
+        <div
+          className="rounded-2xl border border-border bg-card/70 p-5 sm:p-7"
+          aria-busy={running === true}
+        >
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-col gap-1">
+            {/* aria-live on the PERSISTENT wrapper (not the conditional <p>) so
+                the region exists before its first update and progress beats
+                actually announce. */}
+            <div className="flex flex-col gap-1" aria-live="polite">
               <span className="cb-eyebrow text-muted-foreground">Results</span>
               {run ? (
-                <p className="text-sm text-foreground" aria-live="polite">
+                <p className="text-sm text-foreground">
                   {running ? (
                     <>
                       <span className="font-data font-medium text-[var(--cb-ember-text)]">

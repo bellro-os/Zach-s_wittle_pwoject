@@ -68,12 +68,12 @@ function thinCompSignals(conf: ConfidenceResult): { fewer: boolean; farther: boo
 function rangeExplainer(conf: ConfidenceResult): string {
   const { fewer, farther } = thinCompSignals(conf);
   if (farther && fewer)
-    return "Comparables here are farther away and fewer — treat this as a range, not a point estimate.";
+    return "Comparables here are farther away and fewer — treat this as a range, not a single number.";
   if (farther)
-    return "Comparables here are farther away — treat this as a range, not a point estimate.";
+    return "Comparables here are farther away — treat this as a range, not a single number.";
   if (fewer)
-    return "Fewer comparable sales here — treat this as a range, not a point estimate.";
-  return "The valuation methods don't settle on a single number — treat this as a range, not a point estimate.";
+    return "Fewer comparable sales here — treat this as a range, not a single number.";
+  return "The valuation methods don't fully agree — treat this as a range, not a single number.";
 }
 
 /* ── PART B: actionable STANDARD tier ────────────────────────────────────────
@@ -313,14 +313,14 @@ function ValuationPanelImpl({
   /**
    * Comp workshop: the FIRST unmodified engine mid for this subject (captured
    * when the live profile loaded, before any pin/exclude). With `tunedCount`
-   * > 0 it drives the realized-delta ticker "Engine set $X → yours $Y (+Z%)".
+   * > 0 it drives the realized-delta ticker "Suggested comps $X → your set $Y (+Z%)".
    * Display values on both sides ($5k-rounded, matching the headline and the
    * PDF) — the engine doesn't ship unrounded mids over the preview wire.
    */
   engineMid?: number | null;
   /** |excluded ∪ forced| — >0 means the comp set is agent-tuned right now. */
   tunedCount?: number;
-  /** Clears every pin/exclusion and recomputes — the "Reset to engine picks" chip. */
+  /** Clears every pin/exclusion and recomputes — the "Reset to suggested comps" chip. */
   onResetTuning?: () => void;
   /** A recompute is in flight — disables the reset chip to avoid pile-ups. */
   busy?: boolean;
@@ -539,9 +539,9 @@ function ValuationPanelImpl({
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
             {showDelta ? (
               <p className="font-data text-xs text-muted-foreground">
-                Engine set <span className="text-foreground">{usd(engineMid)}</span>{" "}
+                Suggested comps <span className="text-foreground">{usd(engineMid)}</span>{" "}
                 <span aria-hidden>→</span>
-                <span className="sr-only">to</span> yours{" "}
+                <span className="sr-only">to</span> your set{" "}
                 <span className="text-[var(--cb-ember-text)]">{usd(mid)}</span> ({deltaStr})
               </p>
             ) : null}
@@ -551,7 +551,7 @@ function ValuationPanelImpl({
               disabled={busy}
               className="rounded-full border border-border px-3 py-1 text-xs font-medium text-foreground transition-colors hover:border-[var(--cb-ember)]/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Reset to engine picks
+              Reset to suggested comps
             </button>
           </div>
         ) : null}
@@ -562,7 +562,7 @@ function ValuationPanelImpl({
           the aria-live largest-mover sentence report-view narrates. */}
       {methods.length || droppedRows.length ? (
         <div className="border-t border-border pt-5">
-          <span className="cb-eyebrow text-muted-foreground">How we triangulated it</span>
+          <span className="cb-eyebrow text-muted-foreground">How we got this number</span>
           <ul className="mt-4 flex flex-col divide-y divide-border">
             {methods.map((m, i) => {
               const delta = deltas?.get(m.name);

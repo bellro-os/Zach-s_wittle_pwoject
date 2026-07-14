@@ -12,9 +12,11 @@ import {
 } from "@/lib/cma/overrides";
 import {
   clampInt,
+  capString,
   capStringList,
   subjectOverridesError,
   COMPBIRD_BOUNDS,
+  STRING_CAPS,
 } from "@/lib/compbird/validate";
 import { logOverrideEvent } from "@/lib/cma/override-audit";
 import {
@@ -58,14 +60,42 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ ok: false, error: "Invalid JSON body" }, { status: 400 });
   }
-  // Bound the numeric knobs + comp lists at the parse point (clamp, never 400;
-  // non-numeric → undefined = engine defaults) so a crafted payload can't push
+  // Bound EVERYTHING at the parse point (clamp, never 400; non-numeric/non-
+  // string → undefined = engine defaults) so a crafted payload can't push
   // absurd values or ballooned arrays into the engine. `forced` feeds the
-  // engine's comp overrides below, so it's capped here too.
-  payload.months = clampInt(payload.months, COMPBIRD_BOUNDS.months);
-  payload.nComps = clampInt(payload.nComps, COMPBIRD_BOUNDS.nComps);
-  payload.excluded = capStringList(payload.excluded);
-  payload.forced = capStringList(payload.forced);
+  // engine's comp overrides below, so it's capped here too. Rebuilding the
+  // object (rather than mutating in place) also DROPS any unknown extra keys,
+  // which would otherwise ride the `...payload` spread below straight into the
+  // engine's JSON payload unbounded. `reportConfig.sections` is the one
+  // unbounded ARRAY inside reportConfig (sanitizeReportConfig allowlists names
+  // but not the count — a million valid names would all survive), so it gets
+  // the same list cap as the comp lists; narratives are length-capped in
+  // sanitizeReportConfig itself.
+  if (
+    payload.reportConfig &&
+    typeof payload.reportConfig === "object" &&
+    !Array.isArray(payload.reportConfig) &&
+    "sections" in payload.reportConfig
+  ) {
+    (payload.reportConfig as { sections?: unknown }).sections = capStringList(
+      (payload.reportConfig as { sections?: unknown }).sections,
+    );
+  }
+  payload = {
+    address: capString(payload.address, STRING_CAPS.address),
+    parcelId: capString(payload.parcelId, STRING_CAPS.parcelId),
+    brand: capString(payload.brand, STRING_CAPS.brand),
+    agent: capString(payload.agent, STRING_CAPS.agent),
+    months: clampInt(payload.months, COMPBIRD_BOUNDS.months),
+    nComps: clampInt(payload.nComps, COMPBIRD_BOUNDS.nComps),
+    // Boolean knob: only a literal `true` turns multi-page on (truthy garbage
+    // degrades to the engine default, same idiom as the numeric knobs).
+    allowMultiPage: payload.allowMultiPage === true,
+    excluded: capStringList(payload.excluded),
+    forced: capStringList(payload.forced),
+    subjectOverrides: payload.subjectOverrides,
+    reportConfig: payload.reportConfig,
+  };
   // Subject FACTS are rejected, not clamped: a NaN/Infinity/absurd sqft would
   // otherwise be silently coerced into a rendered report the caller never asked
   // for. Checked BEFORE the quota reserve so a bad payload never burns a credit.

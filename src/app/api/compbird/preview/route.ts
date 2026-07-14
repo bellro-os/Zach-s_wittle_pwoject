@@ -4,9 +4,11 @@ import { checkRateLimit, getClientIp } from "@/lib/compbird-ratelimit";
 import { toEngineOverrides, type SubjectOverrides } from "@/lib/cma/overrides";
 import {
   clampInt,
+  capString,
   capStringList,
   subjectOverridesError,
   COMPBIRD_BOUNDS,
+  STRING_CAPS,
 } from "@/lib/compbird/validate";
 import type { PreviewResult } from "@/lib/compbird/types";
 import { getActiveContext } from "@/lib/session";
@@ -41,13 +43,21 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ ok: false, error: "Invalid JSON body" }, { status: 400 });
   }
-  // Bound the numeric knobs + comp lists at the parse point (clamp, never 400;
-  // non-numeric → undefined = engine defaults) so a crafted payload can't push
-  // absurd values or ballooned arrays into the engine.
-  payload.months = clampInt(payload.months, COMPBIRD_BOUNDS.months);
-  payload.nComps = clampInt(payload.nComps, COMPBIRD_BOUNDS.nComps);
-  payload.excluded = capStringList(payload.excluded);
-  payload.forced = capStringList(payload.forced);
+  // Bound EVERYTHING at the parse point (clamp, never 400; non-numeric/non-
+  // string → undefined = engine defaults) so a crafted payload can't push
+  // absurd values or ballooned arrays into the engine. Rebuilding the object
+  // (rather than mutating in place) also DROPS any unknown extra keys, which
+  // would otherwise ride the `...payload` spread below straight into the
+  // engine's JSON payload unbounded.
+  payload = {
+    address: capString(payload.address, STRING_CAPS.address),
+    parcelId: capString(payload.parcelId, STRING_CAPS.parcelId),
+    months: clampInt(payload.months, COMPBIRD_BOUNDS.months),
+    nComps: clampInt(payload.nComps, COMPBIRD_BOUNDS.nComps),
+    excluded: capStringList(payload.excluded),
+    forced: capStringList(payload.forced),
+    subjectOverrides: payload.subjectOverrides,
+  };
   // Subject FACTS are rejected, not clamped: a NaN/Infinity/absurd sqft would
   // otherwise be silently coerced into a valuation the caller never asked for.
   const factsError = subjectOverridesError(payload.subjectOverrides);

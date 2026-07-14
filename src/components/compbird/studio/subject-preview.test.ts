@@ -3,7 +3,8 @@
  *
  *  - buildSubjectPreview: a match-carrying selection yields the preview
  *    payload (the facts painted early); an identity-only selection (deep
- *    link seed / retry / recents chip) yields null ⇒ the skeleton path.
+ *    link seed / retry / a pre-snapshot recents entry) yields null ⇒ the
+ *    skeleton path.
  *  - previewReducer: "start" paints a lookup's preview stamped with its
  *    subject epoch; the shared subject-change reset clears it; a straggler
  *    "settled" for a superseded epoch can NOT blank the newer lookup's paint;
@@ -92,9 +93,9 @@ test("match-carrying selection → preview payload with the early-paint facts", 
 test("identity-only / degenerate selections → null ⇒ the skeleton path", async () => {
   const { buildSubjectPreview } = await loadPreview();
 
-  // The deep-link seed, the failure banner's retry, and a recents chip all
-  // carry exactly {address, parcel_id} — no preview, the skeleton names the
-  // address instead.
+  // The deep-link seed, the failure banner's retry, and a recents entry
+  // stored before the facts snapshot existed all carry exactly
+  // {address, parcel_id} — no preview, the skeleton names the address instead.
   assert.equal(
     buildSubjectPreview({ address: "509 Jefferson St, Blacksburg", parcel_id: "P1" }),
     null,

@@ -1,4 +1,6 @@
-import { memo } from "react";
+"use client";
+
+import { memo, useCallback, useEffect, useState } from "react";
 import { Pill } from "@/components/compbird/ui";
 import { usd, ppsf, num, miles, dateLong } from "@/lib/compbird/format";
 import type { ProfileComp } from "@/lib/compbird/types";
@@ -152,6 +154,69 @@ const COLS: readonly Col[] = [
  */
 const MATCH_COL: Col = { key: "match", label: "Match", align: "right", mobile: true };
 
+/* ── One-time Match-chip hint ─────────────────────────────────────────────────
+ *
+ * The Match cell opens the six-axis breakdown, but a score can read as a
+ * static readout — so the FIRST time a browser renders a LIVE scored table,
+ * one quiet line under the table header says the column is tappable. Same
+ * once-per-browser discipline as the studio's demo gate (comp-studio.tsx):
+ * the flag is written the moment the hint shows, a popover open retires it
+ * for the session, and it never renders on sample/read-only tables (no
+ * `onToggle`) or unscored sets. Pure + storage-injected so the gate
+ * unit-tests under plain Node (comps-table.match-hint.test.ts).
+ */
+
+/** localStorage flag: this browser has already been shown the Match hint. */
+export const MATCH_HINT_KEY = "cb-match-hint-shown";
+
+/** The exact shipped hint line. */
+export const MATCH_HINT_TEXT = "Tap any match score to see why.";
+
+export type HintFlagStore = {
+  get(key: string): string | null;
+  set(key: string, value: string): void;
+};
+
+/** localStorage as a HintFlagStore — only ever touched inside effects. */
+const browserHintStore: HintFlagStore = {
+  get: (k) => window.localStorage.getItem(k),
+  set: (k, v) => window.localStorage.setItem(k, v),
+};
+
+/** May the one-time hint show right now? live = tunable table (sample passes false). */
+export function shouldShowMatchHint(env: {
+  /** The table is a live, user-tunable one — sample/read-only mounts pass false. */
+  live: boolean;
+  /** At least one comp carries an engine match score. */
+  scored: boolean;
+  store: HintFlagStore;
+}): boolean {
+  if (!env.live || !env.scored) return false;
+  try {
+    return env.store.get(MATCH_HINT_KEY) == null;
+  } catch {
+    return false; // unreadable storage ⇒ can't prove once-per-browser ⇒ never
+  }
+}
+
+/** Write the once-per-browser flag the moment the hint renders. */
+export function markMatchHintShown(store: HintFlagStore): void {
+  try {
+    store.set(MATCH_HINT_KEY, "shown");
+  } catch {
+    /* unwritable storage — shouldShowMatchHint() already fails safe */
+  }
+}
+
+/** The quiet line itself — muted, one sentence, sits under the table header. */
+export function MatchHintLine() {
+  return (
+    <p data-cb-match-hint="" className="mb-2 text-xs text-muted-foreground">
+      {MATCH_HINT_TEXT}
+    </p>
+  );
+}
+
 /** Hidden below sm for `mobile: false` columns (headers + cells in lockstep). */
 const desktopOnly = "hidden sm:table-cell";
 
@@ -186,6 +251,19 @@ export const CompsTable = memo(function CompsTable({
   // hide it entirely — never placeholders — for unscored/older responses).
   const hasMatch = comps.some((c) => typeof c.similarity === "number");
   const cols = hasMatch ? [COLS[0], MATCH_COL, ...COLS.slice(1)] : COLS;
+
+  // One-time Match hint: client-effect only (never in server markup, so no
+  // hydration flash), shown at most once per browser, retired for the session
+  // by the first popover open. Gate + flag live above as pure helpers.
+  const [matchHint, setMatchHint] = useState(false);
+  useEffect(() => {
+    if (shouldShowMatchHint({ live: tunable, scored: hasMatch, store: browserHintStore })) {
+      setMatchHint(true);
+      markMatchHintShown(browserHintStore);
+    }
+  }, [tunable, hasMatch]);
+  const retireMatchHint = useCallback(() => setMatchHint(false), []);
+  const hint = matchHint && tunable && hasMatch ? <MatchHintLine /> : null;
 
   // Pinned chips: match each forced address back to a resolved row when present
   // so the chip shows the engine's canonical address.
@@ -348,8 +426,8 @@ export const CompsTable = memo(function CompsTable({
                         className="shrink-0"
                         title={
                           c.atypical_reason
-                            ? `Down-weighted by the engine: ${c.atypical_reason}`
-                            : "Flagged atypical — down-weighted in the valuation"
+                            ? `Given less weight in the valuation: ${c.atypical_reason}`
+                            : "An unusual sale — given less weight in the valuation"
                         }
                       >
                         <Pill tone="negative" className="shrink-0">
@@ -375,7 +453,7 @@ export const CompsTable = memo(function CompsTable({
                 {hasMatch ? (
                   <td className="whitespace-nowrap py-3 pl-4 text-right align-middle">
                     {typeof c.similarity === "number" ? (
-                      <MatchPopover comp={c} pinned={isForced} />
+                      <MatchPopover comp={c} pinned={isForced} onOpen={retireMatchHint} />
                     ) : (
                       // Mixed set: this comp predates the score surface — an
                       // em-dash, matching every other unknown cell in the table.
@@ -445,11 +523,12 @@ export const CompsTable = memo(function CompsTable({
     </div>
   );
 
-  // Read-only (sample/locked) or footer-less mounts: just the table.
-  if (!footer) return table;
+  // Read-only (sample/locked) or footer-less, hint-less mounts: just the table.
+  if (!footer && !hint) return table;
 
   return (
     <div className="flex flex-col">
+      {hint}
       {table}
       {footer}
     </div>

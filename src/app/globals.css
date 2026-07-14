@@ -406,6 +406,7 @@ h3, h4 {
 
 @media (prefers-reduced-motion: reduce) {
   .animate-shimmer,
+  .skeleton-shimmer,
   .animate-progress-indeterminate,
   .animate-spin {
     animation: none;

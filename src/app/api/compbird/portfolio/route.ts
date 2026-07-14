@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { checkRateLimit, getClientIp } from "@/lib/compbird-ratelimit";
+import { capString, STRING_CAPS } from "@/lib/compbird/validate";
 import { getActiveContext } from "@/lib/session";
 import { can as canFeature } from "@/lib/entitlements";
 import {
@@ -95,7 +96,9 @@ export async function GET(req: Request) {
     );
   }
 
-  const id = new URL(req.url).searchParams.get("id");
+  // Length-cap the id before it reaches Prisma (a cuid is ~25 chars; anything
+  // longer can never match a row, so truncation preserves the 404).
+  const id = capString(new URL(req.url).searchParams.get("id"), STRING_CAPS.runId);
   const db = await getPortfolioDb();
 
   if (id) {
@@ -132,7 +135,8 @@ export async function DELETE(req: Request) {
     );
   }
 
-  const id = new URL(req.url).searchParams.get("id");
+  // Same cap as GET: bounded before the Prisma where; oversized ids still 404.
+  const id = capString(new URL(req.url).searchParams.get("id"), STRING_CAPS.runId);
   if (!id) {
     return NextResponse.json({ ok: false, error: "Provide a run id." }, { status: 400 });
   }

@@ -48,11 +48,14 @@ const VIEWPORT_GUTTER = 8;
 export function MatchPopover({
   comp,
   pinned = false,
+  onOpen,
   className,
 }: {
   comp: ProfileComp;
   /** The user pinned this comp in — the score wears a "Pinned" prefix. */
   pinned?: boolean;
+  /** Fired when the breakdown opens — the comps table uses it to retire its one-time hint. */
+  onOpen?: () => void;
   className?: string;
 }) {
   const [mode, setMode] = useState<PanelMode | null>(null);
@@ -72,6 +75,7 @@ export function MatchPopover({
   const openPanel = useCallback(() => {
     const trigger = triggerRef.current;
     if (!trigger) return;
+    onOpen?.();
     // Same breakpoint as the table's `sm:` column collapse: phones get a sheet.
     if (window.matchMedia("(max-width: 639px)").matches) {
       setMode({ kind: "sheet" });
@@ -88,7 +92,7 @@ export function MatchPopover({
         ? { bottom: window.innerHeight - r.top + VIEWPORT_GUTTER, left }
         : { top: r.bottom + VIEWPORT_GUTTER, left };
     setMode({ kind: "popover", style });
-  }, []);
+  }, [onOpen]);
 
   // Global listeners while open: Escape closes (focus returns), pointer-down
   // outside closes, and a desktop popover closes on scroll/resize rather than
@@ -247,7 +251,7 @@ export function MatchPopover({
         ) : null}
 
         <p className="mt-3 border-t border-border pt-3 text-[0.7rem] leading-snug text-muted-foreground">
-          Overall also reflects sale-price alignment and sale-type discounts — it is not the
+          The overall score also weighs sale price and sale type — it is not just the
           average of these bars.
         </p>
       </div>
@@ -265,18 +269,41 @@ export function MatchPopover({
         aria-label={`Match ${sim} — ${tier}${pinned ? " · pinned by you" : ""} — show the breakdown for ${comp.address}`}
         onClick={() => (open ? close(true) : openPanel())}
         className={cn(
-          "group inline-flex flex-col items-end gap-1 rounded-md px-1.5 py-1 transition-colors hover:bg-secondary/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]",
+          // Reads as tappable, not a static readout: pointer cursor, a hairline
+          // border that warms to ember on hover/open (transparent placeholder so
+          // nothing shifts), and the same quiet bg wash the row hover uses.
+          "group inline-flex cursor-pointer flex-col items-end gap-1 rounded-md border border-transparent px-1.5 py-1 transition-colors hover:border-[var(--cb-ember)]/40 hover:bg-secondary/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]",
+          open && "border-[var(--cb-ember)]/40 bg-secondary/50",
           className,
         )}
       >
-        <span className="flex items-baseline gap-1.5 whitespace-nowrap leading-none">
+        <span className="flex items-baseline gap-1 whitespace-nowrap leading-none">
           {pinned ? (
             <span className="text-[0.6rem] font-semibold uppercase tracking-[0.12em] text-[var(--cb-ember-text)]">
               Pinned ·
             </span>
           ) : null}
           <span className="font-data text-sm font-semibold text-foreground">{sim}</span>
-          <span className="text-[0.7rem] text-muted-foreground">{tier}</span>
+          <span className="ml-0.5 text-[0.7rem] text-muted-foreground">{tier}</span>
+          {/* disclosure chevron — the "there's more here" glyph; flips while open */}
+          <svg
+            viewBox="0 0 16 16"
+            data-cb-match-glyph=""
+            className={cn(
+              "h-2.5 w-2.5 shrink-0 self-center text-muted-foreground transition-transform duration-200 motion-reduce:transition-none group-hover:text-foreground",
+              open && "rotate-180",
+            )}
+            fill="none"
+            aria-hidden
+          >
+            <path
+              d="M4.5 6.25 8 9.75l3.5-3.5"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </span>
         {/* hairline ember bar — the score at a glance */}
         <span className="block h-0.5 w-14 overflow-hidden rounded-full bg-border/60" aria-hidden>

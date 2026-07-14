@@ -24,13 +24,24 @@ function keyOf(address: string): string {
  * Textarea input: one address per line. Whole line = the address (street
  * addresses carry commas, so there is no inline label syntax here — labels
  * come from the CSV path). Blank lines dropped, whitespace squashed.
+ *
+ * ONE exception: a line that STARTS with a double quote is a CSV-style row
+ * ("addr, with, commas", label) — pasted from a spreadsheet cell or the
+ * empty-state example — and parses as address + optional label. Unambiguous:
+ * no street address begins with a quote character.
  */
 export function parseAddressLines(text: string): ParsedEntry[] {
   return text
     .split(/\r?\n/)
-    .map((l) => l.trim().replace(/\s+/g, " "))
+    .map((l) => l.trim())
     .filter(Boolean)
-    .map((address) => ({ address }));
+    .map((line) => {
+      if (line.startsWith('"')) {
+        const [entry] = parseCsv(line);
+        if (entry) return entry;
+      }
+      return { address: line.replace(/\s+/g, " ") };
+    });
 }
 
 /**
@@ -130,6 +141,38 @@ export function buildQueue(entries: ParsedEntry[], cap: number = PORTFOLIO_CAP):
   const deduped = Array.from(seen.values());
   const items = deduped.slice(0, cap);
   return { items, duplicates, trimmed: Math.max(0, deduped.length - cap) };
+}
+
+/* ── First-visit empty state ─────────────────────────────────────────────── */
+
+/**
+ * The three ghost example lines the empty state shows — and what "Try an
+ * example" pastes into the textarea verbatim. Real-looking New River Valley
+ * addresses; the third demonstrates the CSV label column (quoted address,
+ * label after the comma — parseAddressLines understands that form, so the
+ * pasted example round-trips with its label intact and clearly marked).
+ */
+export const PORTFOLIO_EXAMPLE_LINES = [
+  "509 Jefferson St, Blacksburg, VA 24060",
+  "1203 Walnut Ridge Rd, Christiansburg, VA 24073",
+  '"612 Amherst Ave, Blacksburg, VA 24060", Example — rental unit',
+] as const;
+
+/** The textarea fill for "Try an example". */
+export const PORTFOLIO_EXAMPLE_TEXT = PORTFOLIO_EXAMPLE_LINES.join("\n");
+
+/**
+ * First-visit predicate: the inviting empty state shows only while the panel
+ * is truly untouched — nothing typed (whitespace doesn't count as typing), no
+ * CSV parsed, and no previous run to pick up from. Any of those three and the
+ * treatment gets out of the way.
+ */
+export function showPortfolioEmptyState(args: {
+  hasRuns: boolean;
+  text: string;
+  csvCount: number;
+}): boolean {
+  return !args.hasRuns && args.text.trim() === "" && args.csvCount === 0;
 }
 
 /* ── Results export ──────────────────────────────────────────────────────── */

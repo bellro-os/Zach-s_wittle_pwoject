@@ -9,7 +9,10 @@ import {
   buildQueue,
   parseAddressLines,
   parseCsv,
+  showPortfolioEmptyState,
   PORTFOLIO_CAP,
+  PORTFOLIO_EXAMPLE_LINES,
+  PORTFOLIO_EXAMPLE_TEXT,
   type ParsedEntry,
 } from "./csv";
 
@@ -48,12 +51,15 @@ function StackGlyph() {
 export function PortfolioInputPanel({
   pro,
   busy,
+  hasRuns,
   onRun,
 }: {
   /** Account may run portfolios (SOLO/Pro). FREE renders the upsell overlay. */
   pro: boolean;
   /** A run is being created / is in flight — the button parks. */
   busy: boolean;
+  /** The account has (or is loading) a previous run — hides the first-visit empty state. */
+  hasRuns: boolean;
   onRun: (items: ParsedEntry[]) => void;
 }) {
   const [text, setText] = useState("");
@@ -90,6 +96,10 @@ export function PortfolioInputPanel({
 
   const disabled = !pro || busy;
   const count = queue.items.length;
+  // First visit (nothing typed, no CSV, no previous run): show the inviting
+  // ghost example instead of a bare input. Any content or history hides it.
+  const empty = showPortfolioEmptyState({ hasRuns, text, csvCount: csvEntries.length });
+  const filledWithExample = text.trim() === PORTFOLIO_EXAMPLE_TEXT;
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-border bg-card/70 p-5 sm:p-7">
@@ -108,10 +118,51 @@ export function PortfolioInputPanel({
           onChange={(e) => setText(e.target.value)}
           disabled={disabled}
           rows={7}
-          placeholder={"one address per line — up to 50\n509 Jefferson St, Blacksburg, VA\n1203 Walnut Ridge Rd, Christiansburg, VA"}
+          placeholder={
+            empty
+              ? "one address per line — up to 50"
+              : "one address per line — up to 50\n509 Jefferson St, Blacksburg, VA\n1203 Walnut Ridge Rd, Christiansburg, VA"
+          }
           spellCheck={false}
           className="font-data mt-4 w-full resize-y rounded-xl border border-border bg-background/60 px-4 py-3 text-sm text-foreground outline-none transition-colors placeholder:font-sans placeholder:text-muted-foreground focus:border-[var(--cb-ember)]/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)] disabled:opacity-60"
         />
+
+        {/* ── First-visit empty state: ghost example + one-line promise ──── */}
+        {empty ? (
+          <div className="mt-3 rounded-xl border border-dashed border-border bg-background/40 px-4 py-4">
+            <p className="text-xs text-muted-foreground">
+              New here? This is what a paste looks like — plain addresses, or a
+              CSV-style line with a label:
+            </p>
+            <div className="font-data mt-2.5 flex flex-col gap-1 text-xs text-muted-foreground/70">
+              {PORTFOLIO_EXAMPLE_LINES.map((line) => (
+                <span key={line} className="truncate">
+                  {line}
+                </span>
+              ))}
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Each address gets an estimate, confidence, and comp quality — export
+              the lot as CSV.
+            </p>
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => setText(PORTFOLIO_EXAMPLE_TEXT)}
+              className="mt-3.5 inline-flex items-center gap-2 rounded-full border border-border bg-transparent px-3.5 py-2 text-xs font-medium text-muted-foreground transition-colors hover:border-[var(--cb-ember)]/40 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)] disabled:opacity-50"
+            >
+              Try an example
+            </button>
+          </div>
+        ) : null}
+
+        {/* The example fill is clearly marked as such until the user edits it. */}
+        {filledWithExample ? (
+          <p className="mt-2 text-xs text-muted-foreground">
+            These are example addresses — run them to see the flow, or replace
+            them with your own.
+          </p>
+        ) : null}
 
         {/* CSV path */}
         <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -119,6 +170,7 @@ export function PortfolioInputPanel({
             ref={fileRef}
             type="file"
             accept=".csv,text/csv"
+            aria-label="CSV file of addresses"
             className="sr-only"
             disabled={disabled}
             onChange={(e) => onFile(e.target.files?.[0] ?? null)}
@@ -156,6 +208,7 @@ export function PortfolioInputPanel({
                 type="button"
                 onClick={clearCsv}
                 disabled={disabled}
+                aria-label={`Remove ${csvName}`}
                 className="text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]"
               >
                 Remove

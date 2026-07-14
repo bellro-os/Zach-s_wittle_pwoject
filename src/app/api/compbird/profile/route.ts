@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { engineProfile } from "@/lib/cma/engine";
 import type { ProfileResult } from "@/lib/compbird/types";
+import { capString, STRING_CAPS } from "@/lib/compbird/validate";
 import { checkRateLimit, getClientIp } from "@/lib/compbird-ratelimit";
 import { getActiveContext } from "@/lib/session";
 import { can as canFeature } from "@/lib/entitlements";
@@ -51,10 +52,12 @@ export async function POST(req: Request) {
   // aiHygiene mirrors the preview route's server-side decision (authed → full
   // LLM hygiene, anon → off) so the profile's first-paint estimate is computed
   // by the EXACT pipeline every tuning /preview recompute uses — one number.
+  // Identity strings are trimmed + length-capped at the parse point (clamp,
+  // never 400; non-string garbage → absent → the engine's own 400).
   const ctx = await getActiveContext();
   const { status, body } = await engineProfile<ProfileResult>({
-    address: payload.address,
-    parcelId: payload.parcelId,
+    address: capString(payload.address, STRING_CAPS.address),
+    parcelId: capString(payload.parcelId, STRING_CAPS.parcelId),
     aiHygiene: !!ctx,
   });
   return respondWithEntitlement(status, body, ctx);
@@ -67,9 +70,11 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const ctx = await getActiveContext();
+  // Same parse-point caps as POST (an absent/oversized param degrades the same
+  // way: trimmed to 200 chars or treated as not provided).
   const { status, body } = await engineProfile<ProfileResult>({
-    address: url.searchParams.get("address") ?? "",
-    parcelId: url.searchParams.get("parcelId") ?? "",
+    address: capString(url.searchParams.get("address"), STRING_CAPS.address),
+    parcelId: capString(url.searchParams.get("parcelId"), STRING_CAPS.parcelId),
     aiHygiene: !!ctx,
   });
   return respondWithEntitlement(status, body, ctx);
