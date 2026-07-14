@@ -11,6 +11,7 @@ import {
   STRING_CAPS,
 } from "@/lib/compbird/validate";
 import type { PreviewResult } from "@/lib/compbird/types";
+import { bodyTooLarge, BODY_TOO_LARGE_RESPONSE } from "@/lib/compbird/body-limit";
 import { getActiveContext } from "@/lib/session";
 import { can as canFeature } from "@/lib/entitlements";
 import { redactEvidence } from "@/lib/compbird/redact";
@@ -27,6 +28,11 @@ export async function POST(req: Request) {
       { ok: false, error: "Too many requests. Please slow down." },
       { status: 429, headers: { "Retry-After": String(rl.retryAfterSeconds) } },
     );
+  }
+
+  // Size gate BEFORE the body is read (see body-limit.ts).
+  if (bodyTooLarge(req)) {
+    return NextResponse.json(BODY_TOO_LARGE_RESPONSE, { status: 413 });
   }
 
   let payload: {

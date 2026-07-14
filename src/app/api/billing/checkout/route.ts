@@ -41,8 +41,12 @@ export async function POST() {
       });
     }
 
+    // Return-URL base: prefer the CONFIGURED canonical origin over the
+    // client-supplied Origin header, so a forged header can never point the
+    // post-payment redirect off-site (launch security review 2026-07). The
+    // header remains only as a dev fallback when the env is unset.
     const origin =
-      (await headers()).get("origin") || process.env.NEXT_PUBLIC_APP_URL?.trim() || "";
+      process.env.NEXT_PUBLIC_APP_URL?.trim() || (await headers()).get("origin") || "";
     // Ad-consent flag rides through Stripe metadata to the webhook, which only
     // sends the server-side Meta conversion if the buyer accepted the banner.
     const adConsent = (await cookies()).get("cb_consent")?.value === "granted";

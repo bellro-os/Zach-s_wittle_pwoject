@@ -1,0 +1,14 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "//": "Config-as-code for the ENGINE service. CANONICAL COPY (Compbird repo); ships in the engine repo ('MLS Bot') as railway.json at the repo root, where Railway picks it up automatically. healthcheckTimeout is generous ON PURPOSE: the worker only starts listening AFTER warm-up (sklearn import + AVM joblib load), and a cold volume pull by the data-sync supervisor can precede that. Volume + variables + region are UI steps — see deploy/README.md.",
+  "build": {
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "deploy/Dockerfile.engine"
+  },
+  "deploy": {
+    "healthcheckPath": "/healthz",
+    "healthcheckTimeout": 600,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  }
+}

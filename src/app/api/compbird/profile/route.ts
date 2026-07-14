@@ -6,6 +6,7 @@ import { checkRateLimit, getClientIp } from "@/lib/compbird-ratelimit";
 import { getActiveContext } from "@/lib/session";
 import { can as canFeature } from "@/lib/entitlements";
 import { redactEvidence } from "@/lib/compbird/redact";
+import { bodyTooLarge, BODY_TOO_LARGE_RESPONSE } from "@/lib/compbird/body-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,6 +43,11 @@ function respondWithEntitlement(
 export async function POST(req: Request) {
   const rl = checkRateLimit("compbird:profile", await getClientIp());
   if (rl.limited) return tooManyRequests(rl.retryAfterSeconds);
+
+  // Size gate BEFORE the body is read (see body-limit.ts).
+  if (bodyTooLarge(req)) {
+    return NextResponse.json(BODY_TOO_LARGE_RESPONSE, { status: 413 });
+  }
 
   let payload: { address?: string; parcelId?: string };
   try {

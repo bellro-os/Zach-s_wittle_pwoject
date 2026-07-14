@@ -55,18 +55,22 @@ function hashIp(ip: string): string {
  * Best-effort client IP from request headers. Falls back to a constant so that
  * a missing/forged header still throttles (shared bucket) rather than bypassing.
  *
- * Trust model: we sit behind a Caddy reverse proxy that terminates every public
- * request. A client can send ARBITRARY `x-forwarded-for` AND `x-real-ip` header
- * values — both reach us verbatim unless our edge overwrites them. The ONLY value
- * we can trust is the hop OUR proxy appends: Caddy appends the real peer address
- * as the LAST (right-most) entry of `x-forwarded-for`. Any header value a client
- * supplies (including a forged `x-real-ip`, or extra left-most `x-forwarded-for`
- * entries) is attacker-controlled and trivially rotated to defeat a per-IP
- * throttle, so we must NOT key on it.
+ * Trust model: we sit behind ONE trusted reverse proxy that terminates every
+ * public request — Railway's edge proxy in production (the launch deploy; it
+ * appends the connecting peer's address to `x-forwarded-for`, Envoy-style), or
+ * Caddy in the legacy VPS stack (same append-to-XFF behavior). A client can
+ * send ARBITRARY `x-forwarded-for` AND `x-real-ip` header values — both reach
+ * us verbatim unless our edge overwrites them. The ONLY value we can trust is
+ * the hop OUR proxy appends: the LAST (right-most) entry of `x-forwarded-for`.
+ * Any header value a client supplies (including a forged `x-real-ip`, or extra
+ * left-most `x-forwarded-for` entries) is attacker-controlled and trivially
+ * rotated to defeat a per-IP throttle, so we must NOT key on it.
  *
  * Therefore:
- *   1. Take the LAST (right-most) entry of `x-forwarded-for` — the address Caddy
- *      actually saw and appended. This is the trusted proxy position.
+ *   1. Take the LAST (right-most) entry of `x-forwarded-for` — the address the
+ *      trusted proxy actually saw and appended. This holds whether the proxy
+ *      appends to a client-supplied list (right-most = trusted) or replaces the
+ *      header outright (the single entry IS the trusted one).
  *   2. Only if `x-forwarded-for` is absent entirely (e.g. a non-proxied local
  *      request) fall back to `x-real-ip`.
  * Never trust the FIRST x-forwarded-for entry, and never prefer a raw,

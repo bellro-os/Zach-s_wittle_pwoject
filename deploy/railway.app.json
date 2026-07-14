@@ -1,0 +1,14 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "//": "Config-as-code for the APP service. In the Railway service settings set 'Config-as-code file path' = deploy/railway.app.json (this repo hosts only the app service, but the non-root path keeps deploy concerns in deploy/). Everything NOT expressible here — volume + mount path, service variables, custom domain, region — is clicked in the UI; deploy/README.md is the authoritative checklist.",
+  "build": {
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "deploy/Dockerfile.app"
+  },
+  "deploy": {
+    "healthcheckPath": "/api/health",
+    "healthcheckTimeout": 300,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  }
+}

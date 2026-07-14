@@ -36,6 +36,7 @@ import threading
 import traceback
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from urllib.parse import unquote
 
 # ── path/cwd bootstrap (mirror property_profile.py / build_cma's expectations) ──
 _ROOT = Path(__file__).resolve().parent.parent
@@ -44,6 +45,13 @@ for _p in (str(_ROOT / "scripts"), str(_ROOT / "src")):
         sys.path.remove(_p)
     sys.path.insert(0, _p)
 os.chdir(_ROOT)
+
+# Where build_cma writes generated reports (out_dir default = _PROJECT_ROOT/outputs;
+# on Railway the engine entrypoint symlinks /app/outputs onto the data volume).
+# GET /outputs/<name> serves from here so the APP service — which lives on a
+# SEPARATE Railway volume and cannot read this dir directly — can stream the PDF
+# it just asked us to generate. CMA_OUTPUTS_DIR honored for parity with the app.
+_OUTPUTS_DIR = Path(os.environ.get("CMA_OUTPUTS_DIR", "").strip() or (_ROOT / "outputs"))
 
 PORT = int(os.environ.get("CMA_WORKER_PORT", "8765"))
 
@@ -253,9 +261,42 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
+    def _serve_output(self) -> None:
+        """Stream a generated report PDF by basename. Token-gated (same bearer as
+        the POST endpoints) so a 0.0.0.0-bound engine on a shared network can't
+        leak reports; basename-only, .pdf-only, CMA_-namespaced, traversal-proof.
+        The app's /api/compbird/pdf route proxies here on a local-file miss."""
+        if not self._authorized():
+            return self._send(401, {"ok": False, "error": "unauthorized"})
+        name = unquote(self.path[len("/outputs/"):].split("?", 1)[0])
+        if (
+            not name
+            or len(name) > 255
+            or "/" in name
+            or "\\" in name
+            or ".." in name
+            or not name.lower().endswith(".pdf")
+            or not name.startswith("CMA_")
+        ):
+            return self._send(400, {"ok": False, "error": "invalid name"})
+        try:
+            data = (_OUTPUTS_DIR / name).read_bytes()
+        except FileNotFoundError:
+            return self._send(404, {"ok": False, "error": "not found"})
+        except Exception as e:  # noqa: BLE001
+            return self._send(500, {"ok": False, "error": str(e)})
+        self.send_response(200)
+        self.send_header("Content-Type", "application/pdf")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Content-Disposition", f'inline; filename="{name}"')
+        self.end_headers()
+        self.wfile.write(data)
+
     def do_GET(self):
         if self.path.startswith("/healthz"):
             return self._send(200, {"ok": True, "warm": _WARM["ok"]})
+        if self.path.startswith("/outputs/"):
+            return self._serve_output()
         self._send(404, {"ok": False, "error": "not found"})
 
     def do_POST(self):

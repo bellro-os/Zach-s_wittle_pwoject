@@ -27,8 +27,10 @@ export async function POST() {
     if (!account?.stripeCustomerId) {
       return NextResponse.json({ ok: false, error: "No subscription to manage." }, { status: 400 });
     }
+    // Same canonical-origin preference as /api/billing/checkout: never let a
+    // forged Origin header steer the portal's return_url off-site.
     const origin =
-      (await headers()).get("origin") || process.env.NEXT_PUBLIC_APP_URL?.trim() || "";
+      process.env.NEXT_PUBLIC_APP_URL?.trim() || (await headers()).get("origin") || "";
     const portal = await stripe().billingPortal.sessions.create({
       customer: account.stripeCustomerId,
       return_url: `${origin}/comps`,

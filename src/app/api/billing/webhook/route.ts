@@ -3,7 +3,8 @@ import type Stripe from "stripe";
 import { systemDb } from "@/lib/db";
 import { emailShell, sendEmail } from "@/lib/mailer";
 import { sendMetaSubscribeEvent } from "@/lib/marketing/meta-capi";
-import { stripe, webhookSecret, subscribedTier, tierForPriceId } from "@/lib/stripe";
+import { tierDecisionFor } from "@/lib/billing-grant";
+import { stripe, webhookSecret } from "@/lib/stripe";
 import { createLogger } from "@/lib/utils/logger";
 
 export const runtime = "nodejs";
@@ -89,27 +90,23 @@ export async function POST(req: Request) {
           // replayed or reordered checkout.session.completed harmless — it can't
           // revive a cancelled paid state, because a cancelled sub reports a
           // non-active status here — and lets us map the real price id to the tier.
-          let grant: "SOLO" | "TEAM" | null = subscribedTier();
-          let statusStr = "active";
-          try {
-            const sub = await stripe().subscriptions.retrieve(subscriptionId);
-            statusStr = sub.status;
-            const isActive = sub.status === "active" || sub.status === "trialing";
-            grant = isActive ? tierForPriceId(sub.items?.data?.[0]?.price?.id ?? null) : null;
-          } catch {
-            // Retrieve failed — fall back to the single-price grant (best-effort).
-          }
-          if (grant) {
+          // A retrieve FAILURE deliberately bubbles to the outer catch → 500 →
+          // Stripe retries; we never grant a paid tier on an unverified state
+          // (launch security review 2026-07, P2 #7 — the old code optimistically
+          // granted SOLO when the retrieve threw).
+          const sub = await stripe().subscriptions.retrieve(subscriptionId);
+          const decision = tierDecisionFor(sub);
+          if (decision.active) {
             await systemDb.account.update({
               where: { id: accountId },
               data: {
-                tier: grant,
-                subscriptionStatus: statusStr,
+                tier: decision.tier,
+                subscriptionStatus: decision.status,
                 stripeCustomerId: customerId ?? undefined,
                 stripeSubscriptionId: subscriptionId ?? undefined,
               },
             });
-            log.info("Subscription activated", { accountId, tier: grant });
+            log.info("Subscription activated", { accountId, tier: decision.tier });
             // AFTER the tier flip — the state change is durable regardless of mail.
             sendWelcomeEmail(accountId);
             // Server-side ad conversion (Meta CAPI). Fire-and-forget like the
@@ -144,10 +141,6 @@ export async function POST(req: Request) {
       case "customer.subscription.deleted": {
         const sub = event.data.object as Stripe.Subscription;
         const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer?.id;
-        const active = sub.status === "active" || sub.status === "trialing";
-        // The subscription's own price id decides which paid tier it grants, so a
-        // future TEAM plan lifts to TEAM and SOLO stays SOLO — driven by env, not code.
-        const priceId = sub.items?.data?.[0]?.price?.id ?? null;
 
         // Map back to the account via subscription metadata, else the customer id.
         const metaAccountId = sub.metadata?.accountId;
@@ -158,21 +151,30 @@ export async function POST(req: Request) {
             : null;
 
         if (account) {
+          // Stripe does NOT guarantee delivery order, so never apply the state
+          // snapshot embedded in the event — a delayed `updated(status=active)`
+          // arriving after `deleted` would re-grant the paid tier. Re-read the
+          // LIVE subscription and apply THAT, which makes handling idempotent
+          // and order-independent (launch security review 2026-07, P2 #6).
+          // Cancelled subscriptions stay retrievable (status=canceled); a
+          // retrieve failure bubbles to the outer catch → 500 → Stripe retries.
+          const live = await stripe().subscriptions.retrieve(sub.id);
+          const decision = tierDecisionFor(live);
           await systemDb.account.update({
             where: { id: account.id },
             data: {
               // Active/trialing → the price's tier; anything else (past_due,
               // canceled, unpaid, incomplete) drops to FREE — which keeps the
               // free-trial quota rather than locking the account out entirely.
-              tier: active ? tierForPriceId(priceId) : "FREE",
-              subscriptionStatus: sub.status,
-              stripeSubscriptionId: active ? sub.id : null,
+              tier: decision.tier,
+              subscriptionStatus: decision.status,
+              stripeSubscriptionId: decision.active ? sub.id : null,
             },
           });
           log.info("Subscription state synced", {
             accountId: account.id,
-            status: sub.status,
-            tier: active ? tierForPriceId(priceId) : "FREE",
+            status: decision.status,
+            tier: decision.tier,
           });
         }
         break;

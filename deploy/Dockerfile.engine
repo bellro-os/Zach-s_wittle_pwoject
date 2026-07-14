@@ -1,0 +1,136 @@
+# syntax=docker/dockerfile:1
+#
+# deploy/Dockerfile.engine — the Python CMA engine (warm worker) for RAILWAY.
+#
+# CANONICAL COPY (lives in the Compbird repo). The engine's source is a
+# SEPARATE git repo ("MLS Bot"); Railway builds the engine service FROM THAT
+# REPO, so this file must exist there as deploy/Dockerfile.engine. Whenever
+# this canonical copy changes, re-sync it into the engine repo (deploy/README.md
+# "Two repos, two services"):
+#
+#     Compbird/deploy/Dockerfile.engine      -> "MLS Bot"/deploy/Dockerfile.engine
+#     Compbird/deploy/entrypoint.engine.sh   -> "MLS Bot"/deploy/entrypoint.engine.sh
+#     Compbird/deploy/railway.engine.json    -> "MLS Bot"/railway.json
+#     Compbird/deploy/data-sync/*            -> "MLS Bot"/deploy/data-sync/   (puller seam)
+#
+# Build context = the engine repo root (Railway's default). The repo's
+# .dockerignore keeps the multi-GB data/ + outputs/ out of the image — the
+# image is CODE ONLY; data lives on the service volume.
+#
+# RAILWAY SINGLE-VOLUME LAYOUT: Railway allows ONE volume per service (the VPS
+# stack's three volumes collapse into one). Mount the volume at /data; the
+# entrypoint (deploy/entrypoint.engine.sh) creates this layout on it and
+# symlinks the repo-relative paths the engine resolves (ROOT/data, ROOT/outputs):
+#
+#     /data/data     <- /app/data      parquets + cma_regions.json (hourly-synced)
+#     /data/outputs  <- /app/outputs   AVM/DOM/price-cut model joblibs + generated PDFs
+#     /data/cache    <- /app/cache     blind-anchor + hygiene AI caches (never synced over)
+#
+# The worker needs, at minimum (see deploy/README.md "First data seed"):
+#     /app/data/mls_lookup.parquet          /app/data/parcel_lookup.parquet
+#     /app/data/market_index.parquet        /app/data/cma_regions.json
+#     /app/outputs/mls_analytics/avm_model/{regressor,meta}.joblib
+#
+# The PDF path runs headless Chromium; build_cma._render_pdf already passes
+# --no-sandbox (mandatory as uid 0 in-container — the proven Ratifyly lesson),
+# so no extra flag wiring is needed here.
+
+FROM python:3.12-slim
+
+# ── system deps: Chromium for headless PDF rendering + CA certs for httpx TLS ──
+# build_cma renders the one-page PDF via headless Chrome; CHROME_PATH tells the
+# engine where the binary lives (Debian/slim installs it at /usr/bin/chromium).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        chromium \
+        ca-certificates \
+        fonts-liberation \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV CHROME_PATH=/usr/bin/chromium \
+    PYTHONUNBUFFERED=1 \
+    PYTHONUTF8=1
+
+WORKDIR /app
+
+# ── python deps ───────────────────────────────────────────────────────────────
+# The engine's runtime libs, explicit (a superset of pyproject's deps; adds the
+# analytics/AVM stack: duckdb pandas scikit-learn joblib Pillow, and pyyaml
+# explicitly — brand YAML loading needs it and nothing else pulls it in;
+# anthropic powers the in-engine comp-hygiene reviewer + blind-ensemble valuer).
+# pyarrow is intentionally ABSENT: every parquet read goes through DuckDB's SQL
+# read_parquet() (grep-verified in src/mls_bot/analytics/*), never
+# pandas.read_parquet — the same recipe ran live on the Ratifyly VPS.
+# Installed first, in their own layer, so editing source doesn't re-pull pip
+# wheels on every rebuild.
+# NOTE: the AVM/DOM/price-cut models are joblib pickles trained on the
+# workstation with scikit-learn 1.8.0 / numpy 2.4.1 / scipy 1.17.1 /
+# joblib 1.5.3. Pin all four to the training versions — an unpinned
+# scikit-learn pulls 1.9.x, whose moved internal modules make joblib.load
+# raise "No module named '_loss'".
+RUN pip install --no-cache-dir \
+        duckdb \
+        pandas \
+        numpy==2.4.1 \
+        scipy==1.17.1 \
+        scikit-learn==1.8.0 \
+        joblib==1.5.3 \
+        Pillow \
+        pyyaml \
+        anthropic \
+        jinja2 \
+        selectolax \
+        pydantic \
+        typer \
+        python-dotenv \
+        httpx \
+        tenacity
+
+# Copy the repo (code only — data/ and outputs/ are .dockerignore'd; the
+# volume layout is wired at boot by the entrypoint).
+COPY . /app
+
+# The worker puts src/ and scripts/ on sys.path itself, but set PYTHONPATH too
+# so `python -m ...` invocations resolve `from mls_bot...` without a prefix.
+ENV PYTHONPATH=/app/src
+
+# ── Railway defaults (all runtime-overridable as service variables) ───────────
+# "::" = dual-stack bind. REQUIRED on Railway: the private mesh
+# (engine.railway.internal) is IPv6-only — a 0.0.0.0 bind would be unreachable.
+# Needs the worker's AF_INET6 support (worker/cma_worker.py — additive patch).
+ENV CMA_WORKER_HOST=:: \
+    CMA_WORKER_PORT=8765 \
+    CMA_WORKER_REQ_TIMEOUT=180
+
+# THE SIX PRODUCTION CMA FLAGS — compbird's certified engine posture, baked as
+# image defaults so a forgotten service variable can never soften the launch
+# posture. These are deliberate, launch-blocking configuration — NOT tunables.
+# Removing any one changes valuations/serialization vs. what was certified.
+# (Also set them as Railway service variables for dashboard visibility — the
+# README lists them verbatim; service variables override these defaults.)
+ENV CMA_COMP_SCORE_SURFACE=1 \
+    CMA_COMP_TUNING_DISCLOSURE=1 \
+    CMA_AVM_INDEX_DEBIAS=1 \
+    CMA_PRIOR_SALE_GUARDS=1 \
+    CMA_BLIND_ENSEMBLE=1 \
+    CMA_OVERRIDE_DAMPING=1
+
+# Boot script: volume layout + symlinks, then hand off to the data-sync
+# supervisor (worker + hourly puller) when present, else start the worker.
+# CRLF-strip in case the repo was checked out on Windows.
+RUN sed -i 's/\r$//' /app/deploy/entrypoint.engine.sh \
+    && chmod +x /app/deploy/entrypoint.engine.sh \
+    && if [ -d /app/deploy/data-sync ]; then \
+         find /app/deploy/data-sync -name '*.sh' -exec sed -i 's/\r$//' {} + ; \
+         find /app/deploy/data-sync -name '*.sh' -exec chmod +x {} + ; \
+       fi
+
+# The worker binds CMA_WORKER_PORT (default 8765). EXPOSE the default.
+EXPOSE 8765
+
+# NOTE: no Docker HEALTHCHECK — Railway ignores it. Deploy gating:
+# railway.engine.json → deploy.healthcheckPath = /healthz (auth-free by
+# design; the worker only LISTENS after warm-up — sklearn import + AVM joblib
+# load — hence the generous healthcheckTimeout there).
+
+ENTRYPOINT ["/app/deploy/entrypoint.engine.sh"]

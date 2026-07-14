@@ -1,0 +1,33 @@
+# deploy/ops/litestream.yml — continuous SQLite backup for the Railway "app"
+# service. Baked into the app image at /etc/litestream.yml (Dockerfile block in
+# deploy/ops/README.md); the entrypoint then runs
+#
+#     litestream replicate -config /etc/litestream.yml -exec "node server.js"
+#
+# so replication supervises the app process: Litestream streams every WAL frame
+# of the app DB to R2 (~1s behind live) and exits when node exits.
+#
+# Litestream expands ${ENV} at config-load time (v0.5.x; expansion is on by
+# default). Set these on the Railway app service:
+#
+#   LITESTREAM_DB_PATH           /data/compbird.db
+#                                MUST equal DATABASE_URL's file: path.
+#   LITESTREAM_REPLICA_URL       s3://<bucket>/compbird/db?endpoint=<ACCOUNT_ID>.r2.cloudflarestorage.com&region=auto
+#                                The ?endpoint=&region= query form is how v0.5
+#                                points s3:// URLs at non-AWS S3 (R2).
+#   LITESTREAM_ACCESS_KEY_ID     R2 API token (S3 auth) — scope the token to
+#   LITESTREAM_SECRET_ACCESS_KEY just this bucket, Object Read & Write.
+#
+# KEEP THIS FILE MINIMAL. Litestream's YAML loader silently IGNORES unknown
+# keys (verified against v0.5.14 — a bogus key parses clean), so a misspelled
+# tuning knob would not error, it would simply not exist. Only keys from the
+# v0.5 shipped example are used; sync cadence / snapshotting / retention run on
+# Litestream defaults, which are fine for a <100MB app DB.
+
+access-key-id: ${LITESTREAM_ACCESS_KEY_ID}
+secret-access-key: ${LITESTREAM_SECRET_ACCESS_KEY}
+
+dbs:
+  - path: ${LITESTREAM_DB_PATH}
+    replica:
+      url: ${LITESTREAM_REPLICA_URL}

@@ -179,7 +179,15 @@ export function showPortfolioEmptyState(args: {
 
 function csvCell(v: string | number | null | undefined): string {
   if (v == null) return "";
-  const s = String(v);
+  let s = String(v);
+  // CSV formula-injection guard (launch security review 2026-07, P1): Excel /
+  // Google Sheets execute cells that start with = + - @ (or a tab/CR-smuggled
+  // variant) as formulas, so a crafted portfolio LABEL like
+  // `=HYPERLINK(...)` would run in the analyst's spreadsheet. Neutralize by
+  // prefixing a single quote — the spreadsheet-standard escape, which renders
+  // the text verbatim. Applied only to STRING inputs: the numeric figure
+  // columns arrive as numbers and can never start a formula.
+  if (typeof v === "string" && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 

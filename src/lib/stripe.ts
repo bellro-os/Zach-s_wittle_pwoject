@@ -49,14 +49,6 @@ export function webhookSecret(): string {
   return s;
 }
 
-/** The AccountTier a paid subscription grants. compbird sells ONE paid plan. */
-export function subscribedTier(): "SOLO" {
-  return "SOLO";
-}
-
-/** Map a Stripe Price id → the tier it grants. With a single paid plan every
- *  recognized (or unrecognized) price grants SOLO — the map exists so the
- *  webhook code stays shape-compatible if a higher rung is ever added. */
-export function tierForPriceId(_priceId: string | null | undefined): "SOLO" {
-  return "SOLO";
-}
+// Tier-mapping helpers live in the PURE module (unit-testable, no server-only);
+// re-exported here so existing `@/lib/stripe` imports keep working.
+export { subscribedTier, tierForPriceId } from "@/lib/billing-grant";

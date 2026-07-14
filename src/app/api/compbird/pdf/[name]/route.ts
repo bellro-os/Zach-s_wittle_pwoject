@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { OUTPUTS_DIR } from "@/lib/cma/engine";
+import { workerBaseUrl, workerAuthHeaders } from "@/lib/cma/worker";
 import { STRING_CAPS } from "@/lib/compbird/validate";
 import { checkRateLimit, getClientIp } from "@/lib/compbird-ratelimit";
 import { getActiveContext } from "@/lib/session";
@@ -85,18 +86,35 @@ export async function GET(_req: Request, ctx: { params: Promise<{ name: string }
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  const pdfHeaders = {
+    "Content-Type": "application/pdf",
+    "Content-Disposition": `inline; filename="${safe}"`,
+    "Cache-Control": "private, max-age=0, must-revalidate",
+  };
+
   const full = path.join(OUTPUTS_DIR, safe);
   try {
     const data = await fs.readFile(full);
-    return new NextResponse(new Uint8Array(data), {
-      status: 200,
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename="${safe}"`,
-        "Cache-Control": "private, max-age=0, must-revalidate",
-      },
-    });
+    return new NextResponse(new Uint8Array(data), { status: 200, headers: pdfHeaders });
   } catch {
+    // Local miss. On a shared-volume deploy (dev / the old VPS) that means the
+    // file genuinely doesn't exist. On Railway the engine wrote the PDF to ITS
+    // OWN volume, which this app service cannot read — so fetch it from the
+    // worker's token-gated /outputs endpoint and stream it through. The name is
+    // already validated (basename, .pdf, compbird prefix) above, so the proxied
+    // request is as safe as the local read.
+    try {
+      const res = await fetch(`${workerBaseUrl()}/outputs/${encodeURIComponent(safe)}`, {
+        headers: workerAuthHeaders(),
+        cache: "no-store",
+      });
+      if (res.ok) {
+        const buf = new Uint8Array(await res.arrayBuffer());
+        return new NextResponse(buf, { status: 200, headers: pdfHeaders });
+      }
+    } catch {
+      /* engine unreachable — fall through to 404 */
+    }
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 }

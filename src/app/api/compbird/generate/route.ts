@@ -18,6 +18,7 @@ import {
   COMPBIRD_BOUNDS,
   STRING_CAPS,
 } from "@/lib/compbird/validate";
+import { bodyTooLarge, BODY_TOO_LARGE_RESPONSE } from "@/lib/compbird/body-limit";
 import { logOverrideEvent } from "@/lib/cma/override-audit";
 import {
   getActiveContext,
@@ -40,6 +41,12 @@ export async function POST(req: Request) {
       { ok: false, error: "Too many requests. Please slow down." },
       { status: 429, headers: { "Retry-After": String(rl.retryAfterSeconds) } },
     );
+  }
+
+  // Size gate BEFORE the body is read — a declared multi-megabyte JSON body is
+  // garbage by construction (see body-limit.ts).
+  if (bodyTooLarge(req)) {
+    return NextResponse.json(BODY_TOO_LARGE_RESPONSE, { status: 413 });
   }
 
   let payload: {

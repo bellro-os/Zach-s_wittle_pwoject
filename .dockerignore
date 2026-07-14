@@ -1,10 +1,12 @@
 # Keep the build context tiny + never bake secrets or local state into layers.
+# NOTE: deploy/ is deliberately IN the context — deploy/Dockerfile.app copies
+# deploy/entrypoint.app.sh (+ the optional deploy/data-sync app hook) into the
+# runtime image. It is a few KB of scripts/config, never secrets.
 node_modules
 .next
 .git
 .claude
 docs
-deploy
 scripts
 DEPLOY.md
 
@@ -26,3 +28,6 @@ tsconfig.tsbuildinfo
 Thumbs.db
 .vscode
 .idea
+
+# vendored CMA engine — built as its own Railway service, not part of the app image
+engine/
