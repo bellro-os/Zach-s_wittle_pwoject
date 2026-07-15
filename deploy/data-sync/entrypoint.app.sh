@@ -85,7 +85,9 @@ fi
 seed_once() {
   log "seeding search index -> $INDEX_PATH (SYNC_INCLUDE=$INCLUDE, DATA_DIR=$DATA_DIR)"
   rc=0
-  DATA_DIR="$DATA_DIR" SYNC_INCLUDE="$INCLUDE" sh "$PULL" || rc=$?
+  # bash, NOT sh: pull_and_swap.sh needs bash (set -o pipefail); Debian's
+  # sh=dash rejects it with exit 2. bash is Essential in Debian => present.
+  DATA_DIR="$DATA_DIR" SYNC_INCLUDE="$INCLUDE" bash "$PULL" || rc=$?
   if [ "$rc" -eq 0 ]; then
     if [ -f "$INDEX_PATH" ]; then
       log "search index present ($INDEX_PATH)"
@@ -130,7 +132,7 @@ if [ "$REFRESH_HOURS" -gt 0 ]; then
     before="$(index_fingerprint)"
     while true; do
       sleep "$(( REFRESH_HOURS * 3600 ))"
-      if DATA_DIR="$DATA_DIR" SYNC_INCLUDE="$INCLUDE" sh "$PULL"; then
+      if DATA_DIR="$DATA_DIR" SYNC_INCLUDE="$INCLUDE" bash "$PULL"; then
         after="$(index_fingerprint)"
         if [ "$after" != "$before" ]; then
           log "search index changed ($before -> $after) — exiting PID 1 so Railway restarts with a fresh handle"
