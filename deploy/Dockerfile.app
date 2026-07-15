@@ -93,7 +93,15 @@ RUN DATABASE_URL="postgresql://u:p@localhost:5432/db" \
 # headroom — a max, not a reservation.
 RUN NODE_OPTIONS="--max-old-space-size=4096" npm run build
 
-# ─── runner ───────────────────────────────────────────────────
+# --- pg driver (isolated) ---------------------------------------------------
+# `pg` is used ONLY by the boot schema applier (deploy/apply-schema.mjs); no
+# app code imports it, so Next's standalone trace omits it. Install its full
+# closure in isolation and MERGE into the runner node_modules below (an
+# `npm install pg` inside /app would prune the standalone's traced deps).
+FROM base AS pgdeps
+RUN npm install --no-save --prefix /opt/pgapply pg@8.22.0 && rm -rf /root/.npm /tmp/*
+
+# --- runner ------------------------------------------------------------------
 FROM base AS runner
 ENV NODE_ENV=production
 # Local-run default only — Railway injects PORT at runtime and the standalone
@@ -107,6 +115,8 @@ ENV HOSTNAME=::
 # better-sqlite3 binary and @prisma/client) + static assets. No public/ dir in
 # this repo (icons/OG images are generated routes), so nothing else to copy.
 COPY --from=builder /app/.next/standalone ./
+# pg + its dependency closure for deploy/apply-schema.mjs (see pgdeps stage).
+COPY --from=pgdeps /opt/pgapply/node_modules/ ./node_modules/
 COPY --from=builder /app/.next/static ./.next/static
 
 # Generated Prisma client + its linux query-engine binary. The standalone
