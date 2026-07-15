@@ -52,7 +52,7 @@ export function Hero() {
           <Reveal delay={0.22}>
             <p className="mt-4 text-sm text-muted-foreground">
               Free account · instant value estimates · no card required.{" "}
-              <span className="text-muted-foreground/80">
+              <span className="text-muted-foreground">
                 Pro unlocks every comp and the full market read — $20/mo.
               </span>
             </p>
@@ -74,7 +74,7 @@ export function Hero() {
           </Reveal>
 
           <Reveal delay={0.3}>
-            <p className="mt-6 max-w-lg text-xs leading-relaxed text-muted-foreground/90">
+            <p className="mt-6 max-w-lg text-xs leading-relaxed text-muted-foreground">
               Estimates are model-driven opinions of value — not appraisals.
             </p>
           </Reveal>

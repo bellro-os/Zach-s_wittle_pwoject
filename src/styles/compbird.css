@@ -36,6 +36,9 @@ html:has(.cb-shell-night) {
   --secondary: #eef1f6;
   --secondary-foreground: #111726;
   --muted: #eef1f6;
+  /* AA floor on paper (5.53:1) — never alpha-attenuate this token for TEXT
+     (text-muted-foreground/80 drops below AA); reserve alpha for aria-hidden
+     ornament only. */
   --muted-foreground: #5b6577;
   --accent: #e7ecf5;
   --accent-foreground: #111726;

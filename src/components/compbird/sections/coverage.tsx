@@ -68,7 +68,7 @@ const COMING_NEXT = [
 
 export function Coverage() {
   return (
-    <SectionShell id="coverage" className="py-24 sm:py-32" width="wide">
+    <SectionShell id="coverage" className="py-24 sm:py-32">
       <div className="grid gap-14 lg:grid-cols-[0.92fr_1.08fr] lg:items-end">
         {/* ── lede ── */}
         <div>
@@ -117,11 +117,11 @@ export function Coverage() {
                 The footprint, in figures
               </span>
 
-              <dl className="mt-7 grid grid-cols-2 gap-x-6 gap-y-9 sm:gap-y-10">
+              <dl className="mt-7 grid grid-cols-1 gap-x-6 gap-y-9 min-[420px]:grid-cols-2 sm:gap-y-10">
                 {STATS.map((s, i) => (
                   <Reveal key={s.label} delay={0.14 + i * 0.08}>
                     <div>
-                      <dt className="font-data text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
+                      <dt className="font-data text-3xl font-semibold tracking-tight text-foreground min-[480px]:text-4xl sm:text-5xl">
                         {s.kind === "num" ? (
                           <CountUp
                             to={s.to}

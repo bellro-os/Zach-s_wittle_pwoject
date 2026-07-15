@@ -297,7 +297,7 @@ export const CompsTable = memo(function CompsTable({
                 onClick={() => onRemoveForced?.(address)}
                 disabled={busy}
                 aria-label={`Remove ${address} from the comp set`}
-                className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[var(--cb-ember-text)] transition-colors hover:bg-[var(--cb-ember)]/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cb-ember)] disabled:cursor-not-allowed disabled:opacity-50"
+                className="relative inline-flex h-5 w-5 items-center justify-center rounded-full text-[var(--cb-ember-text)] transition-colors after:absolute after:-inset-2 after:content-[''] hover:bg-[var(--cb-ember)]/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cb-ember)] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" aria-hidden>
                   <path
@@ -329,6 +329,7 @@ export const CompsTable = memo(function CompsTable({
   }
 
   const table = (
+    <div className="relative">
     <div
       tabIndex={0}
       role="region"
@@ -352,7 +353,7 @@ export const CompsTable = memo(function CompsTable({
             {tunable ? (
               <th
                 scope="col"
-                className="cb-eyebrow whitespace-nowrap pb-3 pl-4 text-right font-semibold text-muted-foreground"
+                className="cb-eyebrow whitespace-nowrap pb-3 pl-4 text-right font-semibold text-muted-foreground max-sm:sticky max-sm:right-0 max-sm:z-10 max-sm:bg-card"
               >
                 <span className="sr-only">Include in valuation</span>
                 <span aria-hidden>Use</span>
@@ -391,7 +392,7 @@ export const CompsTable = memo(function CompsTable({
                   isExcluded ? "opacity-45" : ""
                 } ${isForced && !isExcluded ? "bg-[var(--cb-tint)]/25" : ""}`}
               >
-                <td className="max-w-[16rem] py-3 pr-4 align-middle">
+                <td className="max-w-[9rem] py-3 pr-4 align-middle sm:max-w-[16rem]">
                   <div className="flex items-center gap-2">
                     <span
                       className={`truncate font-medium text-foreground ${
@@ -490,7 +491,7 @@ export const CompsTable = memo(function CompsTable({
                   {miles(c.distance_mi)}
                 </td>
                 {tunable ? (
-                  <td className="whitespace-nowrap py-3 pl-4 text-right align-middle">
+                  <td className="whitespace-nowrap py-3 pl-4 text-right align-middle max-sm:sticky max-sm:right-0 max-sm:z-10 max-sm:bg-card">
                     <button
                       type="button"
                       onClick={() => onToggle!(key, !isExcluded)}
@@ -499,7 +500,7 @@ export const CompsTable = memo(function CompsTable({
                       aria-label={`${isExcluded ? "Include" : "Exclude"} ${c.address} ${
                         isExcluded ? "in" : "from"
                       } the valuation`}
-                      className={`inline-flex min-h-[32px] items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)] disabled:cursor-not-allowed disabled:opacity-50 ${
+                      className={`inline-flex min-h-[40px] items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)] disabled:cursor-not-allowed disabled:opacity-50 ${
                         isExcluded
                           ? "border-border bg-secondary/60 text-muted-foreground hover:border-[var(--cb-ember)]/40 hover:text-foreground"
                           : "border-[var(--cb-ember)]/30 bg-[var(--cb-tint)] text-[var(--cb-ember-text)] hover:border-[var(--cb-ember)]/50"
@@ -520,6 +521,13 @@ export const CompsTable = memo(function CompsTable({
           })}
         </tbody>
       </table>
+    </div>
+    {/* Mobile scroll affordance: a right-edge fade hinting at the columns
+        scrolled under the sticky Use cells (those cells sit above it at z-10). */}
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-[var(--card)] to-transparent sm:hidden"
+    />
     </div>
   );
 

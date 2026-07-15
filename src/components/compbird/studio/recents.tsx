@@ -461,7 +461,7 @@ export function Recents({
                   Pricing{" "}
                   <span className="font-medium text-foreground">{busySubject}</span>…
                 </span>
-                <span className="shrink-0 text-muted-foreground/80">
+                <span className="shrink-0 text-muted-foreground">
                   Esc cancels
                 </span>
               </div>

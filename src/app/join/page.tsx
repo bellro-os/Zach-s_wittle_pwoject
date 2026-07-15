@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 /** Only honor internal compbird redirect targets (no open-redirect). */
 function safeRedirect(raw: string | string[] | undefined): string {
   const v = typeof raw === "string" ? raw.trim() : "";
-  return /^\/(?:comps(?:\/[A-Za-z0-9._~-]*)?)?$/.test(v) ? v || "/comps" : "/comps";
+  return /^\/(?:comps(?:\/[A-Za-z0-9._~-]*)?|portfolio)?$/.test(v) ? v || "/comps" : "/comps";
 }
 
 const SIGNUP_ERROR: Record<string, string> = {
@@ -82,7 +82,7 @@ export default async function CompbirdJoinPage({
 
           <div className="flex flex-col gap-1.5">
             <label htmlFor="name" className="text-xs font-medium text-muted-foreground">
-              Name <span className="text-muted-foreground/60">(optional)</span>
+              Name <span className="text-muted-foreground">(optional)</span>
             </label>
             <input id="name" name="name" type="text" autoComplete="name" defaultValue={name} className={inputCls} />
           </div>

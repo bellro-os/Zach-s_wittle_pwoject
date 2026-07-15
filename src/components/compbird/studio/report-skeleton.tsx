@@ -1,7 +1,10 @@
 /**
- * Loading shimmer for the report area — mirrors the live layout so the page
- * never collapses while a dossier is fetched. Animation respects
- * prefers-reduced-motion via the [data-cb-anim] gate in compbird.css.
+ * Loading shimmer for the report area — shares the SubjectPreview / ZONE-1
+ * geometry of the resolved report (report-view.tsx: an outer rounded-3xl
+ * section framing a `lg:grid-cols-[1.05fr_0.95fr]` grid, subject identity
+ * LEFT, estimate + map RIGHT), so nothing changes column when the report
+ * lands. Animation respects prefers-reduced-motion via the [data-cb-anim]
+ * gate in compbird.css.
  *
  * Progressive first paint: when the lookup's identity is known (an ?address=
  * deep link, a retry, a recents chip) the ADDRESS paints as real text in the
@@ -51,7 +54,7 @@ export function EstimateWorkingState({ slow = false }: { slow?: boolean }) {
           Running comp analysis — pricing against nearby sales…
         </p>
         {slow ? (
-          <p className="mt-2 text-xs text-muted-foreground/80">
+          <p className="mt-2 text-xs text-muted-foreground">
             First analysis of a property takes a few extra seconds — the result
             is cached after this.
           </p>
@@ -91,33 +94,44 @@ export function ReportSkeleton({
       <p role="status" aria-live="polite" className="sr-only">
         {pendingAddress ? `Building the report for ${pendingAddress}…` : "Building the report…"}
       </p>
-      <div className="flex flex-col gap-6">
-        {/* subject header — the looked-up address paints as real text when known */}
-        <div className="flex flex-col gap-3">
-          <Bar className="h-5 w-28" />
-          {pendingAddress ? (
-            <h2 className="font-display text-3xl font-bold leading-tight tracking-tight text-foreground text-balance sm:text-4xl">
-              {pendingAddress}
-            </h2>
-          ) : (
-            <Bar className="h-9 w-3/4" />
-          )}
-          <Bar className="h-4 w-1/2" />
-        </div>
+      <div className="flex flex-col gap-10">
+        {/* ══ ZONE 1 idiom — same wrapper + grid as report-view.tsx (live) ══ */}
+        <section
+          aria-label="Subject and estimated value"
+          className="relative rounded-3xl border border-border bg-card/60 p-4 sm:p-6"
+        >
+          <div className="grid gap-x-10 gap-y-8 lg:grid-cols-[1.05fr_0.95fr]">
+            {/* LEFT — subject identity: address paints as real text when known */}
+            <div className="flex flex-col gap-6">
+              <header className="flex flex-col gap-4">
+                {/* status-pill stand-in */}
+                <Bar className="h-[22px] w-20 rounded-full" />
+                {pendingAddress ? (
+                  <h2 className="font-display text-3xl font-bold leading-tight tracking-tight text-foreground text-balance sm:text-4xl">
+                    {pendingAddress}
+                  </h2>
+                ) : (
+                  <Bar className="h-9 w-3/4" />
+                )}
+                {/* fact row + parcel */}
+                <Bar className="h-4 w-1/2" />
+                <Bar className="h-4 w-32" />
+              </header>
 
-        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-          {/* valuation — an honest working state, never a placeholder number */}
-          <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card/60 p-6">
-            <EstimateWorkingState slow={slow} />
-            <div className="mt-2 flex flex-col gap-3 border-t border-border pt-4">
-              <Bar className="h-4 w-full" />
-              <Bar className="h-4 w-5/6" />
-              <Bar className="h-4 w-4/6" />
+              {/* pricing-strategy panel stand-in */}
+              <div className="flex flex-col gap-3">
+                <Bar className="h-4 w-40" />
+                <Bar className="h-28 w-full" />
+              </div>
+            </div>
+
+            {/* RIGHT — the estimate slot as an HONEST working state + map slot */}
+            <div className="flex flex-col gap-6">
+              <EstimateWorkingState slow={slow} />
+              <Bar className="min-h-[18rem] w-full flex-1 rounded-2xl" />
             </div>
           </div>
-          {/* map */}
-          <Bar className="h-64 w-full rounded-2xl lg:h-full" />
-        </div>
+        </section>
 
         {/* table */}
         <EvidenceSkeleton />

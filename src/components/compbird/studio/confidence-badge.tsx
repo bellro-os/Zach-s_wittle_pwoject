@@ -46,7 +46,7 @@ export function ConfidenceBadge({
           if (e.key === "Escape") setOpen(false);
         }}
         className={cn(
-          "inline-flex cursor-help select-none items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.12em] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]",
+          "inline-flex cursor-help select-none items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.12em] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)] sm:py-0.5",
           high
             ? "border-[var(--cb-ember)]/30 bg-[var(--cb-tint)] text-[var(--cb-ember-text)]"
             : "border-border bg-secondary/60 text-muted-foreground",

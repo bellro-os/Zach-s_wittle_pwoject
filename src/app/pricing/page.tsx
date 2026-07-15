@@ -30,6 +30,7 @@ const PRO_FEATURES = [
   "Comp tuning and subject what-if editing",
   "Unlimited watermark-free branded PDF reports",
   "Statewide off-MLS sales coverage in the comp pool",
+  "Portfolio batch valuation — up to 50 properties per run",
 ];
 
 const FAQ: { q: string; a: string }[] = [
@@ -67,7 +68,7 @@ export default function PricingPage() {
       <JsonLd schema={faqSchema(FAQ)} />
       <Nav />
       <main>
-        <SectionShell className="pb-24 pt-16 sm:pb-28 sm:pt-24" width="wide">
+        <SectionShell className="pb-24 pt-16 sm:pb-28 sm:pt-24">
           <div className="max-w-2xl">
             <Eyebrow>Pricing</Eyebrow>
             <h1 className="font-display mt-6 text-4xl font-bold tracking-tight text-foreground text-balance sm:text-5xl">
@@ -120,12 +121,12 @@ export default function PricingPage() {
                 <FeatureList items={PRO_FEATURES} />
                 <div className="mt-auto pt-9">
                   <Button href="/join?redirect=%2Fcomps" className="w-full justify-center" arrow>
-                    Start free, upgrade in the studio
+                    Start free — upgrade anytime
                   </Button>
                   <p className="mt-3.5 text-xs leading-relaxed text-muted-foreground">
-                    There&rsquo;s no checkout on this page on purpose — create a free
-                    account, and when you need Pro, upgrade from the account menu
-                    inside the studio. Billing is handled by Stripe.
+                    Try the full studio free first. When you need the evidence,
+                    upgrade from the account menu inside the studio. Billing by
+                    Stripe · cancel anytime.
                   </p>
                 </div>
               </div>

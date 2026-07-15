@@ -94,9 +94,9 @@ function Timeline({ pts, valuation }: { pts: TimelinePt[]; valuation: Valuation 
                   stroke={EMBER} strokeWidth="1" strokeDasharray="4 3" opacity="0.7" />
             {/* label sits at the LEFT of the line (right edge holds the newest
                 comp dot); a small tint plate keeps it legible over the band */}
-            <rect x={padL + 3} y={Y(mid) - 12} width="82" height="12" rx="2"
+            <rect x={padL + 3} y={Y(mid) - 16} width="106" height="15" rx="2"
                   fill="var(--card)" opacity="0.85" />
-            <text x={padL + 6} y={Y(mid) - 3} textAnchor="start" fontSize="9"
+            <text x={padL + 6} y={Y(mid) - 4} textAnchor="start" fontSize="12"
                   fill={EMBER} className="font-data">estimate {niceUsd(mid)}</text>
           </>
         ) : null}
@@ -104,7 +104,7 @@ function Timeline({ pts, valuation }: { pts: TimelinePt[]; valuation: Valuation 
         {[y0 + (y1 - y0) * 0.15, (y0 + y1) / 2, y1 - (y1 - y0) * 0.15].map((v, i) => (
           <g key={i}>
             <line x1={padL} x2={W - padR} y1={Y(v)} y2={Y(v)} stroke={LINE} strokeWidth="0.5" />
-            <text x={padL - 5} y={Y(v) + 3} textAnchor="end" fontSize="9" fill={MUTED}
+            <text x={padL - 5} y={Y(v) + 3} textAnchor="end" fontSize="12" fill={MUTED}
                   className="font-data">{niceUsd(v)}</text>
           </g>
         ))}
@@ -120,10 +120,10 @@ function Timeline({ pts, valuation }: { pts: TimelinePt[]; valuation: Valuation 
           </circle>
         ))}
         {/* x labels: first + last month */}
-        <text x={padL} y={H - 6} fontSize="9" fill={MUTED} className="font-data">
+        <text x={padL} y={H - 6} fontSize="12" fill={MUTED} className="font-data">
           {new Date(t0).toLocaleDateString("en-US", { month: "short", year: "2-digit" })}
         </text>
-        <text x={W - padR} y={H - 6} textAnchor="end" fontSize="9" fill={MUTED} className="font-data">
+        <text x={W - padR} y={H - 6} textAnchor="end" fontSize="12" fill={MUTED} className="font-data">
           {new Date(t1).toLocaleDateString("en-US", { month: "short", year: "2-digit" })}
         </text>
       </svg>
@@ -235,6 +235,21 @@ function Convergence({
 }
 
 /* ── composition ──────────────────────────────────────────────────────────── */
+
+/**
+ * True when at least one chart clears its data floor — the same predicate
+ * LiveAnalytics uses to decide whether to render anything at all. Callers
+ * (report-view.tsx) use it to gate the section heading/divider so a "Live
+ * analytics" heading never sits over nothing in thin-comp markets.
+ */
+export function hasAnalytics(comps: ProfileComp[], valuation: Valuation | null): boolean {
+  return (
+    timelinePoints(comps).length >= 3 ||
+    localityPoints(comps).length >= 3 ||
+    ((valuation?.methods ?? []).filter((m) => m.value != null && m.value > 0).length >= 2 &&
+      valuation?.mid != null)
+  );
+}
 
 function LiveAnalyticsImpl({ comps, valuation }: { comps: ProfileComp[]; valuation: Valuation | null }) {
   // Geometry inputs, computed once per data change (the memo() boundary already

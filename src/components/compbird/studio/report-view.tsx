@@ -21,7 +21,7 @@ import {
 import { CompsTable, compKey, retainExcludedComps, type CachedComp } from "./comps-table";
 import { AddCompSearch } from "./add-comp-search";
 import { PpsfBars } from "./ppsf-bars";
-import { LiveAnalytics } from "./live-analytics";
+import { LiveAnalytics, hasAnalytics } from "./live-analytics";
 import { MarketPanel } from "./market-panel";
 import { LockedPanel } from "./locked-panel";
 import { ReportActions } from "./report-actions";
@@ -477,7 +477,11 @@ export function ReportView({
           >
             <ZoneHeading
               eyebrow="Evidence"
-              title={`The ${comps.length} comps the value rests on`}
+              title={
+                comps.length
+                  ? `The ${comps.length} comp${comps.length === 1 ? "" : "s"} the value rests on`
+                  : "Comparable sales"
+              }
               aside={
                 tuning ? (
                   <Pill tone="neutral" className="shrink-0">
@@ -524,7 +528,7 @@ export function ReportView({
                           onClick={() => onRemoveForced?.(address)}
                           disabled={tuning}
                           aria-label={`Remove ${address} from the comp set`}
-                          className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[var(--cb-ember-text)] transition-colors hover:bg-[var(--cb-ember)]/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cb-ember)] disabled:cursor-not-allowed disabled:opacity-50"
+                          className="relative inline-flex h-5 w-5 items-center justify-center rounded-full text-[var(--cb-ember-text)] transition-colors after:absolute after:-inset-2 after:content-[''] hover:bg-[var(--cb-ember)]/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cb-ember)] disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" aria-hidden>
                             <path
@@ -573,24 +577,31 @@ export function ReportView({
             <PpsfBars comps={comps} />
           </div>
 
-          {/* hairline divider — the evidence reads as one movement, not cards */}
-          <div className="border-t border-border" aria-hidden />
-
           {/* live analytics — every mark derives from THIS lookup's comps +
-              method values, recomputing as the user tunes the set */}
-          <div className="flex flex-col gap-5">
-            <ZoneHeading
-              eyebrow="Live analytics"
-              title="This lookup, charted"
-              aside={tuning ? <span className="text-xs text-muted-foreground">recomputing…</span> : null}
-            />
-            <div
-              className={tuning ? "opacity-60 transition-opacity" : "transition-opacity"}
-              aria-busy={tuning}
-            >
-              <LiveAnalytics comps={comps} valuation={valuation ?? null} />
-            </div>
-          </div>
+              method values, recomputing as the user tunes the set. Heading and
+              divider are gated on the SAME data floor LiveAnalytics renders on
+              (comps = the tuned set, so the section disappears/reappears as
+              users exclude comps); the component's own null-return stays as
+              defense in depth. */}
+          {hasAnalytics(comps, valuation ?? null) ? (
+            <>
+              {/* hairline divider — the evidence reads as one movement, not cards */}
+              <div className="border-t border-border" aria-hidden />
+              <div className="flex flex-col gap-5">
+                <ZoneHeading
+                  eyebrow="Live analytics"
+                  title="This lookup, charted"
+                  aside={tuning ? <span className="text-xs text-muted-foreground">recomputing…</span> : null}
+                />
+                <div
+                  className={tuning ? "opacity-60 transition-opacity" : "transition-opacity"}
+                  aria-busy={tuning}
+                >
+                  <LiveAnalytics comps={comps} valuation={valuation ?? null} />
+                </div>
+              </div>
+            </>
+          ) : null}
 
           {/* market context — redacted to null on a locked live report */}
           {marketContext ? (
@@ -607,25 +618,29 @@ export function ReportView({
           override that rides the PDF, and the download actions. Lighter weight —
           no bordered box per item, just spaced blocks and a hairline. */}
       <section aria-label="Report output" className="flex flex-col gap-6">
-        {/* paste-able executive summary — listing-consultation talking points */}
-        <div className="flex flex-col gap-2">
-          <div className="flex items-start justify-between gap-3">
-            <span className="cb-eyebrow text-muted-foreground">Talking points</span>
-            <button
-              type="button"
-              aria-label="Copy the talking-points summary"
-              onClick={() => {
-                void navigator.clipboard
-                  .writeText(summary)
-                  .then(() => toast.success("Summary copied"));
-              }}
-              className="rounded-full border border-border px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-[var(--cb-ember)]/40 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]"
-            >
-              Copy
-            </button>
+        {/* paste-able executive summary — listing-consultation talking points.
+            Gated: a payload with no facts builds an empty summary, and a
+            Talking-points block over nothing (or a lone ".") helps no one. */}
+        {summary ? (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-start justify-between gap-3">
+              <span className="cb-eyebrow text-muted-foreground">Talking points</span>
+              <button
+                type="button"
+                aria-label="Copy the talking-points summary"
+                onClick={() => {
+                  void navigator.clipboard
+                    .writeText(summary)
+                    .then(() => toast.success("Summary copied"));
+                }}
+                className="rounded-full border border-border px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-[var(--cb-ember)]/40 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]"
+              >
+                Copy
+              </button>
+            </div>
+            <p className="text-sm leading-relaxed text-foreground">{summary}</p>
           </div>
-          <p className="text-sm leading-relaxed text-foreground">{summary}</p>
-        </div>
+        ) : null}
 
         {/* exec-summary override — LIVE reports only; rides the generated PDF */}
         {canEdit ? (
@@ -695,7 +710,8 @@ function dossierSummary(profile: ProfileResult, nearestMi: number | null): strin
       null;
     parts.push(
       `${n} closed comparable${n === 1 ? "" : "s"}${
-        far != null ? ` within ${far < 1 ? far.toFixed(1) : far.toFixed(1)} mi` : ""
+        // Round UP for whole miles — "within X mi" must still bound ALL comps.
+        far != null ? ` within ${far < 1 ? far.toFixed(1) : String(Math.ceil(far))} mi` : ""
       }`,
     );
   }
@@ -703,5 +719,7 @@ function dossierSummary(profile: ProfileResult, nearestMi: number | null): strin
     parts.push(
       `${m.months_of_inventory < 3 ? "seller's" : m.months_of_inventory < 6 ? "balanced" : "buyer's"} market at ${m.months_of_inventory.toFixed(1)} months of inventory`,
     );
-  return parts.join(" · ") + ".";
+  // No facts → empty string (callers gate the Talking-points block on it),
+  // never a bare ".".
+  return parts.length ? parts.join(" · ") + "." : "";
 }

@@ -197,7 +197,7 @@ export function SearchBar({
           onChange={(e) => setQ(e.target.value)}
           onFocus={() => results.length && setOpen(true)}
           onKeyDown={onKeyDown}
-          placeholder="Price any address — try 1203 Walnut Ridge Road, Christiansburg"
+          placeholder="Search any address or parcel"
           aria-label="Search a property address"
           autoComplete="off"
           spellCheck={false}
@@ -206,7 +206,7 @@ export function SearchBar({
           aria-controls={listId}
           aria-autocomplete="list"
           aria-activedescendant={active >= 0 ? `${listId}-opt-${active}` : undefined}
-          className="font-data w-full rounded-2xl border border-border bg-card/80 py-4 pl-12 pr-12 text-base text-foreground shadow-[0_8px_30px_-18px_var(--cb-glow)] outline-none backdrop-blur transition-colors placeholder:font-sans placeholder:text-muted-foreground focus:border-[var(--cb-ember)]/50 focus:ring-1 focus:ring-[var(--cb-ember)]/30"
+          className="font-data w-full rounded-2xl border border-border bg-card/80 py-4 pl-12 pr-12 text-base text-foreground shadow-[0_8px_30px_-18px_var(--cb-glow)] outline-none backdrop-blur transition-colors placeholder:font-sans placeholder:text-muted-foreground focus:border-[var(--cb-ember)] focus:ring-2 focus:ring-[var(--cb-ember)]/25"
         />
         {loading || busy ? (
           <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--cb-ember)]">
@@ -227,7 +227,7 @@ export function SearchBar({
           <span className="truncate">
             Pricing <span className="font-medium text-foreground">{busySubject}</span>…
           </span>
-          <span className="shrink-0 text-muted-foreground/80">Esc to cancel</span>
+          <span className="shrink-0 text-muted-foreground">Esc to cancel</span>
         </p>
       ) : null}
 

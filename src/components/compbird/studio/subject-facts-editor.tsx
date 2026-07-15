@@ -84,9 +84,9 @@ function Field({
 }
 
 const inputBase =
-  "font-data w-full rounded-xl border bg-card/70 px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:font-sans placeholder:text-muted-foreground focus:ring-1 focus:ring-[var(--cb-ember)]/30";
+  "font-data w-full rounded-xl border bg-card/70 px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:font-sans placeholder:text-muted-foreground focus:border-[var(--cb-ember)] focus:ring-2 focus:ring-[var(--cb-ember)]/25";
 const editedBorder = "border-[var(--cb-ember)]/50";
-const idleBorder = "border-border focus:border-[var(--cb-ember)]/50";
+const idleBorder = "border-border";
 
 /** The six OVERRIDE_BOUNDS numeric fields, in display order. */
 const NUM_FIELDS = [

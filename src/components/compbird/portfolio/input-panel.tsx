@@ -124,7 +124,7 @@ export function PortfolioInputPanel({
               : "one address per line — up to 50\n509 Jefferson St, Blacksburg, VA\n1203 Walnut Ridge Rd, Christiansburg, VA"
           }
           spellCheck={false}
-          className="font-data mt-4 w-full resize-y rounded-xl border border-border bg-background/60 px-4 py-3 text-sm text-foreground outline-none transition-colors placeholder:font-sans placeholder:text-muted-foreground focus:border-[var(--cb-ember)]/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)] disabled:opacity-60"
+          className="font-data mt-4 w-full resize-y rounded-xl border border-border bg-background/60 px-4 py-3 text-sm text-foreground transition-colors placeholder:font-sans placeholder:text-muted-foreground focus:border-[var(--cb-ember)]/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)] disabled:opacity-60"
         />
 
         {/* ── First-visit empty state: ghost example + one-line promise ──── */}

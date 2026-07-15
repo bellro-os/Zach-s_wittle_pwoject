@@ -62,7 +62,7 @@ export function RunsStrip({
                   }}
                   disabled={busy}
                   aria-label={`Confirm delete of run ${label}`}
-                  className="rounded-full px-1.5 py-0.5 font-semibold text-[var(--negative-foreground)] transition-colors hover:bg-[var(--negative)]/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cb-ember)] disabled:opacity-50"
+                  className="relative rounded-full px-1.5 py-0.5 font-semibold text-[var(--negative-foreground)] transition-colors after:absolute after:-inset-2 after:content-[''] hover:bg-[var(--negative)]/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cb-ember)] disabled:opacity-50"
                 >
                   Yes
                 </button>
@@ -70,7 +70,7 @@ export function RunsStrip({
                   type="button"
                   onClick={() => setArmed(null)}
                   aria-label={`Keep run ${label}`}
-                  className="rounded-full px-1.5 py-0.5 transition-colors hover:bg-secondary/70 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cb-ember)]"
+                  className="relative rounded-full px-1.5 py-0.5 transition-colors after:absolute after:-inset-2 after:content-[''] hover:bg-secondary/70 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cb-ember)]"
                 >
                   No
                 </button>
@@ -95,7 +95,7 @@ export function RunsStrip({
                   onClick={() => setArmed(r.id)}
                   disabled={busy}
                   aria-label={`Delete run ${label}`}
-                  className="inline-flex h-5 w-5 items-center justify-center rounded-full transition-colors hover:bg-secondary/70 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cb-ember)] disabled:opacity-50"
+                  className="relative inline-flex h-5 w-5 items-center justify-center rounded-full transition-colors after:absolute after:-inset-2 after:content-[''] hover:bg-secondary/70 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--cb-ember)] disabled:opacity-50"
                 >
                   <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" aria-hidden>
                     <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />

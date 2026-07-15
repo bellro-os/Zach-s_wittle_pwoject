@@ -76,17 +76,18 @@ export function StudioAccountMenu({
     "block w-full rounded-md px-3 py-2 text-left text-xs text-muted-foreground transition-colors hover:bg-[var(--cb-tint)] hover:text-foreground disabled:opacity-50";
 
   return (
-    <div className="flex items-center gap-3">
-      <Pill tone={pro ? "ember" : "neutral"}>{plan}</Pill>
+    <div className="flex items-center gap-2 sm:gap-3">
+      <Pill tone={pro ? "ember" : "neutral"} className="hidden sm:inline-flex">{plan}</Pill>
 
       {!pro ? (
         <button
           type="button"
           onClick={() => go(startSubscription, "Could not start checkout.")}
           disabled={busy}
-          className="inline-flex items-center rounded-full bg-[var(--cb-ember)] px-3 py-1.5 text-xs font-semibold text-[var(--cb-on-ember)] transition-opacity hover:opacity-90 disabled:opacity-50"
+          aria-label="Upgrade to Pro · $20/mo"
+          className="inline-flex items-center whitespace-nowrap rounded-full bg-[var(--cb-ember)] px-3 py-1.5 text-xs font-semibold text-[var(--cb-on-ember)] transition-opacity hover:opacity-90 disabled:opacity-50"
         >
-          Upgrade to Pro · $20/mo
+          Upgrade<span className="hidden sm:inline"> to Pro · $20/mo</span>
         </button>
       ) : null}
 
@@ -98,7 +99,7 @@ export function StudioAccountMenu({
           aria-expanded={open}
           aria-label="Account menu"
           onClick={() => setOpen((v) => !v)}
-          className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card/60 text-xs font-semibold text-foreground transition-colors hover:border-[var(--cb-ember)]/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]"
+          className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card/60 text-xs font-semibold text-foreground transition-colors hover:border-[var(--cb-ember)]/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)] sm:h-8 sm:w-8"
         >
           {(plan.trim().charAt(0) || "A").toUpperCase()}
         </button>
@@ -109,6 +110,12 @@ export function StudioAccountMenu({
             aria-label="Account"
             className="absolute right-0 top-full z-50 mt-2 w-44 rounded-lg border border-border bg-card p-1 shadow-xl"
           >
+            {/* Mobile-only plan row: the header Pill hides below sm, so the
+                plan stays discoverable here. Non-interactive on purpose. */}
+            <div className="px-3 py-2 text-xs text-muted-foreground sm:hidden" role="presentation">
+              {plan}
+            </div>
+            <div className="my-1 border-t border-border sm:hidden" role="presentation" />
             <Link
               href="/account"
               role="menuitem"

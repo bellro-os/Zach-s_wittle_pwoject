@@ -233,7 +233,7 @@ function PricingStrategyImpl({
       {/* ── HONEST DISCLOSURE ──────────────────────────────────────────────────
           Names it a model, never a promise. Two forms: with a median to anchor
           on, and the muted fallback when the pace data is missing/redacted. */}
-      <p className="text-[0.7rem] leading-relaxed text-muted-foreground/80">
+      <p className="text-[0.7rem] leading-relaxed text-muted-foreground">
         {hasPace ? (
           <>
             Time on market modeled from {area}&rsquo;s median pace of {num(baseDom)} days at

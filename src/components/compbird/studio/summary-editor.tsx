@@ -89,10 +89,8 @@ export function SummaryEditor({
         placeholder="Auto-generated from the comp set and market context. Type to override…"
         aria-describedby={`${id}-count`}
         className={cn(
-          "w-full resize-y rounded-xl border bg-card/70 px-3.5 py-2.5 text-sm leading-relaxed text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:ring-1 focus:ring-[var(--cb-ember)]/30",
-          edited
-            ? "border-[var(--cb-ember)]/50"
-            : "border-border focus:border-[var(--cb-ember)]/50",
+          "w-full resize-y rounded-xl border bg-card/70 px-3.5 py-2.5 text-sm leading-relaxed text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-[var(--cb-ember)] focus:ring-2 focus:ring-[var(--cb-ember)]/25",
+          edited ? "border-[var(--cb-ember)]/50" : "border-border",
         )}
       />
       <span

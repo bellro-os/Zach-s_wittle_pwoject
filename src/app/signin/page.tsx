@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 /** Only honor internal compbird redirect targets (no open-redirect). */
 function safeRedirect(raw: string | string[] | undefined): string {
   const v = typeof raw === "string" ? raw.trim() : "";
-  return /^\/(?:comps(?:\/[A-Za-z0-9._~-]*)?)?$/.test(v) ? v || "/comps" : "/comps";
+  return /^\/(?:comps(?:\/[A-Za-z0-9._~-]*)?|portfolio)?$/.test(v) ? v || "/comps" : "/comps";
 }
 
 // Support inbox for the dead-end error path — same env override as the footer,

@@ -67,7 +67,7 @@ export function Nav() {
         className={cn(
           "mx-auto flex max-w-6xl items-center justify-between gap-6 px-5 transition-all duration-300 sm:px-8",
           scrolled || open
-            ? "my-2 rounded-2xl border border-border bg-card/80 py-2.5 backdrop-blur-xl md:rounded-full"
+            ? "my-2 rounded-2xl border border-border bg-card/80 py-2.5 backdrop-blur-xl lg:rounded-full"
             : "my-0 border border-transparent py-4",
         )}
       >
@@ -75,7 +75,7 @@ export function Nav() {
           <Wordmark />
         </Link>
 
-        <nav aria-label="Primary" className="hidden items-center gap-7 md:flex">
+        <nav aria-label="Primary" className="hidden items-center gap-7 lg:flex">
           {LINKS.map((l) => (
             <a
               key={l.href}
@@ -96,7 +96,7 @@ export function Nav() {
           <Link
             href="/signin?redirect=%2Fcomps"
             className={cn(
-              "hidden px-1 py-0.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground md:inline-flex",
+              "hidden px-1 py-0.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground lg:inline-flex",
               focusRing,
             )}
           >
@@ -105,13 +105,13 @@ export function Nav() {
           <Link
             href="/join?redirect=%2Fcomps"
             className={cn(
-              "hidden items-center justify-center rounded-full border border-border bg-card/60 px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:border-[var(--cb-ember)]/40 hover:text-foreground md:inline-flex",
+              "hidden items-center justify-center rounded-full border border-border bg-card/60 px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:border-[var(--cb-ember)]/40 hover:text-foreground lg:inline-flex",
               focusRing,
             )}
           >
             Sign up free
           </Link>
-          <CtaLink className="hidden md:inline-flex" />
+          <CtaLink className="hidden lg:inline-flex" />
           {/* mobile disclosure */}
           <button
             ref={menuButtonRef}
@@ -121,7 +121,7 @@ export function Nav() {
             aria-controls="cb-mobile-menu"
             onClick={() => setOpen((v) => !v)}
             className={cn(
-              "inline-flex h-10 w-10 items-center justify-center rounded-full border border-border text-foreground md:hidden",
+              "inline-flex h-10 w-10 items-center justify-center rounded-full border border-border text-foreground lg:hidden",
               focusRing,
             )}
           >
@@ -138,7 +138,7 @@ export function Nav() {
 
       {/* mobile menu panel */}
       {open ? (
-        <div className="px-5 sm:px-8 md:hidden">
+        <div className="px-5 sm:px-8 lg:hidden">
           <div
             id="cb-mobile-menu"
             className="mx-auto mt-1 max-w-6xl rounded-2xl border border-border bg-card/95 p-3 backdrop-blur-xl"
