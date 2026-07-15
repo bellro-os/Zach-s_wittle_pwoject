@@ -31,6 +31,13 @@ export function pickBlocked(busy: boolean): boolean {
   return Boolean(busy);
 }
 
+/**
+ * Stable DOM id for the studio's main search input — the first-run dialog
+ * (first-run.tsx) moves focus here after "Start pricing", so dismissing the
+ * onboarding lands the user exactly where pricing starts.
+ */
+export const SEARCH_INPUT_ID = "cb-search-input";
+
 function SearchIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 20 20" fill="none" className={className} aria-hidden>
@@ -183,7 +190,7 @@ export function SearchBar({
 
   return (
     <div ref={rootRef} className="relative">
-      <label htmlFor={`${listId}-input`} className="sr-only">
+      <label htmlFor={SEARCH_INPUT_ID} className="sr-only">
         Search by address or parcel
       </label>
       <div className="relative">
@@ -191,7 +198,7 @@ export function SearchBar({
           <SearchIcon className="h-5 w-5" />
         </span>
         <input
-          id={`${listId}-input`}
+          id={SEARCH_INPUT_ID}
           type="text"
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -316,6 +323,9 @@ export function SearchBar({
             <>
               No matches for “{truncate(q.trim(), 80)}”. Try a street address or
               parcel id.
+              <span className="mt-1.5 block text-xs text-muted-foreground">
+                compbird covers Virginia + D.C. today — more states coming.
+              </span>
             </>
           )}
         </div>

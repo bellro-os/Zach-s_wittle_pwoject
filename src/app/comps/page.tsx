@@ -83,7 +83,18 @@ export default async function CompStudioPage() {
               </svg>
               Back to compbird
             </Link>
-            <StudioAccountMenu plan={plan} pro={evidence} subscribed={subscribed} />
+            <Link
+              href="/portfolio"
+              className="hidden items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
+            >
+              Portfolio
+            </Link>
+            <StudioAccountMenu
+              plan={plan}
+              pro={evidence}
+              subscribed={subscribed}
+              name={ctx.account.name}
+            />
           </div>
         </div>
       </header>

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Wordmark } from "@/components/compbird/brand";
 import { Button, GrainOverlay } from "@/components/compbird/ui";
 import { signup } from "@/actions/auth";
+import { safeAuthRedirect } from "@/lib/auth-redirect";
 
 export const metadata: Metadata = {
   title: "Create your free account", // layout template appends "· compbird"
@@ -12,12 +13,6 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = "force-dynamic";
-
-/** Only honor internal compbird redirect targets (no open-redirect). */
-function safeRedirect(raw: string | string[] | undefined): string {
-  const v = typeof raw === "string" ? raw.trim() : "";
-  return /^\/(?:comps(?:\/[A-Za-z0-9._~-]*)?|portfolio)?$/.test(v) ? v || "/comps" : "/comps";
-}
 
 const SIGNUP_ERROR: Record<string, string> = {
   email: "Enter a valid email address.",
@@ -38,7 +33,7 @@ export default async function CompbirdJoinPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
-  const redirectTo = safeRedirect(sp.redirect);
+  const redirectTo = safeAuthRedirect(sp.redirect);
   const errorCode = typeof sp.error === "string" ? sp.error : "";
   const errorMsg = errorCode ? (SIGNUP_ERROR[errorCode] ?? "Something went wrong — try again.") : "";
   const email = typeof sp.email === "string" ? sp.email : "";
@@ -65,6 +60,9 @@ export default async function CompbirdJoinPage({
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Instant value estimates, unlimited lookups — free. No card required.
+        </p>
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          Coverage today: Virginia &amp; Washington, D.C.
         </p>
 
         {errorMsg ? (

@@ -9,6 +9,7 @@ import {
   createAppSessionToken,
   type AppRole,
 } from "@/lib/auth";
+import { safeAuthRedirect } from "@/lib/auth-redirect";
 import { hashPassword, verifyPassword } from "@/lib/auth-server";
 import {
   consumeResetToken,
@@ -57,17 +58,17 @@ async function setSessionCookie(args: {
   });
 }
 
-/** Allowlist a post-auth redirect target — internal studio paths only. */
-function safeAuthRedirect(raw: FormDataEntryValue | null): string {
-  const v = typeof raw === "string" ? raw.trim() : "";
-  return /^\/(?:comps(?:\/[A-Za-z0-9._~-]*)?)?$/.test(v) ? v || "/comps" : "/comps";
+/** The shared redirect allowlist, fed from a form field (never a File). */
+function redirectField(formData: FormData): string {
+  const raw = formData.get("redirect");
+  return safeAuthRedirect(typeof raw === "string" ? raw : undefined);
 }
 
 /** Email + password login → session scoped to the user's account. */
 export async function login(formData: FormData): Promise<void> {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
-  const redirectTo = safeAuthRedirect(formData.get("redirect"));
+  const redirectTo = redirectField(formData);
   const errUrl = (q: string) => `/signin?redirect=${encodeURIComponent(redirectTo)}&${q}`;
 
   // Throttle on TWO dimensions so neither IP rotation nor a single targeted
@@ -114,21 +115,24 @@ export async function signup(formData: FormData): Promise<void> {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
   const name = String(formData.get("name") ?? "").trim();
-  const redirectTo = safeAuthRedirect(formData.get("redirect"));
-
-  const ip = await getClientIp();
-  if (checkThrottle("signup", ip).limited) redirect("/join?error=throttled");
-  if (checkGlobalSignup().limited) redirect("/join?error=throttled");
-  recordGlobalSignupAttempt();
+  const redirectTo = redirectField(formData);
 
   // Bounce back to the form on a validation error, preserving the typed fields
-  // (NEVER the password).
+  // (NEVER the password) AND the redirect intent — a typo'd password must not
+  // reset the post-signup destination (join re-reads ?redirect into its
+  // hidden field, so the round trip survives the bounce).
   const back = (errorCode: string): never => {
     const qs = new URLSearchParams({ error: errorCode });
     if (name) qs.set("name", name);
     if (email) qs.set("email", email);
+    qs.set("redirect", redirectTo);
     redirect(`/join?${qs.toString()}`);
   };
+
+  const ip = await getClientIp();
+  if (checkThrottle("signup", ip).limited) back("throttled");
+  if (checkGlobalSignup().limited) back("throttled");
+  recordGlobalSignupAttempt();
 
   if (!email || !email.includes("@")) back("email");
   if (password.length < 8) back("weak");

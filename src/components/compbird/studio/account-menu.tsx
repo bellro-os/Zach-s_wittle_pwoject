@@ -22,10 +22,13 @@ export function StudioAccountMenu({
   plan,
   pro,
   subscribed,
+  name,
 }: {
   plan: string;
   pro: boolean;
   subscribed: boolean;
+  /** Account holder's name (or email — signup stores name||email) for the avatar initial. */
+  name?: string;
 }) {
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
@@ -101,7 +104,8 @@ export function StudioAccountMenu({
           onClick={() => setOpen((v) => !v)}
           className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card/60 text-xs font-semibold text-foreground transition-colors hover:border-[var(--cb-ember)]/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)] sm:h-8 sm:w-8"
         >
-          {(plan.trim().charAt(0) || "A").toUpperCase()}
+          {/* The person's initial, not the plan's — an avatar names WHO, the Pill names WHAT. */}
+          {((name ?? "").trim().charAt(0) || plan.trim().charAt(0) || "A").toUpperCase()}
         </button>
 
         {open ? (
@@ -116,6 +120,12 @@ export function StudioAccountMenu({
               {plan}
             </div>
             <div className="my-1 border-t border-border sm:hidden" role="presentation" />
+            <Link href="/comps" role="menuitem" onClick={() => setOpen(false)} className={itemCls}>
+              Comp studio
+            </Link>
+            <Link href="/portfolio" role="menuitem" onClick={() => setOpen(false)} className={itemCls}>
+              Portfolio
+            </Link>
             <Link
               href="/account"
               role="menuitem"
@@ -123,9 +133,6 @@ export function StudioAccountMenu({
               className={itemCls}
             >
               Account settings
-            </Link>
-            <Link href="/portfolio" role="menuitem" onClick={() => setOpen(false)} className={itemCls}>
-              Portfolio
             </Link>
             {subscribed ? (
               <button

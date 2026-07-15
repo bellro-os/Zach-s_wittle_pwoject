@@ -24,7 +24,7 @@ here (dated) and never applies these on its own.
 5. **Portfolio results row fires window.open on ANY click** inside the row, including text
    selection (results-table.tsx:190-199) — drop the row-level onClick or guard on
    window.getSelection(). `[risky: changes row interaction]`
-6. **"Instant CMA" / "real estate agents" never appear in visible copy** (SEO metadata only) —
+6. **[PARTIALLY SHIPPED 2026-07-15: hero eyebrow now "Instant CMAs for real estate agents"; /pricing echo still open]** **"Instant CMA" / "real estate agents" never appear in visible copy** (SEO metadata only) —
    put category+audience into the hero eyebrow/subhead (hero.tsx:24,34-37) and echo once on
    /pricing. `[brand voice call]`
 7. **"See a sample report" silently hits the signup wall** and ?demo=1 is stripped by

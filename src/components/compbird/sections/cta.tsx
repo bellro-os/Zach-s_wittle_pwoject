@@ -40,9 +40,10 @@ export function FinalCTA() {
 
               <div className="mt-10 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
                 <MagneticButton href="/comps">Price a property</MagneticButton>
+                {/* same bordered-pill treatment as the hero's secondary CTA */}
                 <a
                   href="/comps?demo=1"
-                  className="inline-flex items-center gap-2 rounded-full px-4 py-3 text-[0.95rem] font-semibold text-muted-foreground transition-colors duration-300 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]"
+                  className="inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-6 py-3 text-[0.95rem] font-semibold text-foreground backdrop-blur transition-all duration-300 hover:border-[var(--cb-ember)]/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]"
                 >
                   See a sample report
                   <svg
@@ -61,6 +62,10 @@ export function FinalCTA() {
                   </svg>
                 </a>
               </div>
+
+              <p className="mt-4 text-sm text-muted-foreground">
+                Free account · no card required.
+              </p>
             </div>
 
             {/* ── a single declarative figure, right of the copy ── */}

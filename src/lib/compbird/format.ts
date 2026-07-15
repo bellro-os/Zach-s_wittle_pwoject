@@ -134,18 +134,23 @@ export function propertyTypeLabel(
 }
 
 /**
- * Join a place and its county into one label without doubling "County" — the
- * feed sometimes hands us a county string that already carries the suffix.
+ * Join a place and its county field into one label WITHOUT ever fabricating
+ * "X County" — some index rows carry an independent-city/locality name in the
+ * county slot ("BLACKSBURG"), and appending the suffix minted impossible
+ * labels ("Blacksburg County"). The county field renders title-cased AS-IS:
+ * a value already ending in "County" keeps its suffix, anything else is
+ * trusted to be the locality it says it is.
  * "Palmyra" + "Fluvanna County" → "Palmyra, Fluvanna County".
  * "" + "Fluvanna County" → "Fluvanna County" (no leading comma).
+ * "BLACKSBURG" + "BLACKSBURG" → "Blacksburg" (no self-echo).
  */
 export function placeLabel(
   name?: string | null,
   county?: string | null,
 ): string {
   const place = titleCase(name);
-  const rawCounty = titleCase(county).replace(/\s+County$/i, "").trim();
-  const countyLabel = rawCounty ? `${rawCounty} County` : "";
+  const countyLabel = titleCase(county);
+  if (place && countyLabel && place.toLowerCase() === countyLabel.toLowerCase()) return place;
   if (place && countyLabel) return `${place}, ${countyLabel}`;
   return place || countyLabel;
 }

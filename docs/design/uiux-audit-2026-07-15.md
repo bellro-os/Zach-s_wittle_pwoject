@@ -50,15 +50,15 @@ Compbird's analysis core is genuinely ahead of genre — live comp tuning, what-
 
 ## Roadmap
 ### Quick wins (ship this week)
-- [ ] Finish the redirect fix properly: extract ONE shared safeRedirect helper (join/page.tsx, signin/page.tsx, actions/auth.ts), admit /portfolio + /account, and carry the redirect param through the signup error bounce — the shipped /portfolio fix is verifiably still broken at src/actions/auth.ts:63
-- [ ] Write the report URL: history.replaceState(?parcelId=&address=) on select() success + render recents/Cmd-K rows as real anchors (~20 lines; fixes back/refresh/bookmark/share and the portfolio-tab URL desync in one move)
-- [ ] Add a 'Portfolio' link to the /comps studio header and 'Comp studio' to the avatar dropdown; add Portfolio to the footer; avatar letter from email, not plan
-- [ ] Surface the PDF: a compact 'Download PDF' affordance under the ValuationPanel (or sticky header slot) that scrolls to/triggers the existing ReportActions
-- [ ] Hero eyebrow swap (queued #6): 'Property intelligence' → 'Instant CMAs for real estate agents' — highest leverage-per-effort item on the page
-- [ ] Out-of-coverage honesty: 'compbird covers Virginia + D.C. today' in the no-results panel, coverage note on /join, fix 'any Virginia address' → 'Virginia or D.C.', sanitize the 'Blacksburg County' index labels
-- [ ] Rebuild PpsfBars (baseline near min, median rule, tinted bars, address tooltips) so the paid report's first analytics visual stops reading as a loading skeleton
-- [ ] FinalCTA: bordered-pill treatment for 'See a sample report' + 'Free account · no card required' microcopy (one class swap + one line)
-- [ ] FirstRun 'Start pricing' moves focus into the search combobox on dismiss
+- [x] Finish the redirect fix properly: extract ONE shared safeRedirect helper (join/page.tsx, signin/page.tsx, actions/auth.ts), admit /portfolio + /account, and carry the redirect param through the signup error bounce — the shipped /portfolio fix is verifiably still broken at src/actions/auth.ts:63
+- [x] Write the report URL: history.replaceState(?parcelId=&address=) on select() success + render recents/Cmd-K rows as real anchors (~20 lines; fixes back/refresh/bookmark/share and the portfolio-tab URL desync in one move)
+- [x] Add a 'Portfolio' link to the /comps studio header and 'Comp studio' to the avatar dropdown; add Portfolio to the footer; avatar letter from email, not plan
+- [x] Surface the PDF: a compact 'Download PDF' affordance under the ValuationPanel (or sticky header slot) that scrolls to/triggers the existing ReportActions
+- [x] Hero eyebrow swap (queued #6): 'Property intelligence' → 'Instant CMAs for real estate agents' — highest leverage-per-effort item on the page
+- [x] Out-of-coverage honesty: 'compbird covers Virginia + D.C. today' in the no-results panel, coverage note on /join, fix 'any Virginia address' → 'Virginia or D.C.', sanitize the 'Blacksburg County' index labels
+- [x] Rebuild PpsfBars (baseline near min, median rule, tinted bars, address tooltips) so the paid report's first analytics visual stops reading as a loading skeleton
+- [x] FinalCTA: bordered-pill treatment for 'See a sample report' + 'Free account · no card required' microcopy (one class swap + one line)
+- [x] FirstRun 'Start pricing' moves focus into the search combobox on dismiss
 
 ### Medium (1-2 focused sessions each)
 - [ ] Queued #7 done right (BOTH layers): proxy.ts forwards the original query, the shared sanitizer accepts ?demo=1, and the FirstRun overlay is suppressed when demo intent survives — the only queued item that repairs a funnel break; top queued priority

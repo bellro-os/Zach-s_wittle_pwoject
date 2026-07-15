@@ -98,6 +98,24 @@ function ZoneHeading({
   );
 }
 
+/** Anchor id on the ZONE-3 report actions — the ZONE-1 "Download PDF" pill jumps here. */
+const REPORT_ACTIONS_SECTION_ID = "cb-report-actions";
+
+/**
+ * Smooth-scroll to the report actions (the download button — or, for an
+ * evidence-locked viewer, the upgrade CTA that stands in for it). A wayfinding
+ * affordance only: the generate logic stays in ReportActions.
+ */
+function scrollToReportActions(): void {
+  if (typeof document === "undefined") return;
+  const el = document.getElementById(REPORT_ACTIONS_SECTION_ID);
+  if (!el) return;
+  const reduceMotion =
+    typeof window !== "undefined" &&
+    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  el.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
+}
+
 const OVERRIDE_DIFF_LABELS: Record<string, string> = {
   sqft: "Finished area",
   bedrooms: "Bedrooms",
@@ -403,6 +421,30 @@ export function ReportView({
               </div>
             ) : null}
 
+            {/* ZONE-3 wayfinding: the PDF is the deliverable but lives below
+                the fold — this pill jumps to the download (or, locked, the
+                upgrade CTA standing in for it). No generate logic here. */}
+            {valuation ? (
+              <div className="-mt-2">
+                <button
+                  type="button"
+                  onClick={scrollToReportActions}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-xs font-medium text-foreground transition-colors hover:border-[var(--cb-ember)]/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]"
+                >
+                  Download PDF
+                  <svg viewBox="0 0 16 16" className="h-3 w-3 text-[var(--cb-ember)]" fill="none" aria-hidden>
+                    <path
+                      d="M8 3v10m0 0 4-4m-4 4-4-4"
+                      stroke="currentColor"
+                      strokeWidth="1.7"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+              </div>
+            ) : null}
+
             {/* honest provenance — sits right under the value it describes */}
             <DataFreshness freshness={freshness} sample={isSample} />
 
@@ -649,16 +691,18 @@ export function ReportView({
 
         <div className="border-t border-border" aria-hidden />
 
-        <ReportActions
-          address={facts.address}
-          parcelId={facts.parcel_id}
-          isSample={isSample}
-          excluded={excluded ? Array.from(excluded) : undefined}
-          forced={forced ? Array.from(forced) : undefined}
-          subjectOverrides={canEdit ? overrides : undefined}
-          reportConfig={canEdit ? reportConfig : undefined}
-          evidence={!locked}
-        />
+        <div id={REPORT_ACTIONS_SECTION_ID} className="scroll-mt-6">
+          <ReportActions
+            address={facts.address}
+            parcelId={facts.parcel_id}
+            isSample={isSample}
+            excluded={excluded ? Array.from(excluded) : undefined}
+            forced={forced ? Array.from(forced) : undefined}
+            subjectOverrides={canEdit ? overrides : undefined}
+            reportConfig={canEdit ? reportConfig : undefined}
+            evidence={!locked}
+          />
+        </div>
 
         {isSample ? (
           <p className="flex items-center gap-2 text-xs text-muted-foreground">

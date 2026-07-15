@@ -217,6 +217,25 @@ export function toSelection(e: RecentEntry): LookupSelection {
   return sel;
 }
 
+/**
+ * Deep-link href for a stored entry — the same ?parcelId=&address= contract
+ * the studio's planDeepLink consumes (and select() mirrors back via
+ * replaceState). Chips and palette rows render as REAL anchors carrying it,
+ * so ctrl/cmd/middle-click opens the subject in a second tab; a plain
+ * left-click preventDefaults and keeps the in-place select() path.
+ */
+function entryHref(e: Pick<RecentEntry, "address" | "parcel_id">): string {
+  const qs = new URLSearchParams();
+  if (e.parcel_id) qs.set("parcelId", e.parcel_id);
+  qs.set("address", e.address);
+  return `/comps?${qs.toString()}`;
+}
+
+/** True for a click that should keep native anchor behavior (new tab/window). */
+function isModifiedClick(e: React.MouseEvent): boolean {
+  return e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0;
+}
+
 /** Compact relative timestamp for the palette rows. */
 function ago(at: number): string {
   const s = Math.max(0, Math.floor((Date.now() - at) / 1000));
@@ -377,24 +396,29 @@ export function Recents({
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="cb-eyebrow mr-1 text-muted-foreground">Recent</span>
           {recents.slice(0, 5).map((r) => (
-            <button
+            <a
               key={keyOf(r)}
-              type="button"
-              onClick={() => {
+              href={entryHref(r)}
+              onClick={(e) => {
+                // Modified/middle click: native anchor behavior — second tab.
+                if (isModifiedClick(e)) return;
+                e.preventDefault();
                 if (pickBlocked(busy)) return;
                 onPick(toSelection(r));
               }}
-              disabled={pickBlocked(busy)}
               aria-disabled={pickBlocked(busy) || undefined}
               title={r.address}
-              className="inline-flex min-h-[40px] items-center gap-2 rounded-full border border-border bg-card/60 px-3.5 py-2 text-xs text-muted-foreground transition-colors hover:border-[var(--cb-ember)]/40 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)] disabled:opacity-50"
+              className={cn(
+                "inline-flex min-h-[40px] items-center gap-2 rounded-full border border-border bg-card/60 px-3.5 py-2 text-xs text-muted-foreground transition-colors hover:border-[var(--cb-ember)]/40 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]",
+                pickBlocked(busy) && "opacity-50",
+              )}
             >
               <span
                 className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60"
                 aria-hidden
               />
               {r.address.split(",")[0]}
-            </button>
+            </a>
           ))}
           <button
             type="button"
@@ -476,17 +500,22 @@ export function Recents({
               >
                 {filtered.map((r, i) => (
                   <li key={keyOf(r)} role="presentation">
-                    <button
+                    <a
                       id={`${listId}-opt-${i}`}
                       role="option"
                       aria-selected={i === activeIdx}
-                      type="button"
+                      href={entryHref(r)}
                       onMouseEnter={() => setActive(i)}
-                      onClick={() => pick(r)}
-                      disabled={pickBlocked(busy)}
+                      onClick={(e) => {
+                        // Modified/middle click: native anchor — second tab.
+                        if (isModifiedClick(e)) return;
+                        e.preventDefault();
+                        pick(r); // busy-gated inside
+                      }}
                       aria-disabled={pickBlocked(busy) || undefined}
                       className={cn(
-                        "flex w-full items-baseline gap-3 rounded-xl px-3 py-2.5 text-left transition-colors disabled:opacity-50",
+                        "flex w-full items-baseline gap-3 rounded-xl px-3 py-2.5 text-left transition-colors",
+                        pickBlocked(busy) && "opacity-50",
                         i === activeIdx && !busy
                           ? "bg-secondary/70"
                           : "hover:bg-secondary/50",
@@ -498,7 +527,7 @@ export function Recents({
                       <span className="shrink-0 text-xs text-muted-foreground">
                         {ago(r.at)}
                       </span>
-                    </button>
+                    </a>
                   </li>
                 ))}
               </ul>

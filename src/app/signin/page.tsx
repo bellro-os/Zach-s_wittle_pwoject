@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Wordmark } from "@/components/compbird/brand";
 import { Button, GrainOverlay } from "@/components/compbird/ui";
 import { login } from "@/actions/auth";
+import { safeAuthRedirect } from "@/lib/auth-redirect";
 
 export const metadata: Metadata = {
   title: "Sign in", // layout template appends "· compbird"
@@ -10,12 +11,6 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = "force-dynamic";
-
-/** Only honor internal compbird redirect targets (no open-redirect). */
-function safeRedirect(raw: string | string[] | undefined): string {
-  const v = typeof raw === "string" ? raw.trim() : "";
-  return /^\/(?:comps(?:\/[A-Za-z0-9._~-]*)?|portfolio)?$/.test(v) ? v || "/comps" : "/comps";
-}
 
 // Support inbox for the dead-end error path — same env override as the footer,
 // so "contact support" is actionable, not a dangling instruction.
@@ -39,7 +34,7 @@ export default async function CompbirdSignInPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
-  const redirectTo = safeRedirect(sp.redirect);
+  const redirectTo = safeAuthRedirect(sp.redirect);
   const errorCode = typeof sp.error === "string" ? sp.error : "";
   const errorMsg = errorCode ? (LOGIN_ERROR[errorCode] ?? "Couldn't sign you in — try again.") : "";
   const resetDone = sp.reset === "1";

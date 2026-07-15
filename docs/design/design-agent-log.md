@@ -50,3 +50,26 @@ intent, social proof band, published accuracy figure.
 Context for future runs: marketing bundle is framer-motion-FREE (motion.tsx =
 IntersectionObserver + CSS — keep it that way); opengraph-image.tsx/icon.tsx must never
 declare runtime="edge" (502s on Railway).
+
+## 2026-07-15 — UI/UX audit quick-wins batch (9 items, all live-verified 11/11)
+
+From the 6-lens audit (docs/design/uiux-audit-2026-07-15.md). Applied + deployed:
+1. ONE shared safeAuthRedirect (src/lib/auth-redirect.ts) — replaced 3 divergent
+   copies; /portfolio funnel NOW actually fixed (actions/auth.ts was the missed
+   third copy); error/throttle bounces preserve redirect intent.
+2. Report URLs: select() writes ?parcelId=&address= via history.replaceState;
+   recents/Cmd-K rows are real anchors.
+3. Portfolio discoverability: /comps header link, avatar menu order, footer link,
+   avatar initial from account name.
+4. Download PDF pill in report zone 1 (scroll-to ReportActions, id=cb-report-actions).
+5. Hero eyebrow: "Instant CMAs for real estate agents" (delivers part of queued #6).
+6. Coverage honesty: no-results + /join + first-run say VA & D.C.; placeLabel never
+   fabricates "X County".
+7. PpsfBars rebuilt (min−5% baseline, median rule, ember tints, tooltips).
+8. FinalCTA sample link = bordered pill + "Free account · no card required."
+9. First-run dismiss focuses search (SEARCH_INPUT_ID = cb-search-input).
+
+NEXT UP (from the audit roadmap — do these before inventing new work): the
+medium items in uiux-audit-2026-07-15.md (queued #7 demo intent BOTH layers,
+address-first hero, #4+#2 conversion pass, #1 dark-band rhythm system, report
+hierarchy pass, tuning persistence, waitlist capture).

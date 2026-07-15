@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Button, Eyebrow } from "@/components/compbird/ui";
+import { SEARCH_INPUT_ID } from "./search-bar";
 
 /**
  * First-run onboarding — shown ONCE, over the already-painted studio (the
@@ -16,7 +17,7 @@ const ONBOARDED_KEY = "cb-onboarded";
 
 const BEATS: Array<{ title: string; body: ReactNode }> = [
   {
-    title: "Search any Virginia address",
+    title: "Search any Virginia or D.C. address",
     body: "Street address in, live comparables out — about two seconds.",
   },
   {
@@ -62,7 +63,14 @@ export function FirstRun() {
       /* best effort — the card still closes */
     }
     setOpen(false);
-    restoreRef.current?.focus?.();
+    // "Start pricing" should land the user where pricing starts: the studio
+    // search input — never back on <body>. rAF so the dialog has unmounted
+    // before focus moves; the pre-dialog element is only the fallback.
+    window.requestAnimationFrame(() => {
+      const search = document.getElementById(SEARCH_INPUT_ID);
+      if (search instanceof HTMLElement) search.focus();
+      else restoreRef.current?.focus?.();
+    });
   }, []);
 
   // On open: remember where focus was, then move it to the primary action.

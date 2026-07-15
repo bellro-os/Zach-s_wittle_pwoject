@@ -76,7 +76,7 @@ export default async function PortfolioPage() {
               </svg>
               Comp studio
             </Link>
-            <StudioAccountMenu plan={plan} pro={pro} subscribed={subscribed} />
+            <StudioAccountMenu plan={plan} pro={pro} subscribed={subscribed} name={ctx.account.name} />
           </div>
         </div>
       </header>

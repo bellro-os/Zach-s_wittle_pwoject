@@ -355,8 +355,10 @@ export function shouldAutoRunDemo(env: {
  *    the effect with refs intact) and unrelated param rewrites (?subscribed=1
  *    stripping, etc.) — same signature ⇒ no re-fire;
  *  - a param naming the subject ALREADY on the board (parcel id or address,
- *    case-insensitive) is ignored — no useless refetch/reset;
- *  - in-studio selections never write the URL, so they can't re-trigger this.
+ *    case-insensitive) is ignored — no useless refetch/reset. This is ALSO
+ *    what makes the select() success path's history.replaceState (which
+ *    mirrors the resolved subject into the URL) loop-proof: the params it
+ *    writes always name the mounted subject.
  */
 export function planDeepLink(
   raw: { demo: string | null; address: string | null; parcelId: string | null },
@@ -565,6 +567,18 @@ export function CompStudio() {
               subdivision: result.facts.subdivision,
             },
           });
+          // Reflect the RESOLVED subject in the URL bar — no navigation, just
+          // replaceState — so the report is linkable/refresh-safe and matches
+          // the recents deep-link hrefs. Safe against the deep-link effect:
+          // these are the exact identifiers armSubject just recorded, so
+          // planDeepLink reads them as "subject already on the board" → none.
+          if (typeof window !== "undefined") {
+            const qs = new URLSearchParams();
+            if (result.facts.parcel_id) qs.set("parcelId", result.facts.parcel_id);
+            if (result.facts.address) qs.set("address", result.facts.address);
+            const query = qs.toString();
+            if (query) window.history.replaceState(null, "", `?${query}`);
+          }
         } else {
           throw new Error(result?.error || "no profile");
         }
@@ -680,8 +694,9 @@ export function CompStudio() {
   // window.location read) so a param CHANGE while the studio is already
   // mounted — a same-tab client nav from the portfolio, back/forward — loads
   // that subject. planDeepLink guards the mount double-render (signature
-  // dedupe) and skips params naming the subject already on the board;
-  // in-studio selections never write the URL, so they can't re-trigger this.
+  // dedupe) and skips params naming the subject already on the board — which
+  // also makes select()'s replaceState mirror of the resolved subject a no-op
+  // here, never a second lookup.
   useEffect(() => {
     const plan = planDeepLink(
       {

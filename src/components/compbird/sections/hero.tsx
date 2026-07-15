@@ -21,7 +21,7 @@ export function Hero() {
         {/* ── copy ── */}
         <div className="cb-grid relative">
           <Reveal>
-            <Eyebrow>Property intelligence</Eyebrow>
+            <Eyebrow>Instant CMAs for real estate agents</Eyebrow>
           </Reveal>
           <Reveal delay={0.05}>
             <h1 className="font-display mt-6 text-[2.35rem] font-bold leading-[1.07] tracking-tight text-foreground text-balance sm:text-6xl sm:leading-[1.02]">
