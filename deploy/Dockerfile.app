@@ -33,7 +33,7 @@
 FROM node:20-slim AS base
 WORKDIR /app
 # Prisma needs openssl + ca-certificates at build and run time. curl + python3
-# are for the runner stage (Litestream R2 uploads / fallback use curl; the
+# are for the runner stage (the data-sync puller uses curl for S3; the
 # search-index seeder — deploy/data-sync/entrypoint.app.sh — probes the pulled
 # SQLite with python3's stdlib sqlite3). node:20-slim ships neither, so add them
 # here in the shared base (deps/builder/runner all inherit it).
@@ -84,7 +84,7 @@ RUN npx prisma generate
 # closure effect/c12/@prisma/config is absent from Next's standalone trace).
 # --from-empty needs no DB connection; the dummy DATABASE_URL only satisfies
 # schema parsing. `test -s` fails the build loudly if it emits nothing.
-RUN DATABASE_URL="file:/tmp/schema-build.db" \
+RUN DATABASE_URL="postgresql://u:p@localhost:5432/db" \
       npx prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script \
       > prisma/schema.sql \
   && test -s prisma/schema.sql
@@ -132,14 +132,6 @@ COPY --from=builder /app/deploy ./deploy
 RUN find ./deploy -name '*.sh' -exec sed -i 's/\r$//' {} + \
   && find ./deploy -name '*.sh' -exec chmod +x {} + \
   && mkdir -p /data
-
-# ── Litestream: continuous SQLite backup to R2 (deploy/ops/README.md) ────────
-ARG LITESTREAM_VERSION=0.5.14
-ADD https://github.com/benbjohnson/litestream/releases/download/v${LITESTREAM_VERSION}/litestream-${LITESTREAM_VERSION}-linux-x86_64.tar.gz /tmp/litestream.tar.gz
-RUN tar -xzf /tmp/litestream.tar.gz -C /usr/local/bin litestream && rm /tmp/litestream.tar.gz
-COPY deploy/ops/litestream.yml /etc/litestream.yml
-COPY deploy/ops/restore.sh /usr/local/bin/compbird-restore
-RUN sed -i 's/\r$//' /usr/local/bin/compbird-restore && chmod +x /usr/local/bin/compbird-restore
 
 EXPOSE 3000
 
