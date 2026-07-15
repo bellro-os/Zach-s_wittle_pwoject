@@ -4,6 +4,8 @@ import { Toaster } from "sonner";
 import { AnimationGovernor } from "@/components/compbird/animation-governor";
 import { ConsentBanner } from "@/components/marketing/consent-banner";
 import { MarketingPixels } from "@/components/marketing/pixels";
+import { JsonLd } from "@/components/seo/json-ld";
+import { siteSchema } from "@/lib/seo/schema";
 import "./globals.css";
 import "@/styles/compbird.css";
 
@@ -28,16 +30,22 @@ const mono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-cb-mono",
   display: "swap",
+  // Figures/mono glyphs are not above the fold — don't let this ~45KB woff2
+  // compete with the LCP-critical display + sans fonts on first paint.
+  preload: false,
 });
 
-const CB_TITLE = "compbird — property value, from altitude";
+// Lead with the query agents actually search ("CMA", "comps"), keep the brand.
+const CB_TITLE = "Instant CMA & Comps for Real Estate Agents — compbird";
 const CB_DESC =
-  "compbird builds appraisal-grade comparables and live neighborhood market reports in seconds — a bird's-eye view of what every home is really worth.";
+  "Run an instant CMA in seconds. compbird gives real estate agents appraisal-grade comparable sales and live neighborhood market reports. Start free — no card.";
 
 export const metadata: Metadata = {
   // Absolute base for OG/twitter image URLs in production (social scrapers
   // require absolute URLs; falls back to the dev origin locally).
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL?.trim() || "http://localhost:4310"),
+  // Production canonical is the fallback (not localhost) so a missing/misspelled
+  // env can never ship localhost OG-image/canonical URLs to crawlers.
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://www.compbird.com"),
   title: { default: CB_TITLE, template: "%s · compbird" },
   description: CB_DESC,
   openGraph: {
@@ -57,6 +65,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className={`${display.variable} ${sans.variable} ${mono.variable} compbird-root antialiased`}>
+        {/* Site-wide structured data: Organization + WebSite + SoftwareApplication */}
+        <JsonLd schema={siteSchema} />
         {children}
         {/* Pauses decorative [data-cb-anim] loops when the tab is hidden or idle */}
         <AnimationGovernor />

@@ -6,10 +6,11 @@ import { Footer } from "@/components/compbird/footer";
 export const metadata: Metadata = {
   title: "Terms of Service", // layout template appends "· compbird"
   description: "The terms that govern your use of compbird.",
+  alternates: { canonical: "/terms" },
 };
 
 const CONTACT_EMAIL =
-  process.env.NEXT_PUBLIC_COMPBIRD_CONTACT_EMAIL?.trim() || "hello@ratifyly.com";
+  process.env.NEXT_PUBLIC_COMPBIRD_CONTACT_EMAIL?.trim() || "support@compbird.com";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (

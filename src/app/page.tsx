@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Nav } from "@/components/compbird/nav";
 import { Footer } from "@/components/compbird/footer";
 import { Hero } from "@/components/compbird/sections/hero";
@@ -8,6 +9,12 @@ import { MarketReports } from "@/components/compbird/sections/market-reports";
 import { FeaturesBento } from "@/components/compbird/sections/features-bento";
 import { Coverage } from "@/components/compbird/sections/coverage";
 import { FinalCTA } from "@/components/compbird/sections/cta";
+
+// Title/description come from the root layout default; add a self-canonical so
+// query-param variants (utm_*, ?ref=) consolidate to the clean www URL.
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 export default function CompbirdLanding() {
   return (

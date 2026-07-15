@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   title: "Create your free account", // layout template appends "· compbird"
   description:
     "Create a free compbird account for instant property value estimates — unlimited lookups, no card required. Pro unlocks every comp and the full market read.",
+  alternates: { canonical: "/join" },
 };
 
 export const dynamic = "force-dynamic";

@@ -3,10 +3,13 @@ import { ImageResponse } from "next/og";
 /**
  * compbird's social-share card (og:image / twitter:image), generated at request
  * time via the Next.js segment convention — no binary asset to maintain, always
- * on-brand with the blue + light "Paper" surface. Applies to /compbird and its
- * children unless a deeper segment overrides it.
+ * on-brand with the blue + light "Paper" surface. Site-wide default (compbird is
+ * a standalone app rooted at /), overridable by a deeper segment.
+ *
+ * NOTE: NO `runtime = "edge"` — Railway serves the Node standalone build, on
+ * which the edge runtime 502s ("Application failed to respond"). next/og renders
+ * fine in the Node runtime, so we let it default to Node.
  */
-export const runtime = "edge";
 export const alt =
   "compbird — appraisal-grade comparables and live market reports in seconds";
 export const size = { width: 1200, height: 630 };
@@ -56,6 +59,9 @@ export default function OpengraphImage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
           <div
             style={{
+              // Satori requires display:flex on any element with >1 child.
+              display: "flex",
+              flexWrap: "wrap",
               fontSize: 74,
               fontWeight: 700,
               lineHeight: 1.05,
@@ -64,7 +70,7 @@ export default function OpengraphImage() {
               maxWidth: 980,
             }}
           >
-            A bird&rsquo;s-eye view of what every home is{" "}
+            <span>A bird&rsquo;s-eye view of what every home is&nbsp;</span>
             <span style={{ color: "#1d4ed8" }}>really worth.</span>
           </div>
           <div style={{ fontSize: 30, color: "#4b5563", maxWidth: 900 }}>

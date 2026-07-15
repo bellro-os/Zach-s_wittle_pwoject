@@ -1,10 +1,29 @@
 "use client";
 
-import { motion, useInView, animate, useReducedMotion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils/cn";
 
-const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1];
+/* Marketing-surface motion primitives. Deliberately framer-motion-FREE: these
+   ship on the landing + pricing pages, so they use only IntersectionObserver +
+   CSS transitions / rAF (≈42KB of framer stays out of the marketing bundle; the
+   studio's valuation-panel still uses framer in its own auth-gated chunk).
+   prefers-reduced-motion is honored everywhere. */
+
+// CSS easing that matches the old framer cubic-bezier [0.16, 1, 0.3, 1].
+const EASE = "cubic-bezier(0.16, 1, 0.3, 1)";
+
+/* Local replacement for framer's useReducedMotion (SSR-safe: false until mount). */
+function usePrefersReducedMotion(): boolean {
+  const [reduce, setReduce] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const apply = () => setReduce(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+  return reduce;
+}
 
 /* ── Reveal: fade + rise on scroll into view ───────────────────────────────── */
 export function Reveal({
@@ -18,17 +37,47 @@ export function Reveal({
   y?: number;
   className?: string;
 }) {
-  const reduce = useReducedMotion();
+  const ref = useRef<HTMLDivElement>(null);
+  const reduce = usePrefersReducedMotion();
+  const [shown, setShown] = useState(false);
+
+  useEffect(() => {
+    if (reduce) {
+      setShown(true);
+      return;
+    }
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setShown(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: "-80px 0px", threshold: 0 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [reduce]);
+
   return (
-    <motion.div
-      initial={reduce ? false : { opacity: 0, y }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-80px" }}
-      transition={{ duration: 0.7, delay, ease: EASE }}
+    <div
+      ref={ref}
       className={className}
+      style={
+        reduce
+          ? undefined
+          : {
+              opacity: shown ? 1 : 0,
+              transform: shown ? "none" : `translateY(${y}px)`,
+              transition: `opacity 0.7s ${EASE} ${delay}s, transform 0.7s ${EASE} ${delay}s`,
+              willChange: "opacity, transform",
+            }
+      }
     >
       {children}
-    </motion.div>
+    </div>
   );
 }
 
@@ -49,23 +98,40 @@ export function CountUp({
   className?: string;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-60px" });
-  const reduce = useReducedMotion();
+  const reduce = usePrefersReducedMotion();
   const [value, setValue] = useState(0);
 
   useEffect(() => {
-    if (!inView) return;
+    const el = ref.current;
+    if (!el) return;
     if (reduce) {
       setValue(to);
       return;
     }
-    const controls = animate(0, to, {
-      duration,
-      ease: EASE,
-      onUpdate: (v) => setValue(v),
-    });
-    return () => controls.stop();
-  }, [inView, to, duration, reduce]);
+    let raf = 0;
+    let start = 0;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return;
+        io.disconnect();
+        const step = (ts: number) => {
+          if (!start) start = ts;
+          const t = Math.min((ts - start) / (duration * 1000), 1);
+          // easeOutExpo — visually equivalent to the old [0.16,1,0.3,1] for a counter.
+          const eased = t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+          setValue(to * eased);
+          if (t < 1) raf = requestAnimationFrame(step);
+        };
+        raf = requestAnimationFrame(step);
+      },
+      { rootMargin: "-60px 0px", threshold: 0 },
+    );
+    io.observe(el);
+    return () => {
+      io.disconnect();
+      cancelAnimationFrame(raf);
+    };
+  }, [reduce, to, duration]);
 
   return (
     <span ref={ref} className={cn("font-data tabular-nums", className)}>
@@ -92,7 +158,7 @@ export function MagneticButton({
   onClick?: () => void;
 }) {
   const ref = useRef<HTMLAnchorElement>(null);
-  const reduce = useReducedMotion();
+  const reduce = usePrefersReducedMotion();
 
   function onMove(e: React.MouseEvent) {
     if (reduce) return;

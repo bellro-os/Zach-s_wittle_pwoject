@@ -3,11 +3,14 @@ import Link from "next/link";
 import { Nav } from "@/components/compbird/nav";
 import { Footer } from "@/components/compbird/footer";
 import { SectionShell, Eyebrow, Button, Card, GrainOverlay } from "@/components/compbird/ui";
+import { JsonLd } from "@/components/seo/json-ld";
+import { faqSchema } from "@/lib/seo/schema";
 
 export const metadata: Metadata = {
   title: "Pricing", // layout template appends "· compbird"
   description:
     "Start free with unlimited instant value estimates. Pro is $20/mo for the evidence layer — every comparable sale, neighborhood market analytics, and unlimited watermark-free branded PDF reports.",
+  alternates: { canonical: "/pricing" },
 };
 
 /* Honest split: Free is the estimate — unlimited instant valuations. Pro is
@@ -60,6 +63,8 @@ function FeatureList({ items }: { items: string[] }) {
 export default function PricingPage() {
   return (
     <div className="cb-shell-paper min-h-screen bg-background">
+      {/* FAQPage rich-result schema, built from the same FAQ rendered below */}
+      <JsonLd schema={faqSchema(FAQ)} />
       <Nav />
       <main>
         <SectionShell className="pb-24 pt-16 sm:pb-28 sm:pt-24" width="wide">
