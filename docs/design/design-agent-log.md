@@ -141,3 +141,16 @@ no-redirect signup landing on /home?signedup=1. Phase 2 slots ready: wire Saved
 Reports card when the server-side saved-reports big-bet lands; Market Reports card
 when /markets becomes a real route. NOTE: zach@gravitygroup.us is now a REAL user
 account on the live DB (do not delete in cleanup passes).
+
+## 2026-07-16 — Enterprise portfolio workspace redesign (live)
+
+/portfolio reframed from marketing-hero+plain-table to a Pro workspace: tight
+header; collapsible "+ New run"; NEW portfolio-summary.tsx (hero total value +
+range, confidence-mix segmented bar, 6-cell stat row, value-distribution strip,
+all from portfolioTotals+items, live per poll); results-table elevated (cb-grid
+removed, per-row low-mid-high range bar, sort estimate/confidence/match, sticky
+thead+tfoot, zebra); NEW results-toolbar.tsx (All/High/Needs-review filter +
+Export CSV); runs-strip -> labeled list (date · N · total value). API/poll/a11y
+contracts preserved; verified live (mid-run screenshot shows the summary card +
+range bars rendering). Files: portfolio page + studio + input-panel + results-
+table + runs-strip; new portfolio-summary.tsx, results-toolbar.tsx.
