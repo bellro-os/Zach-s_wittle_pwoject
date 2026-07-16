@@ -101,3 +101,24 @@ map-as-footer-row, mobile order fixes (Pro card first on /pricing, valuation fir
 in report), hero input text-base vs iOS zoom, waitlist/toolbar touch targets;
 (3) polish list in the audit doc. The dark-band-placement question (FinalCTA as
 the ink moment) is a BRAND call — add to proposals.md, do not auto-apply.
+
+## 2026-07-16 — Pricing-Intelligence + near-free feature packs (9 features live-verified 14/14)
+
+Engine (MLS Bot, CMA_PRICING_SURFACE=1 gate, flag-unset byte-identical proven):
+confidence_signals, pricing.bands (DOM q25/50/75 + cut_probability at 3 band
+prices), pricing.target_dom solver, subject.active_model, comps[].hygiene_note +
+original_list_price; /markets heat (sold_to_list/pct_over_ask/cut_share/heat).
+App: sold-vs-ask chips + median-settled line, condition badges + hygiene notes,
+equity snapshot card (unlocked; saleHistory redaction-stripped), confidence
+evidence line, cut-probability gauge + model DOM envelope (replaces synthetic
+elasticity), price-to-sell-by-date row, overpricing sentence, active-listing
+reality check, market heat rows. Live: cut gauges 41-47%, equity card on 504
+Jefferson, reality check "Listed $799k — 11.2% below · model expected ~13 ·
+31% cut prob" on 2232 Woodland Hills. Two LIVE-DATA guards added: target_dom
+suppressed when solver saturates (all horizons same price) or extrapolates >5%
+above Maximize; overpricing cut-clause only when maximize>market (cut model
+non-monotonic in price). FREE redaction verified: pricing + active_model stripped.
+Roadmap status: utility-roadmap-2026-07-16.md near-free pack + pricing pack +
+market heat + reality check ALL SHIPPED. Remaining: saved reports (retention
+hook), retention platform (cron+Resend), share links, interactive pricing rail,
+buyer/investor expansion.
