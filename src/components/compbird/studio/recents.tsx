@@ -117,8 +117,12 @@ function sanitizeFacts(raw: unknown): RecentFacts | undefined {
   return Object.values(facts).some((v) => v !== null) ? facts : undefined;
 }
 
-/** Dedupe identity: parcel where we have one, address otherwise. */
-function keyOf(e: Pick<RecentEntry, "address" | "parcel_id">): string {
+/**
+ * Dedupe identity: parcel where we have one, address otherwise. Exported so the
+ * hub's PortalRecents (home/portal-recents.tsx) keys and badges rows through the
+ * SAME identity rule as the studio's chip row / Cmd-K palette — never a fork.
+ */
+export function keyOf(e: Pick<RecentEntry, "address" | "parcel_id">): string {
   return e.parcel_id || e.address;
 }
 
@@ -234,8 +238,11 @@ export function toSelection(e: RecentEntry): LookupSelection {
  * replaceState). Chips and palette rows render as REAL anchors carrying it,
  * so ctrl/cmd/middle-click opens the subject in a second tab; a plain
  * left-click preventDefaults and keeps the in-place select() path.
+ *
+ * Exported so the hub's PortalRecents renders its cards as REAL anchors on the
+ * identical ?parcelId=&address= contract — one href builder, never forked.
  */
-function entryHref(e: Pick<RecentEntry, "address" | "parcel_id">): string {
+export function entryHref(e: Pick<RecentEntry, "address" | "parcel_id">): string {
   const qs = new URLSearchParams();
   if (e.parcel_id) qs.set("parcelId", e.parcel_id);
   qs.set("address", e.address);

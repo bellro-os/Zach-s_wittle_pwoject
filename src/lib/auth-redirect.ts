@@ -4,9 +4,12 @@
  * per-file copies disagreed: the action still only admitted /comps, so a
  * portfolio-intent signup silently landed in /comps).
  *
- * Admits INTERNAL app paths only: /comps (with an optional suffix segment),
- * /portfolio, /account. Everything else — absolute URLs, protocol-relative
- * "//host" — falls back to "/comps", so there is no open redirect.
+ * Admits INTERNAL app paths only: /home, /comps (with an optional suffix
+ * segment), /portfolio, /account. Everything else — absolute URLs,
+ * protocol-relative "//host" — falls back to "/home", so there is no open
+ * redirect. The no-param DEFAULT is /home (the signed-in hub); an EXPLICIT
+ * whitelisted target (e.g. /comps?address=…) is still honored verbatim, so the
+ * address-first arrival intent lands on the priced report, not the hub.
  *
  * A query string is allowed but SANITIZED, not passed through: only the
  * whitelisted arrival-intent keys (demo / address / parcelId / intent)
@@ -22,7 +25,7 @@
  * Edge-safe: pure string logic + URLSearchParams, no Node imports.
  */
 
-const ALLOWED_PATH = /^\/(?:comps(?:\/[A-Za-z0-9._~-]*)?|portfolio|account)$/;
+const ALLOWED_PATH = /^\/(?:home|comps(?:\/[A-Za-z0-9._~-]*)?|portfolio|account)$/;
 
 /** Arrival-intent params allowed to ride through the auth wall. */
 const ALLOWED_QUERY_KEYS = ["demo", "address", "parcelId", "intent"] as const;
@@ -50,7 +53,7 @@ export function safeAuthRedirect(raw: string | string[] | undefined): string {
 
   const qIdx = noHash.indexOf("?");
   const path = qIdx === -1 ? noHash : noHash.slice(0, qIdx);
-  if (!ALLOWED_PATH.test(path)) return "/comps";
+  if (!ALLOWED_PATH.test(path)) return "/home";
   if (qIdx === -1) return path;
 
   const params = new URLSearchParams(noHash.slice(qIdx + 1));

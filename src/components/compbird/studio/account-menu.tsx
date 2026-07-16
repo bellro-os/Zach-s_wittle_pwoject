@@ -120,6 +120,9 @@ export function StudioAccountMenu({
               {plan}
             </div>
             <div className="my-1 border-t border-border sm:hidden" role="presentation" />
+            <Link href="/home" role="menuitem" onClick={() => setOpen(false)} className={itemCls}>
+              Home
+            </Link>
             <Link href="/comps" role="menuitem" onClick={() => setOpen(false)} className={itemCls}>
               Comp studio
             </Link>

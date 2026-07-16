@@ -92,9 +92,11 @@ export function Nav() {
 
         <div className="flex items-center gap-2">
           {/* compbird's OWN auth pages (not the host /login|/signup) — both land
-              back in the studio after auth, keeping the funnel on-brand. */}
+              on the signed-in hub after auth, keeping the funnel on-brand. The
+              address-first hero/CTA forms carry their own ?address= redirect to
+              the priced report, so this bare nav auth intent goes to /home. */}
           <Link
-            href="/signin?redirect=%2Fcomps"
+            href="/signin?redirect=%2Fhome"
             className={cn(
               "hidden px-1 py-0.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground lg:inline-flex",
               focusRing,
@@ -103,7 +105,7 @@ export function Nav() {
             Sign in
           </Link>
           <Link
-            href="/join?redirect=%2Fcomps"
+            href="/join?redirect=%2Fhome"
             className={cn(
               "hidden items-center justify-center rounded-full border border-border bg-card/60 px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:border-[var(--cb-ember)]/40 hover:text-foreground lg:inline-flex",
               focusRing,
@@ -163,7 +165,7 @@ export function Nav() {
             <CtaLink className="mt-2 w-full" onClick={() => setOpen(false)} />
             <div className="mt-2 grid grid-cols-2 gap-2">
               <Link
-                href="/signin?redirect=%2Fcomps"
+                href="/signin?redirect=%2Fhome"
                 onClick={() => setOpen(false)}
                 className={cn(
                   "inline-flex items-center justify-center rounded-full border border-border bg-card/60 px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary",
@@ -173,7 +175,7 @@ export function Nav() {
                 Sign in
               </Link>
               <Link
-                href="/join?redirect=%2Fcomps"
+                href="/join?redirect=%2Fhome"
                 onClick={() => setOpen(false)}
                 className={cn(
                   "inline-flex items-center justify-center rounded-full border border-border bg-card/60 px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary",

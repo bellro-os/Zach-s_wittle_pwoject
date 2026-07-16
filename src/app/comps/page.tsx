@@ -1,11 +1,9 @@
 import { Suspense } from "react";
-import Link from "next/link";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Wordmark } from "@/components/compbird/brand";
 import { GrainOverlay } from "@/components/compbird/ui";
 import { CompStudio } from "@/components/compbird/studio/comp-studio";
-import { StudioAccountMenu } from "@/components/compbird/studio/account-menu";
+import { AppHeader } from "@/components/compbird/studio/app-header";
 import { SubscribeToast } from "@/components/compbird/studio/subscribe-toast";
 import { getActiveContext } from "@/lib/session";
 import { can as canFeature } from "@/lib/entitlements";
@@ -58,46 +56,13 @@ export default async function CompStudioPage() {
       {/* Stripe Checkout return toasts (?subscribed=1 / ?checkout=cancelled) */}
       <SubscribeToast />
       {/* studio header */}
-      <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-md">
-        <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-5 sm:px-8">
-          <Link
-            href="/"
-            className="rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--cb-ember)]"
-            aria-label="compbird home"
-          >
-            <Wordmark />
-          </Link>
-          <div className="flex items-center gap-4 sm:gap-5">
-            <Link
-              href="/"
-              className="hidden items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
-            >
-              <svg viewBox="0 0 16 16" fill="none" className="h-4 w-4" aria-hidden>
-                <path
-                  d="M13 8H3m0 0 4 4M3 8l4-4"
-                  stroke="currentColor"
-                  strokeWidth="1.7"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              Back to compbird
-            </Link>
-            <Link
-              href="/portfolio"
-              className="hidden items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
-            >
-              Portfolio
-            </Link>
-            <StudioAccountMenu
-              plan={plan}
-              pro={evidence}
-              subscribed={subscribed}
-              name={ctx.account.name}
-            />
-          </div>
-        </div>
-      </header>
+      <AppHeader
+        plan={plan}
+        pro={evidence}
+        subscribed={subscribed}
+        name={ctx.account.name}
+        active="studio"
+      />
 
       {/* studio body */}
       <main className="relative overflow-hidden">
