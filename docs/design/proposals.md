@@ -35,3 +35,7 @@ here (dated) and never applies these on its own.
    beside the Pro card. `[brand; requires real material — do not fabricate]`
 9. **Accuracy section never states a measured figure** — publish a backtested "median error X%
    on N closed sales" line with a methodology footnote. `[brand/legal decision on which number]`
+
+## 2026-07-16 — from the layout audit
+
+10. **Move the deep-ink band to FinalCTA** — the landing currently ends on two pale tint slabs while the one ink moment sits mid-page on the coverage stat card; classic structure puts the ink at the closing CTA. Would move coverage stats onto tint. `[brand rhythm call]`

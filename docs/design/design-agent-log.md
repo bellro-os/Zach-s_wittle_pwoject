@@ -90,3 +90,14 @@ capture UI, portfolio same-tab links + back chip. Queued proposals #1 #2 #4 #5
 #6 (/pricing copy echo), #8 (social proof — needs real material), #9 (accuracy
 figure — user/legal decision). NEXT: the audit's four BIG BETS (saved reports,
 /markets route, interactive pricing rail, client share path).
+
+## 2026-07-16 — appearance/layout audit landed (docs/design/layout-audit-2026-07-16.md)
+
+3-lens audit on fresh screenshots. NEXT UP for daily runs (in order): (1) bug-class
+fixes — comps-table cb-grid stray lines, blurry search icon, typeahead listbox
+anchoring (2 lenses), SectionShell scroll-mt for anchored ids; (2) high-value
+layout — unify landing left rails, comps table-fixed column discipline, ZONE-1
+map-as-footer-row, mobile order fixes (Pro card first on /pricing, valuation first
+in report), hero input text-base vs iOS zoom, waitlist/toolbar touch targets;
+(3) polish list in the audit doc. The dark-band-placement question (FinalCTA as
+the ink moment) is a BRAND call — add to proposals.md, do not auto-apply.
