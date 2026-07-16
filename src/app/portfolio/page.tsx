@@ -64,17 +64,19 @@ export default async function PortfolioPage() {
           aria-hidden
           className="cb-glow-ring pointer-events-none absolute -right-48 -top-56 h-[36rem] w-[36rem] opacity-50"
         />
-        <div className="relative mx-auto w-full max-w-6xl px-5 py-12 sm:px-8 sm:py-16">
-          <div className="mb-8 flex flex-col gap-3">
-            <Eyebrow>Portfolio</Eyebrow>
-            <h1 className="font-display text-3xl tracking-tight text-foreground sm:text-4xl">
-              Comp an entire portfolio at once.
-            </h1>
-            <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-              Paste up to 50 addresses — or drop a CSV — and get an estimate,
-              range, and confidence read on every property in one run, with the
-              whole portfolio totaled at the bottom.
-            </p>
+        <div className="relative mx-auto w-full max-w-6xl px-5 py-10 sm:px-8 sm:py-12">
+          {/* Workspace header — a tool, not a landing page. */}
+          <div className="mb-8 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-6">
+            <div className="flex flex-col gap-2">
+              <Eyebrow>Portfolio</Eyebrow>
+              <h1 className="font-display text-2xl tracking-tight text-foreground sm:text-[1.75rem]">
+                Portfolio
+              </h1>
+              <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
+                Value up to 50 properties in one run — estimate, range, and
+                confidence on each, with the whole book totaled.
+              </p>
+            </div>
           </div>
 
           <PortfolioStudio pro={pro} />

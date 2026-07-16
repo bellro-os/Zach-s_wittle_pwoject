@@ -8,9 +8,16 @@ import type {
   PortfolioRunSummaryDto as PortfolioRunSummary,
 } from "@/lib/compbird/portfolio";
 import { PortfolioInputPanel } from "./input-panel";
-import { PortfolioResultsTable, type EstimateSort } from "./results-table";
+import {
+  PortfolioResultsTable,
+  type PortfolioSort,
+  type PortfolioFilter,
+  type SortColumn,
+} from "./results-table";
+import { PortfolioResultsToolbar } from "./results-toolbar";
+import { PortfolioSummary } from "./portfolio-summary";
 import { RunsStrip } from "./runs-strip";
-import { buildResultsCsv, portfolioCsvFilename, type ParsedEntry } from "./csv";
+import { buildResultsCsv, portfolioCsvFilename, portfolioTotals, type ParsedEntry } from "./csv";
 
 /**
  * The portfolio studio: input panel → POST → 2.5s polling → the results grid
@@ -99,7 +106,12 @@ export function PortfolioStudio({ pro }: { pro: boolean }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [loadingRun, setLoadingRun] = useState(false);
-  const [sort, setSort] = useState<EstimateSort>("none");
+  const [sort, setSort] = useState<PortfolioSort>({ column: "none", dir: "desc" });
+  const [filter, setFilter] = useState<PortfolioFilter>("all");
+  // The input collapses to a slim "+ New run" bar once a run owns the viewport.
+  // First visit (no active run) starts expanded; picking/starting a run collapses
+  // it, and the collapsed bar (or a fresh start) re-expands it.
+  const [inputExpanded, setInputExpanded] = useState(true);
 
   // One-shot guard so a failed run only toasts once per arrival.
   const failedToastFor = useRef<string | null>(null);
@@ -177,10 +189,12 @@ export function PortfolioStudio({ pro }: { pro: boolean }) {
       setStarting(true);
       try {
         const runId = await createRun(items);
-        setSort("none");
+        setSort({ column: "none", dir: "desc" });
+        setFilter("all");
         setRun(null);
         setLoadingRun(true);
         setActiveId(runId);
+        setInputExpanded(false); // results now own the viewport
         refreshRuns();
       } catch (e) {
         const msg =
@@ -200,10 +214,12 @@ export function PortfolioStudio({ pro }: { pro: boolean }) {
   const pickRun = useCallback(
     (id: string) => {
       if (id === activeId) return;
-      setSort("none");
+      setSort({ column: "none", dir: "desc" });
+      setFilter("all");
       setRun(null);
       setLoadingRun(true);
       setActiveId(id);
+      setInputExpanded(false); // the picked run leads
     },
     [activeId],
   );
@@ -216,6 +232,7 @@ export function PortfolioStudio({ pro }: { pro: boolean }) {
         if (id === activeId) {
           setActiveId(null);
           setRun(null);
+          setInputExpanded(true); // no run left to lead — bring the builder back
         }
       } catch (e) {
         toast.error(e instanceof CompbirdApiError ? e.message : "Couldn't delete that run.");
@@ -224,11 +241,30 @@ export function PortfolioStudio({ pro }: { pro: boolean }) {
     [activeId],
   );
 
-  const toggleSort = useCallback(() => {
-    setSort((s) => (s === "none" ? "desc" : s === "desc" ? "asc" : "none"));
+  // Column sort: first click on a column sorts it descending; clicking the same
+  // column cycles desc → asc → off (back to run order).
+  const toggleSort = useCallback((column: SortColumn) => {
+    setSort((s) => {
+      if (s.column !== column) return { column, dir: "desc" };
+      if (s.dir === "desc") return { column, dir: "asc" };
+      return { column: "none", dir: "desc" };
+    });
   }, []);
 
   const running = run?.status === "running";
+
+  // Derived read-outs for the summary + toolbar (whole-run truth). Cheap enough
+  // to compute inline each render; the table recomputes its own totals too.
+  const runItems = run?.items ?? [];
+  const totals = portfolioTotals(runItems);
+  const anyDone = totals.done > 0;
+  const reviewCount = runItems.filter((i) => i.status === "error" || i.caution === true).length;
+  const filteredCount =
+    filter === "all"
+      ? runItems.length
+      : filter === "high"
+        ? runItems.filter((i) => i.status === "done" && i.confidenceTier === "high").length
+        : reviewCount;
 
   return (
     <div className="flex flex-col gap-8">
@@ -236,6 +272,8 @@ export function PortfolioStudio({ pro }: { pro: boolean }) {
         pro={pro}
         busy={starting || running === true}
         hasRuns={(pro && !runsLoaded) || runs.length > 0 || activeId !== null}
+        collapsed={activeId !== null && !inputExpanded}
+        onExpand={() => setInputExpanded(true)}
         onRun={(items) => void startRun(items)}
       />
 
@@ -248,6 +286,11 @@ export function PortfolioStudio({ pro }: { pro: boolean }) {
           onDelete={(id) => void removeRun(id)}
         />
       ) : null}
+
+      {/* ── Portfolio intelligence — the book at a glance, above the table.
+             Renders once at least one property has landed; live-updates each
+             poll beat as more come in. ── */}
+      {run && anyDone ? <PortfolioSummary items={runItems} /> : null}
 
       {/* ── Results panel ───────────────────────────────────────────────── */}
       {activeId && (run || loadingRun) ? (
@@ -283,24 +326,6 @@ export function PortfolioStudio({ pro }: { pro: boolean }) {
                 <span className="skeleton-shimmer inline-block h-4 w-28 rounded-md" aria-hidden />
               )}
             </div>
-            {run && run.items.some((i) => i.status === "done") ? (
-              <button
-                type="button"
-                onClick={() => downloadCsv(run)}
-                className="inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-3.5 py-2 text-xs font-medium text-muted-foreground transition-colors hover:border-[var(--cb-ember)]/40 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]"
-              >
-                <svg viewBox="0 0 16 16" fill="none" className="h-3.5 w-3.5" aria-hidden>
-                  <path
-                    d="M8 2v8m0 0 3-3m-3 3L5 7M3 11v2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-2"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                Export CSV
-              </button>
-            ) : null}
           </div>
 
           {/* live progress bar while the run executes */}
@@ -320,9 +345,29 @@ export function PortfolioStudio({ pro }: { pro: boolean }) {
             </div>
           ) : null}
 
+          {/* ── Toolbar: filter + sort context + Export CSV ── */}
+          {run ? (
+            <div className="mt-5 border-t border-border pt-5">
+              <PortfolioResultsToolbar
+                filter={filter}
+                onFilter={setFilter}
+                reviewCount={reviewCount}
+                filteredCount={filteredCount}
+                totalCount={runItems.length}
+                canExport={anyDone}
+                onExport={() => downloadCsv(run)}
+              />
+            </div>
+          ) : null}
+
           <div className="mt-5">
             {run ? (
-              <PortfolioResultsTable items={run.items} sort={sort} onToggleSort={toggleSort} />
+              <PortfolioResultsTable
+                items={run.items}
+                sort={sort}
+                filter={filter}
+                onToggleSort={toggleSort}
+              />
             ) : (
               // First fetch of a picked run — table-shaped shimmer.
               <div className="flex flex-col gap-2.5" aria-hidden>

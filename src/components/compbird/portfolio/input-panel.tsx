@@ -52,6 +52,8 @@ export function PortfolioInputPanel({
   pro,
   busy,
   hasRuns,
+  collapsed = false,
+  onExpand,
   onRun,
 }: {
   /** Account may run portfolios (SOLO/Pro). FREE renders the upsell overlay. */
@@ -60,6 +62,14 @@ export function PortfolioInputPanel({
   busy: boolean;
   /** The account has (or is loading) a previous run — hides the first-visit empty state. */
   hasRuns: boolean;
+  /**
+   * A run already owns the viewport — the panel collapses to a slim "+ New run"
+   * bar so the results lead. First visit (no runs) renders expanded. Ignored for
+   * FREE, which always shows the panel (behind the upsell overlay).
+   */
+  collapsed?: boolean;
+  /** Expand the collapsed bar (studio-owned state). */
+  onExpand?: () => void;
   onRun: (items: ParsedEntry[]) => void;
 }) {
   const [text, setText] = useState("");
@@ -100,6 +110,34 @@ export function PortfolioInputPanel({
   // ghost example instead of a bare input. Any content or history hides it.
   const empty = showPortfolioEmptyState({ hasRuns, text, csvCount: csvEntries.length });
   const filledWithExample = text.trim() === PORTFOLIO_EXAMPLE_TEXT;
+
+  // ── Collapsed: a slim "+ New run" bar so the results own the viewport ──────
+  // Pro-only (FREE always shows the panel behind the upsell). Click expands.
+  if (pro && collapsed) {
+    return (
+      <button
+        type="button"
+        onClick={onExpand}
+        disabled={busy}
+        className="group flex w-full items-center gap-3 rounded-2xl border border-dashed border-border bg-card/60 px-5 py-3.5 text-left transition-colors hover:border-[var(--cb-ember)]/40 hover:bg-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)] disabled:opacity-50"
+      >
+        <span
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[var(--cb-ember)]/30 bg-[var(--cb-tint)] text-[var(--cb-ember-text)]"
+          aria-hidden
+        >
+          <svg viewBox="0 0 16 16" fill="none" className="h-3.5 w-3.5">
+            <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+          </svg>
+        </span>
+        <span className="flex flex-col">
+          <span className="text-sm font-medium text-foreground">New run</span>
+          <span className="text-xs text-muted-foreground">
+            Paste addresses or drop a CSV — up to {PORTFOLIO_CAP} properties
+          </span>
+        </span>
+      </button>
+    );
+  }
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-border bg-card/70 p-5 sm:p-7">

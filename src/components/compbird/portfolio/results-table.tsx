@@ -1,18 +1,19 @@
 "use client";
 
 import { cn } from "@/lib/utils/cn";
-import { usd, miles } from "@/lib/compbird/format";
+import { usd, usdCompact, miles } from "@/lib/compbird/format";
 import type { PortfolioItemDto as PortfolioItem } from "@/lib/compbird/portfolio";
 import { portfolioTotals } from "./csv";
 
 /**
  * The payoff surface: every property in the run as one dense, instrument-grade
- * grid — estimate, range, confidence, comp evidence — filling in live while the
- * run executes. Presentational on purpose (all state lives in the studio) so
- * the render fixture can exercise it directly.
+ * table — estimate, per-row range bar, confidence, comp evidence — filling in
+ * live while the run executes. Presentational on purpose (all state lives in
+ * the studio) so the render fixture can exercise it directly.
  *
- * Desktop = a real table on the faint parcel grid (data-heavy panels may carry
- * .cb-grid). Below sm it collapses to stacked cards — address, estimate,
+ * Desktop = a real table with a STICKY header inside its own scroll region
+ * (audit removed the .cb-grid texture — stray ledger lines read as noise under
+ * the data). Below sm it collapses to stacked cards — address, estimate,
  * confidence — so the page never scrolls horizontally.
  *
  * Row semantics:
@@ -25,7 +26,25 @@ import { portfolioTotals } from "./csv";
  *                     as a "Back to portfolio" chip — the return leg.
  */
 
-export type EstimateSort = "none" | "desc" | "asc";
+/* ── Sort + filter contract (owned by the studio) ──────────────────────────── */
+
+export type SortColumn = "estimate" | "confidence" | "match";
+export type SortDir = "asc" | "desc";
+/** `column: "none"` = original run order; otherwise a keyed direction. */
+export type PortfolioSort =
+  | { column: "none"; dir: SortDir }
+  | { column: SortColumn; dir: SortDir };
+
+/** The three toolbar views. "review" = status error OR caution true. */
+export type PortfolioFilter = "all" | "high" | "review";
+
+/** Confidence tier rank for sorting: high > standard > none. */
+function tierRank(it: PortfolioItem): number {
+  if (it.status !== "done") return -1;
+  if (it.confidenceTier === "high") return 2;
+  if (it.confidenceTier === "standard") return 1;
+  return 0;
+}
 
 /**
  * Comp-studio deep link for a comped row — the same ?parcelId=&address=
@@ -44,6 +63,11 @@ function studioHref(it: PortfolioItem): string | null {
 /** Display identity: label when given, address otherwise. */
 function displayAddress(it: PortfolioItem): string {
   return it.resolvedAddress ?? it.inputAddress ?? "—";
+}
+
+/** A row is in the "needs review" set when it errored or carries thin-comp caution. */
+function needsReview(it: PortfolioItem): boolean {
+  return it.status === "error" || it.caution === true;
 }
 
 /**
@@ -91,6 +115,64 @@ export function TierChip({
   );
 }
 
+/**
+ * Per-row range bar: low–mid–high positioned within the portfolio's overall
+ * min-low..max-high span, so a glance reads both the property's own spread AND
+ * where it sits in the book. The mid is a tick; the bar is tinted by confidence.
+ * Falls back to nothing (renders "—") when a row lacks a full low/high.
+ */
+function RangeBar({
+  it,
+  spanLo,
+  spanHi,
+}: {
+  it: PortfolioItem;
+  spanLo: number;
+  spanHi: number;
+}) {
+  if (it.low == null || it.high == null || it.mid == null) {
+    return <span className="font-data text-muted-foreground">—</span>;
+  }
+  const span = Math.max(spanHi - spanLo, 1e-9);
+  const clamp = (v: number) => Math.min(100, Math.max(0, ((v - spanLo) / span) * 100));
+  const left = clamp(it.low);
+  const right = clamp(it.high);
+  const midPos = clamp(it.mid);
+  const width = Math.max(right - left, 1.5);
+  const high = it.confidenceTier === "high";
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <span className="font-data text-[11px] text-muted-foreground">
+        {usdCompact(it.low)} – {usdCompact(it.high)}
+      </span>
+      <div
+        className="relative h-1.5 w-full min-w-[6rem] max-w-[10rem] overflow-visible rounded-full bg-secondary/60"
+        role="img"
+        aria-label={`Range ${usd(it.low)} to ${usd(it.high)}, estimate ${usd(it.mid)}`}
+      >
+        <span
+          className="absolute top-0 h-full rounded-full"
+          style={{
+            left: `${left}%`,
+            width: `${width}%`,
+            background: high ? "var(--cb-ember)" : "var(--muted-foreground)",
+            opacity: high ? 0.55 : 0.35,
+          }}
+        />
+        <span
+          aria-hidden
+          className="absolute top-1/2 h-2.5 w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full"
+          style={{
+            left: `${midPos}%`,
+            background: high ? "var(--cb-ember)" : "var(--foreground)",
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 /** Shimmer stand-in for a figure that hasn't landed yet. */
 function ShimmerCell({ w = "w-16" }: { w?: string }) {
   return (
@@ -108,33 +190,109 @@ function compsCell(it: PortfolioItem): string {
 }
 
 const th =
-  "cb-eyebrow whitespace-nowrap pb-3 font-semibold text-muted-foreground";
+  "cb-eyebrow whitespace-nowrap bg-card pb-3 pt-1 font-semibold text-muted-foreground";
+
+/** A sortable header button — glyph reflects this column's active direction. */
+function SortHeader({
+  label,
+  column,
+  sort,
+  onToggle,
+}: {
+  label: string;
+  column: SortColumn;
+  sort: PortfolioSort;
+  onToggle?: (column: SortColumn) => void;
+}) {
+  const active = sort.column === column;
+  const glyph = !active ? "↕" : sort.dir === "desc" ? "↓" : "↑";
+  const ariaSort = active
+    ? sort.dir === "desc"
+      ? "descending"
+      : "ascending"
+    : "none";
+  if (!onToggle) return <span aria-sort="none">{label}</span>;
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(column)}
+      aria-sort={ariaSort}
+      className="cb-eyebrow inline-flex items-center gap-1.5 font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]"
+      aria-label={`Sort by ${label.toLowerCase()} (${
+        active ? (sort.dir === "desc" ? "highest first" : "lowest first") : "unsorted"
+      })`}
+    >
+      {label}
+      <span aria-hidden className={active ? "text-[var(--cb-ember-text)]" : "opacity-50"}>
+        {glyph}
+      </span>
+    </button>
+  );
+}
 
 export function PortfolioResultsTable({
   items,
-  sort = "none",
+  sort = { column: "none", dir: "desc" },
+  filter = "all",
   onToggleSort,
 }: {
   items: PortfolioItem[];
-  /** Estimate-column sort state; owned by the studio. */
-  sort?: EstimateSort;
+  /** Column + direction sort state; owned by the studio. */
+  sort?: PortfolioSort;
+  /** Active view — "all" | "high" | "review". Owned by the studio. */
+  filter?: PortfolioFilter;
   /** Absent ⇒ static header (the fixture / non-interactive mounts). */
-  onToggleSort?: () => void;
+  onToggleSort?: (column: SortColumn) => void;
 }) {
+  // Totals are ALWAYS over the full run (a filtered view still reports the whole
+  // book's worth — the footer is portfolio truth, not the current slice).
   const totals = portfolioTotals(items);
 
-  // Client-side estimate sort: done rows order by mid, everything without a
-  // figure sinks below them in original run order.
+  // Overall low..high span for the per-row range bars, across every done item.
+  let spanLo = Infinity;
+  let spanHi = -Infinity;
+  for (const it of items) {
+    if (it.status === "done" && it.low != null && it.high != null) {
+      if (it.low < spanLo) spanLo = it.low;
+      if (it.high > spanHi) spanHi = it.high;
+    }
+  }
+  const haveSpan = Number.isFinite(spanLo) && Number.isFinite(spanHi) && spanHi > spanLo;
+
+  // Filter first (view), then sort — so counts reflect the current view but the
+  // footer/totals stay whole-run.
+  const filtered = items.filter((it) => {
+    if (filter === "high") return it.status === "done" && it.confidenceTier === "high";
+    if (filter === "review") return needsReview(it);
+    return true;
+  });
+
   const rows =
-    sort === "none"
-      ? items
-      : [...items].sort((a, b) => {
-          const av = a.status === "done" && a.mid != null ? a.mid : null;
-          const bv = b.status === "done" && b.mid != null ? b.mid : null;
-          if (av == null && bv == null) return a.position - b.position;
-          if (av == null) return 1;
-          if (bv == null) return -1;
-          return sort === "desc" ? bv - av : av - bv;
+    sort.column === "none"
+      ? filtered
+      : [...filtered].sort((a, b) => {
+          const dir = sort.dir === "desc" ? 1 : -1;
+          if (sort.column === "estimate") {
+            const av = a.status === "done" && a.mid != null ? a.mid : null;
+            const bv = b.status === "done" && b.mid != null ? b.mid : null;
+            if (av == null && bv == null) return a.position - b.position;
+            if (av == null) return 1;
+            if (bv == null) return -1;
+            return dir * (bv - av);
+          }
+          if (sort.column === "match") {
+            const av = a.status === "done" && a.avgMatch != null ? a.avgMatch : null;
+            const bv = b.status === "done" && b.avgMatch != null ? b.avgMatch : null;
+            if (av == null && bv == null) return a.position - b.position;
+            if (av == null) return 1;
+            if (bv == null) return -1;
+            return dir * (bv - av);
+          }
+          // confidence
+          const ar = tierRank(a);
+          const br = tierRank(b);
+          if (ar === br) return a.position - b.position;
+          return dir * (br - ar);
         });
 
   const errorNote =
@@ -142,57 +300,50 @@ export function PortfolioResultsTable({
       ? `${totals.errored} ${totals.errored === 1 ? "property" : "properties"} couldn't be comped — not included in totals`
       : null;
 
-  const sortGlyph = sort === "desc" ? "↓" : sort === "asc" ? "↑" : "↕";
-
   return (
     <div className="flex flex-col gap-4">
-      {/* ── Desktop: the dense grid ─────────────────────────────────────── */}
+      {/* ── Desktop: the dense table (no grid texture, sticky header) ────── */}
       <div
         tabIndex={0}
         role="region"
         aria-label="Portfolio results table"
-        className="cb-grid -mx-1 hidden overflow-x-auto rounded-lg px-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)] sm:block"
+        className="-mx-1 hidden max-h-[34rem] overflow-auto rounded-lg px-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)] sm:block"
       >
-        <table className="w-full min-w-[44rem] border-collapse text-sm">
-          <thead>
+        <table className="w-full min-w-[48rem] border-collapse text-sm">
+          <thead className="sticky top-0 z-10">
             <tr className="border-b border-border">
               <th scope="col" className={cn(th, "pr-4 text-left")}>
                 Label / Address
               </th>
-              <th scope="col" className={cn(th, "pl-4 text-right")} aria-sort={
-                sort === "desc" ? "descending" : sort === "asc" ? "ascending" : "none"
-              }>
-                {onToggleSort ? (
-                  <button
-                    type="button"
-                    onClick={onToggleSort}
-                    className="cb-eyebrow inline-flex items-center gap-1.5 font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]"
-                    aria-label={`Sort by estimate (${sort === "desc" ? "highest first" : sort === "asc" ? "lowest first" : "unsorted"})`}
-                  >
-                    Estimate
-                    <span aria-hidden className={sort === "none" ? "opacity-50" : "text-[var(--cb-ember-text)]"}>
-                      {sortGlyph}
-                    </span>
-                  </button>
-                ) : (
-                  "Estimate"
-                )}
+              <th scope="col" className={cn(th, "pl-4 text-right")}>
+                <SortHeader label="Estimate" column="estimate" sort={sort} onToggle={onToggleSort} />
               </th>
               <th scope="col" className={cn(th, "pl-4 text-right")}>
                 Range
               </th>
               <th scope="col" className={cn(th, "pl-4 text-right")}>
-                Confidence
+                <SortHeader label="Confidence" column="confidence" sort={sort} onToggle={onToggleSort} />
               </th>
               <th scope="col" className={cn(th, "pl-4 text-right")}>
                 Comps
               </th>
               <th scope="col" className={cn(th, "pl-4 text-right")}>
-                Avg match
+                <SortHeader label="Avg match" column="match" sort={sort} onToggle={onToggleSort} />
               </th>
             </tr>
           </thead>
           <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                  {filter === "high"
+                    ? "No high-confidence properties in this run yet."
+                    : filter === "review"
+                      ? "Nothing needs review — every property comped cleanly."
+                      : "No properties."}
+                </td>
+              </tr>
+            ) : null}
             {rows.map((it) => {
               const href = studioHref(it);
               const busy = it.status === "pending" || it.status === "running";
@@ -201,8 +352,8 @@ export function PortfolioResultsTable({
                 <tr
                   key={it.id}
                   className={cn(
-                    "border-b border-border/60 transition-colors last:border-0",
-                    href && "hover:bg-secondary/40",
+                    "border-b border-border/50 transition-colors last:border-0 odd:bg-secondary/20",
+                    href && "hover:bg-[var(--cb-tint)]",
                     failed && "opacity-55",
                   )}
                 >
@@ -263,8 +414,16 @@ export function PortfolioResultsTable({
                       <td className="whitespace-nowrap py-3 pl-4 text-right align-middle font-data font-medium text-foreground">
                         {usd(it.mid)}
                       </td>
-                      <td className="whitespace-nowrap py-3 pl-4 text-right align-middle font-data text-muted-foreground">
-                        {it.low != null && it.high != null ? `${usd(it.low)} – ${usd(it.high)}` : "—"}
+                      <td className="py-3 pl-4 align-middle">
+                        {haveSpan ? (
+                          <RangeBar it={it} spanLo={spanLo} spanHi={spanHi} />
+                        ) : (
+                          <span className="font-data text-xs text-muted-foreground">
+                            {it.low != null && it.high != null
+                              ? `${usd(it.low)} – ${usd(it.high)}`
+                              : "—"}
+                          </span>
+                        )}
                       </td>
                       <td className="whitespace-nowrap py-3 pl-4 text-right align-middle">
                         <TierChip tier={it.confidenceTier} caution={it.caution} />
@@ -281,22 +440,22 @@ export function PortfolioResultsTable({
               );
             })}
           </tbody>
-          <tfoot>
-            <tr className="border-t border-border">
-              <td className="py-3.5 pr-4 align-middle">
+          <tfoot className="sticky bottom-0 z-10">
+            <tr className="border-t border-border bg-card">
+              <td className="bg-card py-3.5 pr-4 align-middle">
                 <span className="cb-eyebrow text-muted-foreground">Portfolio estimate</span>
                 <span className="mt-0.5 block text-xs text-muted-foreground">
                   {totals.done} of {totals.total} comped
                   {errorNote ? <span className="text-[var(--negative-foreground)]"> · {errorNote}</span> : null}
                 </span>
               </td>
-              <td className="whitespace-nowrap py-3.5 pl-4 text-right align-middle font-data text-base font-semibold text-[var(--cb-ember-text)]">
+              <td className="whitespace-nowrap bg-card py-3.5 pl-4 text-right align-middle font-data text-base font-semibold text-[var(--cb-ember-text)]">
                 {usd(totals.mid)}
               </td>
-              <td className="whitespace-nowrap py-3.5 pl-4 text-right align-middle font-data text-muted-foreground">
+              <td className="whitespace-nowrap bg-card py-3.5 pl-4 text-right align-middle font-data text-muted-foreground">
                 {totals.low != null && totals.high != null ? `${usd(totals.low)} – ${usd(totals.high)}` : "—"}
               </td>
-              <td colSpan={3} />
+              <td className="bg-card" colSpan={3} />
             </tr>
           </tfoot>
         </table>
@@ -304,6 +463,15 @@ export function PortfolioResultsTable({
 
       {/* ── Mobile: stacked cards, no side-scroll ───────────────────────── */}
       <ul className="flex flex-col gap-2.5 sm:hidden" aria-label="Portfolio results">
+        {rows.length === 0 ? (
+          <li className="rounded-xl border border-dashed border-border bg-background/40 px-4 py-6 text-center text-sm text-muted-foreground">
+            {filter === "high"
+              ? "No high-confidence properties yet."
+              : filter === "review"
+                ? "Nothing needs review."
+                : "No properties."}
+          </li>
+        ) : null}
         {rows.map((it) => {
           const href = studioHref(it);
           const busy = it.status === "pending" || it.status === "running";
@@ -325,6 +493,11 @@ export function PortfolioResultsTable({
                 {failed && it.error ? (
                   <span className="truncate text-xs text-muted-foreground">{it.error}</span>
                 ) : null}
+                {!busy && !failed && it.low != null && it.high != null ? (
+                  <span className="font-data text-[11px] text-muted-foreground">
+                    {usdCompact(it.low)} – {usdCompact(it.high)}
+                  </span>
+                ) : null}
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">
                 {busy ? (
@@ -343,7 +516,7 @@ export function PortfolioResultsTable({
             </>
           );
           const cardCls =
-            "flex items-center justify-between gap-3 rounded-xl border border-border bg-card/70 px-4 py-3";
+            "flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3";
           return (
             <li key={it.id}>
               {href ? (
