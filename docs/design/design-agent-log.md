@@ -122,3 +122,22 @@ Roadmap status: utility-roadmap-2026-07-16.md near-free pack + pricing pack +
 market heat + reality check ALL SHIPPED. Remaining: saved reports (retention
 hook), retention platform (cron+Resend), share links, interactive pricing rail,
 buyer/investor expansion.
+
+## 2026-07-16 — Signed-in /home portal + login-destination flip (live-verified 10/10)
+
+Login now defaults to /home (the signed-in hub) instead of dropping users straight
+into /comps. safeAuthRedirect fallback /comps->/home + /home allowlisted + edge-
+gated (proxy). INTENT-AWARE: ?address=/?parcelId=/?intent= still ride through to
+/comps -> priced report (magic moment intact) — proven live (deep-link did NOT
+bounce to /home). Shared AppHeader (Home · Comp Studio · Portfolio + account menu,
+wordmark->/home) extracted from the duplicated comps/portfolio headers; 'Home'
+first in the account dropdown. /home (src/app/home/page.tsx, force-dynamic):
+autofocused address search, tool launcher (Comp Studio, Portfolio Pro-gated w/
+inline upgrade for FREE, Account, 'soon' Saved Reports + Market Reports), recents
+w/ tuned badges + first-run empty state, live market snapshot w/ heat, account
+strip (monthly usage + Upgrade CTA). New home/ components: portal-search,
+tool-launcher, portal-recents, market-snapshot, upgrade-button. Verified via a REAL
+no-redirect signup landing on /home?signedup=1. Phase 2 slots ready: wire Saved
+Reports card when the server-side saved-reports big-bet lands; Market Reports card
+when /markets becomes a real route. NOTE: zach@gravitygroup.us is now a REAL user
+account on the live DB (do not delete in cleanup passes).
