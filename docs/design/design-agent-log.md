@@ -73,3 +73,20 @@ NEXT UP (from the audit roadmap — do these before inventing new work): the
 medium items in uiux-audit-2026-07-15.md (queued #7 demo intent BOTH layers,
 address-first hero, #4+#2 conversion pass, #1 dark-band rhythm system, report
 hierarchy pass, tuning persistence, waitlist capture).
+
+## 2026-07-16 — Medium roadmap batch (7 items, 4 parallel implementers, 16/17 live checks)
+
+All 7 mediums from uiux-audit-2026-07-15.md shipped + live-verified (FREE-phase
+11/12 + Pro-phase 5/5; the one miss is by-design: section numerals only exist on
+the unlocked layout). Highlights: intent plumbing (demo/address/parcelId/intent
+survive the auth wall; shared withAuthRedirectParam), address-first hero,
+$0/$20 pricing beat, true deep-ink .cb-dark rhythm (ONE dark band per page),
+Pro-card featured emphasis, sticky report toolbar + numbered sections + SUBJECT
+row + comps CSV, ONE locked evidence band (ProPitchBanner removed), tuning
+persistence (cb-tuning:<parcel_id>, LRU 50) + tuned recents badges, ?intent=pro
+finish-upgrading banner, waitlist endpoint (/data/waitlist.jsonl) + no-results
+capture UI, portfolio same-tab links + back chip. Queued proposals #1 #2 #4 #5
+#7 are now SHIPPED (marked in proposals.md); remaining open: #3 (Reveal SSR),
+#6 (/pricing copy echo), #8 (social proof — needs real material), #9 (accuracy
+figure — user/legal decision). NEXT: the audit's four BIG BETS (saved reports,
+/markets route, interactive pricing rail, client share path).

@@ -61,13 +61,13 @@ Compbird's analysis core is genuinely ahead of genre — live comp tuning, what-
 - [x] FirstRun 'Start pricing' moves focus into the search combobox on dismiss
 
 ### Medium (1-2 focused sessions each)
-- [ ] Queued #7 done right (BOTH layers): proxy.ts forwards the original query, the shared sanitizer accepts ?demo=1, and the FirstRun overlay is suppressed when demo intent survives — the only queued item that repairs a funnel break; top queued priority
-- [ ] Address-first hero: an address input on the landing (public typeahead exists) that carries ?address= through join and auto-prices the visitor's own listing as their first authenticated screen; plus ?intent=pro carry-through from the pricing Pro card to a one-click 'Finish upgrading' banner
-- [ ] Queued #4 + #2 as one conversion pass: collapse the three LockedPanels into one locked evidence band with a single unlock CTA; Pro-card emphasis with differentiated CTA copy; add the $0/$20 beat before FinalCTA
-- [ ] Queued #1 as a rhythm system, not a border patch: one true deep-ink instrument band per page (the --cb-ink tokens exist), --cb-tint elsewhere, fill the bento lead tile with AerialMap/comp evidence, crop the glow ring behind panels, retune how-it-works spacing
-- [ ] Report hierarchy pass: sticky toolbar (address · estimate · PDF · jump chips), collapse the what-if editor by default (auto-expand when overrides active), numbered sections, Subject row pinned atop the comps table, price+match in map pin tooltips, comps CSV via portfolio's csv.ts
-- [ ] Persist tuning to localStorage keyed by parcel_id, rehydrate on recents re-pick, badge tuned recents — the pre-server half of the return loop
-- [ ] Rebuild the waitlist capture behind the no-results panel and portfolio same-tab navigation with 'Back to portfolio run' breadcrumb (subsumes queued #5)
+- [x] Queued #7 done right (BOTH layers): proxy.ts forwards the original query, the shared sanitizer accepts ?demo=1, and the FirstRun overlay is suppressed when demo intent survives — the only queued item that repairs a funnel break; top queued priority
+- [x] Address-first hero: an address input on the landing (public typeahead exists) that carries ?address= through join and auto-prices the visitor's own listing as their first authenticated screen; plus ?intent=pro carry-through from the pricing Pro card to a one-click 'Finish upgrading' banner
+- [x] Queued #4 + #2 as one conversion pass: collapse the three LockedPanels into one locked evidence band with a single unlock CTA; Pro-card emphasis with differentiated CTA copy; add the $0/$20 beat before FinalCTA
+- [x] Queued #1 as a rhythm system, not a border patch: one true deep-ink instrument band per page (the --cb-ink tokens exist), --cb-tint elsewhere, fill the bento lead tile with AerialMap/comp evidence, crop the glow ring behind panels, retune how-it-works spacing
+- [x] Report hierarchy pass: sticky toolbar (address · estimate · PDF · jump chips), collapse the what-if editor by default (auto-expand when overrides active), numbered sections, Subject row pinned atop the comps table, price+match in map pin tooltips, comps CSV via portfolio's csv.ts
+- [x] Persist tuning to localStorage keyed by parcel_id, rehydrate on recents re-pick, badge tuned recents — the pre-server half of the return loop
+- [x] Rebuild the waitlist capture behind the no-results panel and portfolio same-tab navigation with 'Back to portfolio run' breadcrumb (subsumes queued #5)
 
 ### Big bets
 - [ ] Saved Reports (server-side): a Report model per resolve + PDF render, a 'Reports' list on /account with re-open and re-download — converts compbird from calculator to document tool, matches the agent mental model ('a CMA I make, keep, and send'), and is THE weekly-retention hook for $20/mo; PortfolioRun already establishes the exact pattern
