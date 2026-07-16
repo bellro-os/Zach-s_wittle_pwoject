@@ -87,6 +87,68 @@ export interface SimilaritySummary {
   low: number | null;
 }
 
+/* ── Pricing surface (CMA_PRICING_SURFACE=1) ───────────────────────────────── */
+/**
+ * Engine-computed pricing-model surface. EVERY field here is OPTIONAL on the
+ * wire: the engine emits them only when CMA_PRICING_SURFACE=1 is set on the
+ * compbird worker, so older engines, the static sample, and un-flagged
+ * deployments simply never send them and the UI stays a graceful no-op.
+ */
+
+/**
+ * The dict the engine's confidence_signals() computes (build_cma.py:1597) —
+ * previously reduced to the tier string, now serialized as-is. Key names match
+ * the engine verbatim. Everything nullable/optional: render defensively from
+ * whichever keys exist.
+ */
+export interface ConfidenceSignalsWire {
+  tier?: "high" | "standard" | null;
+  count?: number | null;
+  nearest_mi?: number | null;
+  farthest_mi?: number | null;
+  /** Engine-vs-blind-AI arm agreement |engine − blind| / ensemble, percent. */
+  agreement_pct?: number | null;
+  /** Method spread (max − min) / mid, percent. */
+  spread_pct?: number | null;
+  /** True when the agreement gate (not the distance/spread gate) governed. */
+  ensemble_arm?: boolean | null;
+}
+
+/** One pricing-strategy point: price + modeled DOM quantiles + cut odds. */
+export interface PricingBand {
+  key: "sell_fast" | "market" | "maximize";
+  price: number;
+  /** DOM quantiles from the engine's dom_model predicted AT this price. */
+  dom_q25: number;
+  dom_q50: number;
+  dom_q75: number;
+  /** price_cut_model probability of a price cut at this price, 0–1. */
+  cut_probability: number;
+}
+
+/** dom_model.recommend_price_for_target_dom — "price to sell by a date". */
+export interface PricingTargetDom {
+  days: number;
+  price: number;
+}
+
+/** The `pricing` object a profile/preview response may carry. */
+export interface PricingSurface {
+  /** Exactly three bands (sell_fast/market/maximize) when present. */
+  bands?: PricingBand[];
+  /** 30/45/60-day price recommendations. */
+  target_dom?: PricingTargetDom[];
+}
+
+/**
+ * Active-listing model read — ONLY when the subject is an active listing with
+ * a list_price (both models evaluated AT that list price).
+ */
+export interface ActiveListingModel {
+  expected_dom_q50: number;
+  cut_probability: number;
+}
+
 /* ── Evidence-paywall teaser (survives redaction) ──────────────────────────── */
 /**
  * Comp teaser computed server-side BEFORE comps are stripped for a non-Pro
@@ -126,6 +188,10 @@ export interface ProfileFacts {
   lat: number | null;
   lng: number | null;
   list_price: number | null;
+  /** Days on market for an ACTIVE subject, when the feed carries it. */
+  feed_dom?: number | null;
+  /** Active-listing model read — some engine builds attach it to the facts. */
+  active_model?: ActiveListingModel | null;
 }
 
 export interface ValuationMethod {
@@ -160,6 +226,12 @@ export interface Valuation {
    * the client-side gates). Survives redaction (redact.ts spreads valuation).
    */
   confidence_tier?: "high" | "standard" | null;
+  /**
+   * The full signals dict the tier was computed from (CMA_PRICING_SURFACE=1
+   * engines) — drives the one-line confidence evidence sentence. Optional:
+   * older engines send only the tier string.
+   */
+  confidence_signals?: ConfidenceSignalsWire | null;
 }
 
 export interface ProfileComp extends CompSimilarity {
@@ -167,6 +239,8 @@ export interface ProfileComp extends CompSimilarity {
   city: string | null;
   subdivision: string | null;
   sold_price: number | null;
+  /** Original list price when the wire carries it — the sold-vs-ask chip. */
+  original_list_price?: number | null;
   ppsf: number | null;
   sqft: number | null;
   acres: number | null;
@@ -234,6 +308,19 @@ export interface ProfileResult {
    * on the subject. Only present under CMA_COMP_SCORE_SURFACE=1.
    */
   similarity_summary?: SimilaritySummary | null;
+  /**
+   * Pricing-model surface (CMA_PRICING_SURFACE=1) — strategy bands + target-DOM
+   * points. Stripped by redact.ts for non-Pro callers (model outputs are
+   * evidence), so its absence keeps the pricing panel on today's exact path.
+   */
+  pricing?: PricingSurface | null;
+  /**
+   * Active-listing model read. The wire contract names it `subject.active_model`;
+   * the app also accepts it top-level (the tuned-recompute merge writes it
+   * here) or on `facts` — report-view reads all three defensively.
+   */
+  active_model?: ActiveListingModel | null;
+  subject?: { active_model?: ActiveListingModel | null } | null;
   /**
    * Evidence paywall (server-side redaction — src/lib/compbird/redact.ts).
    * `locked: true` means comps/marketContext/saleHistory/methods were stripped
@@ -327,6 +414,11 @@ export interface PreviewSubject {
    * SUBJECT dict (build_cma.py). Only present under CMA_COMP_SCORE_SURFACE=1.
    */
   similarity_summary?: SimilaritySummary | null;
+  /**
+   * Active-listing model read (CMA_PRICING_SURFACE=1) — ONLY when the subject
+   * is an active listing with a list_price, evaluated AT that price.
+   */
+  active_model?: ActiveListingModel | null;
 }
 
 /** One reconciliation method in the preview valuation (PREVIEW_RUNNER → `out_valuation`). */
@@ -351,6 +443,8 @@ export interface PreviewValuation {
   ai_ensemble?: boolean;
   /** Engine-computed measured tier — same authoritative contract as `Valuation.confidence_tier`. */
   confidence_tier?: "high" | "standard" | null;
+  /** Full confidence-signals dict — same optional contract as `Valuation.confidence_signals`. */
+  confidence_signals?: ConfidenceSignalsWire | null;
 }
 
 export interface PreviewResult {
@@ -358,6 +452,8 @@ export interface PreviewResult {
   subject?: PreviewSubject;
   comps?: PreviewComp[];
   valuation?: PreviewValuation;
+  /** Pricing-model surface — same optional contract as `ProfileResult.pricing`. */
+  pricing?: PricingSurface | null;
   elapsed_seconds?: number;
   /** Evidence paywall — same server-side redaction contract as ProfileResult. */
   locked?: boolean;
@@ -380,6 +476,16 @@ export interface NeighborhoodMarket {
   trend: number[];
   /** Headline takeaway for the card. */
   note: string;
+  /* ── Heat additions (compbird-only /markets fields; no engine flag) ──
+     All optional: older engines omit them and the card's heat row hides. */
+  /** Median sold/list ratio (e.g. 0.984). */
+  sold_to_list?: number;
+  /** Share of solds closing at-or-above ask, 0–1. */
+  pct_over_ask?: number;
+  /** Share of solds that had a price cut before closing, 0–1. */
+  cut_share?: number;
+  /** Composite market-heat score, 0–100 (formula documented engine-side). */
+  heat?: number;
 }
 
 export interface MarketsResponse {

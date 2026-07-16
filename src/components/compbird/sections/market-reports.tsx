@@ -154,11 +154,69 @@ function MarketCard({ market: m }: { market: NeighborhoodMarket }) {
         <Figure label="Active" value={num(m.activeCount)} />
       </dl>
 
+      {/* market heat — engine-computed heat additions (sold-to-list, over-ask
+          and cut shares, composite 0–100 score). All optional on the wire:
+          older engines omit them and this row simply never renders. */}
+      {m.heat != null || m.pct_over_ask != null || m.cut_share != null ? (
+        <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border pt-4">
+          {m.heat != null ? <HeatChip heat={m.heat} /> : null}
+          {m.pct_over_ask != null || m.cut_share != null ? (
+            <span
+              className="font-data text-xs text-muted-foreground"
+              title={
+                m.sold_to_list != null
+                  ? `Median sold-to-list ratio ${(m.sold_to_list * 100).toFixed(1)}%`
+                  : undefined
+              }
+            >
+              {[
+                m.pct_over_ask != null
+                  ? `${Math.round(m.pct_over_ask * 100)}% closed over ask`
+                  : null,
+                m.cut_share != null ? `${Math.round(m.cut_share * 100)}% took a cut` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
       {/* takeaway */}
       <p className="mt-6 border-t border-border pt-4 text-sm leading-relaxed text-muted-foreground">
         {m.note}
       </p>
     </SpotlightCard>
+  );
+}
+
+/**
+ * Compact market-heat chip: the 0–100 composite score with a tinted scale —
+ * cool (info blue) under 34, neutral through 66, hot (ember) from 67 — plus a
+ * hairline meter. Text carries the number, so the tint is never the only signal.
+ */
+function HeatChip({ heat }: { heat: number }) {
+  const h = Math.max(0, Math.min(100, Math.round(heat)));
+  const tone =
+    h >= 67
+      ? "border-[var(--cb-ember)]/30 bg-[var(--cb-tint)] text-[var(--cb-ember-text)]"
+      : h < 34
+        ? "border-[var(--info)]/30 bg-[var(--info-tint)] text-[var(--info-foreground)]"
+        : "border-border bg-secondary/60 text-muted-foreground";
+  return (
+    <span
+      title="Market heat, 0–100 — an engine-side composite of pace (days on market), supply (months of inventory), over-ask share, and price-cut share."
+      className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.12em] ${tone}`}
+    >
+      Heat
+      <span className="font-data text-xs normal-case tracking-normal">{h}</span>
+      <span className="block h-1 w-10 overflow-hidden rounded-full bg-border/60" aria-hidden>
+        <span
+          className="block h-full rounded-full bg-current opacity-70"
+          style={{ width: `${h}%` }}
+        />
+      </span>
+    </span>
   );
 }
 

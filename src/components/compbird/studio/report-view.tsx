@@ -29,9 +29,11 @@ import {
   CompsTable,
   compKey,
   retainExcludedComps,
+  medianSoldVsAskPct,
   type CachedComp,
   type CompsTableSubject,
 } from "./comps-table";
+import { EquitySnapshot } from "./equity-snapshot";
 import { AddCompSearch } from "./add-comp-search";
 import { PpsfBars } from "./ppsf-bars";
 import { LiveAnalytics, hasAnalytics } from "./live-analytics";
@@ -463,6 +465,18 @@ export function ReportView({
   const points = useMemo(() => mapPoints(profile), [profile]);
   // Built once per profile — rendered in the panel AND read by the Copy button.
   const summary = useMemo(() => dossierSummary(profile, nearestMi), [profile, nearestMi]);
+  // Set-level sold-vs-ask read — null when no comp carries an original list
+  // price (older engines / public-records sets), which hides the line.
+  const soldVsAskLine = useMemo(() => {
+    const med = medianSoldVsAskPct(comps);
+    if (med == null) return null;
+    if (Math.abs(med) < 0.05) return "Median comp settled at list price.";
+    return `Median comp settled ${Math.abs(med).toFixed(1)}% ${med < 0 ? "under" : "over"} list.`;
+  }, [comps]);
+  // Active-listing model read — the wire contract names it subject.active_model;
+  // accepted from the tuned-merge top-level carrier or the facts (see types.ts).
+  const activeModel =
+    profile.active_model ?? profile.subject?.active_model ?? profile.facts?.active_model ?? null;
   // Honest freshness stamp — newest comp close_date (falls back to meta.as_of),
   // memoized so the DataFreshness line is stable across tuning re-renders.
   const freshness = useMemo(() => readFreshness(profile), [profile]);
@@ -690,6 +704,8 @@ export function ReportView({
               estimateMid={valuation?.mid ?? null}
               valuation={valuation ?? null}
               marketContext={marketContext ?? null}
+              pricing={profile.pricing ?? null}
+              activeModel={activeModel}
               canEdit={false}
             />
             {canEdit ? (
@@ -796,6 +812,12 @@ export function ReportView({
                 </button>
               </div>
             ) : null}
+
+            {/* equity snapshot — prior sale vs today's estimate. Presence-
+                gated: saleHistory is stripped by redaction (verified in
+                redact.ts), so this is an unlocked-report card by construction
+                and a silent no-op on the sample (empty history). */}
+            <EquitySnapshot saleHistory={saleHistory} estimateMid={valuation?.mid ?? null} />
 
             {/* honest provenance — sits right under the value it describes */}
             <DataFreshness freshness={freshness} sample={isSample} />
@@ -920,6 +942,14 @@ export function ReportView({
                 </div>
               }
             />
+            {/* set-level sold-vs-ask read — the negotiation headline the
+                per-comp chips add up to. Hidden when no comp carries an
+                original list price. */}
+            {soldVsAskLine ? (
+              <span className="-mt-2 font-data text-xs text-muted-foreground">
+                {soldVsAskLine}
+              </span>
+            ) : null}
             {onToggleComp ? (
               <span className="-mt-2 text-xs text-muted-foreground">
                 {excludedCount > 0

@@ -44,6 +44,69 @@ function baths(n: number | null): string {
   return n % 1 === 0 ? String(n) : n.toFixed(1);
 }
 
+/* ── Sold-vs-ask (original_list_price vs sold_price — both already on the wire) ──
+ *
+ * Per-comp chip under the Sold figure ("sold 3.1% under ask") plus a set-level
+ * median line in the comps section header (report-view). Pure helpers so both
+ * render from one computation and unit-test in plain Node. A comp without an
+ * original_list_price simply carries no chip — public-records sales don't
+ * report a list price.
+ */
+
+/** Signed sold-vs-ask percent + the chip's exact copy; null when uncomputable. */
+export function soldVsAsk(
+  sold: number | null | undefined,
+  originalList: number | null | undefined,
+): { pct: number; label: string } | null {
+  if (
+    sold == null ||
+    originalList == null ||
+    !Number.isFinite(sold) ||
+    !Number.isFinite(originalList) ||
+    sold <= 0 ||
+    originalList <= 0
+  ) {
+    return null;
+  }
+  const pct = ((sold - originalList) / originalList) * 100;
+  if (Math.abs(pct) < 0.05) return { pct: 0, label: "sold at ask" };
+  return { pct, label: `sold ${Math.abs(pct).toFixed(1)}% ${pct < 0 ? "under" : "over"} ask` };
+}
+
+/** Median sold-vs-ask percent across the comps that carry both figures. */
+export function medianSoldVsAskPct(
+  comps: Array<Pick<ProfileComp, "sold_price" | "original_list_price">>,
+): number | null {
+  const pcts = comps
+    .map((c) => soldVsAsk(c.sold_price, c.original_list_price)?.pct)
+    .filter((p): p is number => typeof p === "number")
+    .sort((a, b) => a - b);
+  if (!pcts.length) return null;
+  const mid = Math.floor(pcts.length / 2);
+  return pcts.length % 2 ? pcts[mid] : (pcts[mid - 1] + pcts[mid]) / 2;
+}
+
+/** Muted red/green tinting for a sold-vs-ask figure — token-consistent, never loud. */
+function askToneClass(pct: number): string {
+  if (pct < 0) return "text-[var(--negative-foreground)]/80";
+  if (pct > 0) return "text-[var(--positive-foreground)]/90";
+  return "text-muted-foreground";
+}
+
+/**
+ * Condition-tier labels for the 0–5 LFD-appearance scale — the SAME wording the
+ * generated PDF prints (build_cma.py `_comp_row`: "cond: renovated (+4%)").
+ * A tier outside 0–5 (or null) renders no badge.
+ */
+export const CONDITION_TIER_LABELS: Record<number, string> = {
+  5: "New-build",
+  4: "Renovated",
+  3: "Good",
+  2: "Average",
+  1: "Fair",
+  0: "Needs work",
+};
+
 /**
  * Stable identity for a comp across preview recomputes. `ProfileComp` carries no
  * parcel id, so the address is the key — it is the same token the studio sends
@@ -445,6 +508,9 @@ export const CompsTable = memo(function CompsTable({
             const key = compKey(c);
             const isExcluded = excludedSet.has(key);
             const isForced = forcedSet.has(key);
+            const ask = soldVsAsk(c.sold_price, c.original_list_price);
+            const conditionLabel =
+              c.appearance_tier != null ? CONDITION_TIER_LABELS[c.appearance_tier] : undefined;
             return (
               <tr
                 key={`${key}-${i}`}
@@ -520,6 +586,18 @@ export const CompsTable = memo(function CompsTable({
                         Pending
                       </Pill>
                     ) : null}
+                    {conditionLabel ? (
+                      // Condition badge — PDF-parity tier word ("cond: renovated"
+                      // in the report), so the screen and the download agree.
+                      <span
+                        className="shrink-0"
+                        title={`Condition ${c.appearance_tier} of 5 from the listing's appearance record — comps are condition-adjusted toward the subject.`}
+                      >
+                        <Pill tone="neutral" className="shrink-0">
+                          {conditionLabel}
+                        </Pill>
+                      </span>
+                    ) : null}
                   </div>
                   {c.subdivision || c.cohort ? (
                     <span
@@ -527,6 +605,13 @@ export const CompsTable = memo(function CompsTable({
                       title={c.cohort ? `Comp cohort: ${c.cohort}` : undefined}
                     >
                       {c.subdivision ?? c.cohort}
+                    </span>
+                  ) : null}
+                  {c.hygiene_note ? (
+                    // AI-hygiene annotation — the same note the PDF prints
+                    // (e.g. "renovated, +4%"), muted so it reads as provenance.
+                    <span className="block text-xs italic leading-snug text-muted-foreground/90">
+                      {c.hygiene_note}
                     </span>
                   ) : null}
                 </td>
@@ -547,6 +632,15 @@ export const CompsTable = memo(function CompsTable({
                   }`}
                 >
                   {usd(c.sold_price)}
+                  {ask ? (
+                    // Sold-vs-ask chip — omitted when original_list_price is
+                    // absent (public-records comps carry no list price).
+                    <span
+                      className={`mt-0.5 block text-[0.65rem] font-medium leading-tight ${askToneClass(ask.pct)}`}
+                    >
+                      {ask.label}
+                    </span>
+                  ) : null}
                 </td>
                 <td className="whitespace-nowrap py-3 pl-4 text-right align-middle font-data text-foreground">
                   {ppsf(c.ppsf)}

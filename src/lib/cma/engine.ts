@@ -571,6 +571,16 @@ export interface EngineMarket {
   activeCount: number;
   trend: number[];
   note: string;
+  /* Heat additions (compbird-only /markets fields) — optional so an older
+     build_markets() that doesn't compute them still type-checks/parses. */
+  /** Median sold/list ratio (e.g. 0.984). */
+  sold_to_list?: number;
+  /** Share of solds closing at-or-above ask, 0–1. */
+  pct_over_ask?: number;
+  /** Share of solds that had a price cut before closing, 0–1. */
+  cut_share?: number;
+  /** Composite market-heat score, 0–100 (formula documented engine-side). */
+  heat?: number;
 }
 
 /**

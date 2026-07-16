@@ -1,6 +1,12 @@
 "use client";
 
-import type { ProfileFacts, Valuation, MarketContext } from "@/lib/compbird/types";
+import type {
+  ProfileFacts,
+  Valuation,
+  MarketContext,
+  PricingSurface,
+  ActiveListingModel,
+} from "@/lib/compbird/types";
 import type { SubjectOverrides } from "@/lib/cma/overrides";
 import { SubjectHeader } from "./subject-header";
 import { SubjectFactsEditor } from "./subject-facts-editor";
@@ -29,6 +35,8 @@ export function SubjectCard({
   estimateMid,
   valuation,
   marketContext,
+  pricing = null,
+  activeModel = null,
   canEdit,
   overrides,
   onOverridesChange,
@@ -40,6 +48,10 @@ export function SubjectCard({
   valuation: Valuation | null;
   /** Neighborhood market context — drives the pace/DOM model (null when redacted). */
   marketContext: MarketContext | null;
+  /** Engine pricing-model surface — the pricing panel's model path (optional wire). */
+  pricing?: PricingSurface | null;
+  /** Engine active-listing model read — the header's Pro reality-check line. */
+  activeModel?: ActiveListingModel | null;
   /** Live Pro report — mount the what-if subject editor. */
   canEdit: boolean;
   /** Current what-if overrides (only read when canEdit). */
@@ -49,7 +61,7 @@ export function SubjectCard({
 }) {
   return (
     <div className="flex flex-col gap-6">
-      <SubjectHeader facts={facts} estimateMid={estimateMid} />
+      <SubjectHeader facts={facts} estimateMid={estimateMid} activeModel={activeModel} />
 
       {/* what-if subject edits live WITH the facts they correct — live Pro only */}
       {canEdit && onOverridesChange ? (
@@ -65,6 +77,7 @@ export function SubjectCard({
       <PricingStrategy
         valuation={valuation}
         marketContext={marketContext}
+        pricing={pricing}
         areaName={facts.subdivision ?? facts.city}
         areaCounty={facts.county}
       />

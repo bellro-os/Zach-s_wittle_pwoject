@@ -1,11 +1,21 @@
 import { memo } from "react";
 import { Pill } from "@/components/compbird/ui";
-import { bedsBaths, sqft, acres, titleCase, propertyTypeLabel } from "@/lib/compbird/format";
-import type { ProfileFacts } from "@/lib/compbird/types";
+import { usd, num, bedsBaths, sqft, acres, titleCase, propertyTypeLabel } from "@/lib/compbird/format";
+import type { ProfileFacts, ActiveListingModel } from "@/lib/compbird/types";
 
 /**
  * Subject identity block: the address as the headline, a row of dense facts, a
  * status pill, and the parcel id set in mono — the masthead of the dossier.
+ *
+ * ACTIVE-LISTING REALITY CHECK: when the subject is itself an active listing
+ * with a list price, an instrument callout under the facts row reads the gap
+ * between the ask and the estimate ("Listed $475,000 — 7.2% above the
+ * estimate") — free-tier included, since facts + the estimate survive
+ * redaction. When the engine's active-listing model rode the wire
+ * (CMA_PRICING_SURFACE=1; redact.ts strips it for non-Pro viewers), a second
+ * line adds the model's read at that price ("43 days on market; model
+ * expected ~19 at this price · 68% cut probability"). Neutral framing on
+ * purpose — a reality check, never an alarm.
  */
 
 function statusTone(status: string | null): "ember" | "positive" | "neutral" {
@@ -15,6 +25,12 @@ function statusTone(status: string | null): "ember" | "positive" | "neutral" {
   return "neutral";
 }
 
+/** The subject reads as an on-market listing (same predicate as its status pill). */
+function isActiveListing(status: string | null): boolean {
+  const s = (status ?? "").toLowerCase();
+  return s.includes("active") || s.includes("list");
+}
+
 function Fact({ children }: { children: React.ReactNode }) {
   return <span className="font-data text-foreground">{children}</span>;
 }
@@ -22,10 +38,16 @@ function Fact({ children }: { children: React.ReactNode }) {
 function SubjectHeaderImpl({
   facts,
   estimateMid = null,
+  activeModel = null,
 }: {
   facts: ProfileFacts;
   /** Valuation mid, so the assessed line can show the honest delta. */
   estimateMid?: number | null;
+  /**
+   * Engine active-listing model read (subject.active_model) — Pro wire only
+   * (redacted for FREE); absent ⇒ the callout keeps just the delta line.
+   */
+  activeModel?: ActiveListingModel | null;
 }) {
   const factParts: React.ReactNode[] = [];
   const bb = bedsBaths(facts.beds, facts.full_baths, facts.half_baths);
@@ -76,6 +98,46 @@ function SubjectHeaderImpl({
           </span>
         ))}
       </div>
+
+      {/* active-listing reality check — ask vs estimate, plus the Pro model read */}
+      {(() => {
+        if (!isActiveListing(facts.status)) return null;
+        const list = facts.list_price;
+        if (list == null || !Number.isFinite(list) || list <= 0) return null;
+        if (estimateMid == null || !Number.isFinite(estimateMid) || estimateMid <= 0) return null;
+        const deltaPct = ((list - estimateMid) / estimateMid) * 100;
+        const deltaClause =
+          Math.abs(deltaPct) < 0.05
+            ? "at the estimate"
+            : `${Math.abs(deltaPct).toFixed(1)}% ${deltaPct > 0 ? "above" : "below"} the estimate`;
+        const model =
+          activeModel != null && Number.isFinite(activeModel.expected_dom_q50)
+            ? activeModel
+            : null;
+        const feedDom =
+          facts.feed_dom != null && Number.isFinite(facts.feed_dom) && facts.feed_dom >= 0
+            ? facts.feed_dom
+            : null;
+        return (
+          <div className="flex flex-col gap-1 rounded-lg border border-border bg-secondary/40 px-3 py-2 text-xs">
+            <span>
+              <span className="font-medium text-foreground">Listed {usd(list)}</span>{" "}
+              <span className="font-data text-muted-foreground">— {deltaClause}</span>
+            </span>
+            {model ? (
+              <span className="font-data text-muted-foreground">
+                {feedDom != null ? `${num(feedDom)} days on market; ` : ""}
+                model expected ~{num(model.expected_dom_q50)} at this price
+                {typeof model.cut_probability === "number" &&
+                model.cut_probability >= 0 &&
+                model.cut_probability <= 1
+                  ? ` · ${Math.round(model.cut_probability * 100)}% cut probability`
+                  : ""}
+              </span>
+            ) : null}
+          </div>
+        );
+      })()}
 
       <div className="flex flex-wrap items-center gap-x-6 gap-y-1 pt-1 text-xs text-muted-foreground">
         <span>

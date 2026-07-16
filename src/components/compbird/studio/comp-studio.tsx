@@ -110,6 +110,9 @@ function previewCompToProfile(
     city: c.city,
     subdivision: c.subdivision,
     sold_price: c.sold_price,
+    // Sold-vs-ask evidence — the wire carries it; the comps table's ask chip
+    // must survive a tuned recompute like every other per-comp figure.
+    original_list_price: c.original_list_price,
     ppsf: compPpsf(c.sold_price, c.sqft),
     sqft: c.sqft,
     acres: c.acres,
@@ -163,6 +166,9 @@ function previewValuationToProfile(v: PreviewValuation): Valuation {
     // here would silently demote the studio to the client-side fallback on
     // every tuned recompute.
     confidence_tier: v.confidence_tier ?? null,
+    // Full signals dict (CMA_PRICING_SURFACE=1) — keeps the one-line evidence
+    // sentence current across tuned recomputes. Optional contract as above.
+    confidence_signals: v.confidence_signals ?? null,
   };
 }
 
@@ -577,6 +583,11 @@ export function CompStudio() {
               ...base,
               comps: mergedComps,
               valuation: mergedValuation,
+              // Pricing-model surface + active-listing read track the RECOMPUTED
+              // valuation (both are evaluated against it engine-side) — never
+              // the stale base copy. Absent on the wire ⇒ absent on screen.
+              pricing: result.pricing ?? null,
+              active_model: result.subject?.active_model ?? null,
               // Carry the engine's authoritative record→adjusted diff so the
               // on-screen report renders the SAME non-suppressible disclosure as
               // the PDF (null when no subject override was applied).

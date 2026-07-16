@@ -29,6 +29,8 @@
  * and ≤0.5-mi gates still apply before "high" is possible.
  */
 
+import type { ConfidenceSignalsWire } from "./types";
+
 export type ConfidenceTier = "high" | "standard";
 
 export interface ConfidenceResult {
@@ -284,6 +286,44 @@ export function computeConfidenceFromSignals(s: ConfidenceSignals): ConfidenceRe
     agreementPct,
     caution,
   };
+}
+
+/**
+ * One evidence sentence from the ENGINE's own confidence-signals dict
+ * (valuation.confidence_signals, CMA_PRICING_SURFACE=1 — see
+ * ConfidenceSignalsWire in types.ts): "HIGH — 6 comps, nearest 0.2 mi,
+ * independent AI within 4%." Built DEFENSIVELY from whichever keys exist;
+ * null when nothing usable was shipped (the caller then keeps today's
+ * client-computed facts line). Pure so it unit-tests in plain Node.
+ */
+export function confidenceEvidenceSentence(
+  signals: ConfidenceSignalsWire,
+  fallbackTier?: ConfidenceTier | null,
+): string | null {
+  const parts: string[] = [];
+  const count = signals.count;
+  if (isFiniteNum(count) && count > 0) {
+    parts.push(`${count} comp${count === 1 ? "" : "s"}`);
+  }
+  const nearest = signals.nearest_mi;
+  if (isFiniteNum(nearest) && nearest >= 0) {
+    parts.push(`nearest ${fmtMi(nearest)} mi`);
+  }
+  // Evidence clause: the blind-AI agreement when the engine measured one,
+  // else the method spread — mirroring which gate governed engine-side.
+  const agreement = signals.agreement_pct;
+  const spread = signals.spread_pct;
+  if (isFiniteNum(agreement) && agreement >= 0) {
+    parts.push(`independent AI within ${Math.max(1, Math.ceil(agreement))}%`);
+  } else if (isFiniteNum(spread) && spread >= 0) {
+    parts.push(`methods within ${Math.max(1, Math.ceil(spread))}%`);
+  }
+  if (!parts.length) return null;
+  const tier =
+    signals.tier === "high" || signals.tier === "standard"
+      ? signals.tier
+      : (fallbackTier ?? null);
+  return `${tier ? `${tier.toUpperCase()} — ` : ""}${parts.join(", ")}.`;
 }
 
 /**

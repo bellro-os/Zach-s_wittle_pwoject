@@ -9,6 +9,7 @@ import { usd, ppsf, stripTags } from "@/lib/compbird/format";
 import { cn } from "@/lib/utils/cn";
 import {
   computeConfidenceFromSignals,
+  confidenceEvidenceSentence,
   HIGH_MIN_COMPS,
   HIGH_ENS_MAX_NEAREST_MI,
   HIGH_ENS_MAX_FARTHEST_MI,
@@ -423,6 +424,16 @@ function ValuationPanelImpl({
     engineTier: valuation.confidence_tier ?? null,
   });
 
+  // ENGINE evidence sentence (valuation.confidence_signals — the full dict the
+  // tier was computed from, CMA_PRICING_SURFACE=1). When it exists it REPLACES
+  // the plain client-computed facts line under the badge ("HIGH — 6 comps,
+  // nearest 0.2 mi, independent AI within 4%."); the caution presentation
+  // keeps the facts line — its explicit thin-comp warning must never be traded
+  // for a terser sentence. Absent signals ⇒ today's line, unchanged.
+  const evidenceSentence = valuation.confidence_signals
+    ? confidenceEvidenceSentence(valuation.confidence_signals, conf.tier)
+    : null;
+
   // STANDARD tier flips the hero: the honest low–high RANGE takes the size the
   // mid holds on high-tier reports, and the mid demotes to "midpoint $X" in the
   // support row. Needs both ends — a range-less payload keeps the mid hero.
@@ -510,8 +521,16 @@ function ValuationPanelImpl({
           </div>
         ) : null}
 
-        {/* comp-evidence facts — always visible, caution copy when comps run thin */}
-        {hasMid ? <ConfidenceFactsLine confidence={conf} className="mt-2.5" /> : null}
+        {/* comp-evidence facts — always visible, caution copy when comps run
+            thin. The engine's own signals sentence stands in for the plain
+            line when shipped (never for the caution presentation). */}
+        {hasMid ? (
+          evidenceSentence && !conf.caution ? (
+            <p className="mt-2.5 font-data text-xs text-muted-foreground">{evidenceSentence}</p>
+          ) : (
+            <ConfidenceFactsLine confidence={conf} className="mt-2.5" />
+          )
+        ) : null}
 
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 font-data text-sm text-muted-foreground">
           {rangeHero ? (

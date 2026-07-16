@@ -28,6 +28,10 @@ interface EvidenceFields {
   valuation?: Record<string, unknown> | null;
   overrideDiff?: unknown;
   overrideValue?: unknown;
+  pricing?: unknown;
+  active_model?: unknown;
+  subject?: Record<string, unknown> | null;
+  facts?: Record<string, unknown> | null;
 }
 
 /**
@@ -89,6 +93,25 @@ export function redactEvidence<T extends object>(
 
   delete out.overrideDiff;
   delete out.overrideValue;
+
+  // Pricing-model surface (DOM/cut bands + target-DOM points) and the
+  // active-listing model read are Pro evidence (CMA_PRICING_SURFACE=1):
+  // a locked viewer keeps today's exact pricing panel (interval prices +
+  // "pace unavailable") and only the FREE list-vs-estimate delta line —
+  // never the model outputs. The subject/facts copies below strip only the
+  // model key, leaving every other subject field intact.
+  delete out.pricing;
+  delete out.active_model;
+  if (src.subject && typeof src.subject === "object") {
+    const subject = { ...src.subject };
+    delete subject.active_model;
+    out.subject = subject;
+  }
+  if (src.facts && typeof src.facts === "object" && "active_model" in src.facts) {
+    const facts = { ...src.facts };
+    delete facts.active_model;
+    out.facts = facts;
+  }
 
   out.locked = true;
   out.compsSummary = compsSummary;

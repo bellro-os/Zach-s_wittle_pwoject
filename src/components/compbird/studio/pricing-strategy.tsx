@@ -4,13 +4,19 @@ import { memo } from "react";
 
 import { Pill } from "@/components/compbird/ui";
 import { cn } from "@/lib/utils/cn";
-import { usd, num, placeLabel } from "@/lib/compbird/format";
+import { usd, usdCompact, num, placeLabel } from "@/lib/compbird/format";
 import {
   computePricingStrategy,
   type StrategyBand,
   type PricingStrategy as PricingStrategyModel,
 } from "@/lib/compbird/pricing-strategy";
-import type { Valuation, MarketContext } from "@/lib/compbird/types";
+import type {
+  Valuation,
+  MarketContext,
+  PricingSurface,
+  PricingBand,
+  PricingTargetDom,
+} from "@/lib/compbird/types";
 
 /**
  * ZONE 1 companion — replaces the old Street View tile (which was dead weight
@@ -18,15 +24,19 @@ import type { Valuation, MarketContext } from "@/lib/compbird/types";
  * question an agent actually works at the listing table: what does each list
  * price likely COST in time on market?
  *
- * All figures are honest by construction (see lib/compbird/pricing-strategy.ts):
- * the three prices ARE the engine's own confidence interval, and the days are a
- * documented, labeled MODEL anchored on the neighborhood's median pace — never
- * a promise, and never fabricated when the pace data is missing.
+ * TWO data postures, one panel:
  *
- * Renders on live Pro reports, the sample (its marketContext carries a
- * median_dom), AND locked reports — there marketContext is redacted to null, so
- * the price bands still render (valuation survives redaction) with a muted
- * "pace unavailable" fallback instead of invented days.
+ *   ENGINE MODEL (CMA_PRICING_SURFACE=1 — `pricing.bands` on the wire): the
+ *   three cards carry the engine's OWN dom_model quantiles (q25–q75 envelope,
+ *   q50 emphasized) and price_cut_model cut-probability per band, plus the
+ *   target-DOM "price to sell by a date" row and a derived overpricing-cost
+ *   sentence. The synthetic client-side elasticity is fully REPLACED here.
+ *
+ *   SYNTHETIC FALLBACK (bands absent — older engines, the sample, locked
+ *   reports where redact.ts strips `pricing`): exactly today's behavior — the
+ *   documented client-side elasticity model, honest by construction (see
+ *   lib/compbird/pricing-strategy.ts), degrading to "pace unavailable" when
+ *   the neighborhood pace is missing/redacted.
  */
 
 /** "~14–18 days" from a modeled range, or the muted no-data fallback. */
@@ -83,7 +93,352 @@ function RiskGlyph() {
   );
 }
 
-function PricingStrategyImpl({
+/* ── ENGINE-MODEL path (pricing.bands / pricing.target_dom on the wire) ────── */
+
+/** One engine band, validated + mapped onto the panel's display vocabulary. */
+interface ModelBand {
+  key: "fast" | "market" | "maximize";
+  label: string;
+  blurb: string;
+  price: number;
+  isAnchor: boolean;
+  domQ25: number | null;
+  domQ50: number | null;
+  domQ75: number | null;
+  /** price_cut_model probability 0–1; null when the wire value was unusable. */
+  cutProbability: number | null;
+}
+
+/** Wire key → display vocabulary (labels/blurbs match the synthetic cards). */
+const MODEL_BAND_META: Record<
+  PricingBand["key"],
+  { key: ModelBand["key"]; label: string; blurb: string }
+> = {
+  sell_fast: { key: "fast", label: "Sell fast", blurb: "Priced to move" },
+  market: { key: "market", label: "Market", blurb: "The estimate" },
+  maximize: { key: "maximize", label: "Maximize", blurb: "Test the ceiling" },
+};
+
+function finiteOrNull(n: unknown): number | null {
+  return typeof n === "number" && Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+/**
+ * Validate + map the wire bands. null unless at least one band survives — the
+ * caller then keeps the synthetic path EXACTLY as before. Defensive per field:
+ * a band with a bad price is dropped; bad quantiles/probability degrade to
+ * null on an otherwise-good band (prices still render).
+ */
+export function buildModelBands(pricing: PricingSurface | null | undefined): ModelBand[] | null {
+  const raw = pricing?.bands;
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  const out: ModelBand[] = [];
+  for (const b of raw) {
+    const meta = b && typeof b === "object" ? MODEL_BAND_META[b.key] : undefined;
+    if (!meta) continue;
+    if (typeof b.price !== "number" || !Number.isFinite(b.price) || b.price <= 0) continue;
+    if (out.some((existing) => existing.key === meta.key)) continue; // one card per key
+    const p = b.cut_probability;
+    out.push({
+      ...meta,
+      price: Math.round(b.price),
+      isAnchor: meta.key === "market",
+      domQ25: finiteOrNull(b.dom_q25),
+      domQ50: finiteOrNull(b.dom_q50),
+      domQ75: finiteOrNull(b.dom_q75),
+      cutProbability: typeof p === "number" && p >= 0 && p <= 1 ? p : null,
+    });
+  }
+  if (!out.length) return null;
+  out.sort((a, b) => a.price - b.price);
+  return out;
+}
+
+/** Validated target-DOM points ("price to sell by a date"), ascending by days. */
+export function buildTargetDom(pricing: PricingSurface | null | undefined): PricingTargetDom[] {
+  const raw = pricing?.target_dom;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter(
+      (t): t is PricingTargetDom =>
+        t != null &&
+        typeof t === "object" &&
+        typeof t.days === "number" &&
+        Number.isFinite(t.days) &&
+        t.days > 0 &&
+        typeof t.price === "number" &&
+        Number.isFinite(t.price) &&
+        t.price > 0,
+    )
+    .sort((a, b) => a.days - b.days);
+}
+
+/**
+ * The overpricing-cost readout: what listing at the ceiling (Maximize) costs
+ * vs Market, in days and cut risk — one derived sentence, null when either
+ * side is missing or the ceiling isn't above market.
+ */
+export function overpricingSentence(bands: ModelBand[]): string | null {
+  const market = bands.find((b) => b.key === "market");
+  const maximize = bands.find((b) => b.key === "maximize");
+  if (!market || !maximize) return null;
+  const dPrice = maximize.price - market.price;
+  if (dPrice <= 0) return null;
+  const clauses: string[] = [];
+  if (maximize.domQ50 != null && market.domQ50 != null && maximize.domQ50 > market.domQ50) {
+    clauses.push(`costs ~${Math.round(maximize.domQ50 - market.domQ50)} extra days`);
+  }
+  if (maximize.cutProbability != null && market.cutProbability != null) {
+    clauses.push(
+      `raises the chance of a price cut from ${Math.round(market.cutProbability * 100)}% to ${Math.round(maximize.cutProbability * 100)}%`,
+    );
+  }
+  if (!clauses.length) return null;
+  return `Listing +${usdCompact(dPrice)} above market ${clauses.join(" and ")}.`;
+}
+
+/** Rail position 0–1 for a price across the model bands' span. */
+function modelRailFraction(price: number, bands: ModelBand[]): number {
+  const min = bands[0].price;
+  const max = bands[bands.length - 1].price;
+  if (max <= min) return 0.5;
+  return (price - min) / (max - min);
+}
+
+/** Marker color for a model band — ember anchor, caution ceiling at ≥50% cut odds. */
+function modelMarkerColor(band: ModelBand): string {
+  if (band.isAnchor) return "var(--cb-ember)";
+  if (band.key === "maximize" && band.cutProbability != null && band.cutProbability >= 0.5)
+    return "var(--negative)";
+  return "var(--muted-foreground)";
+}
+
+/** "~19–34 days · typically 26" with q50 emphasized; degrades per known quantile. */
+function ModelDomLine({ band }: { band: ModelBand }) {
+  const { domQ25: q25, domQ50: q50, domQ75: q75 } = band;
+  if (q25 == null && q50 == null && q75 == null) {
+    return (
+      <span className="flex items-center gap-1.5 font-data text-xs italic text-muted-foreground/70">
+        <ClockGlyph />
+        pace unavailable
+      </span>
+    );
+  }
+  return (
+    <span className="flex items-center gap-1.5 font-data text-xs text-muted-foreground">
+      <ClockGlyph />
+      <span>
+        {q25 != null && q75 != null ? (
+          <>
+            ~{num(q25)}–{num(q75)} days
+            {q50 != null ? (
+              <>
+                {" "}
+                · typically <span className="font-medium text-foreground">{num(q50)}</span>
+              </>
+            ) : null}
+          </>
+        ) : (
+          <>~{num(q50 ?? q25 ?? q75)} days</>
+        )}
+      </span>
+    </span>
+  );
+}
+
+/** "24% chance of a price cut" + a subtle hairline gauge (instrument, not alarm). */
+function CutRiskGauge({ probability }: { probability: number }) {
+  const pct = Math.round(probability * 100);
+  const risky = probability >= 0.5;
+  return (
+    <span className="flex flex-col gap-1">
+      <span
+        className={cn(
+          "font-data text-xs",
+          risky ? "text-[var(--negative-foreground)]" : "text-muted-foreground",
+        )}
+      >
+        {pct}% chance of a price cut
+      </span>
+      <span className="block h-[3px] w-full overflow-hidden rounded-full bg-border/50" aria-hidden>
+        <span
+          className="block h-full rounded-full"
+          style={{
+            width: `${pct}%`,
+            backgroundColor: risky ? "var(--negative)" : "var(--muted-foreground)",
+          }}
+        />
+      </span>
+    </span>
+  );
+}
+
+/**
+ * The model-backed panel: same header idiom, rail, and three-card layout as
+ * the synthetic path, but every day/risk figure is the ENGINE's dom_model /
+ * price_cut_model output — no client-side elasticity anywhere on this path.
+ */
+function ModelPricingStrategy({
+  bands,
+  targets,
+  marketContext,
+  areaName,
+  areaCounty,
+}: {
+  bands: ModelBand[];
+  targets: PricingTargetDom[];
+  marketContext: MarketContext | null;
+  areaName?: string | null;
+  areaCounty?: string | null;
+}) {
+  const area = placeLabel(areaName, areaCounty) || "this area";
+  const overpricing = overpricingSentence(bands);
+
+  // Trend context pill — same derivation the synthetic header uses.
+  const trendDirection = marketContext?.ppsf_trend_direction ?? null;
+  const trendClause =
+    trendDirection === "up"
+      ? "prices trending up"
+      : trendDirection === "down"
+        ? "prices trending down"
+        : trendDirection === "flat"
+          ? "prices flat"
+          : null;
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Header — eyebrow + subhead left, the data source named plainly right. */}
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div className="flex flex-col gap-1">
+          <span className="cb-eyebrow text-muted-foreground">Pricing strategy</span>
+          <p className="text-xs leading-snug text-muted-foreground">
+            What each list price is likely to cost you in time on market.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Pill tone="ember">market model</Pill>
+          {trendClause ? <Pill tone="neutral">{trendClause}</Pill> : null}
+        </div>
+      </div>
+
+      {/* Price rail — same decorative idiom as the synthetic path. */}
+      {bands.length > 1 ? (
+        <div aria-hidden className="px-2 pb-1 pt-3">
+          <div className="relative h-2 rounded-full border border-border bg-secondary">
+            {bands.map((band) => (
+              <span
+                key={band.key}
+                className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
+                style={{ left: `${modelRailFraction(band.price, bands) * 100}%` }}
+              >
+                <span
+                  className={cn("block rounded-full", band.isAnchor ? "h-4 w-4" : "h-2.5 w-2.5")}
+                  style={{
+                    backgroundColor: modelMarkerColor(band),
+                    boxShadow: band.isAnchor
+                      ? "0 0 0 4px var(--cb-tint)"
+                      : "0 0 0 2px var(--card)",
+                  }}
+                />
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Strategy cards — label, price, the modeled DOM envelope (q50
+          emphasized), and the per-band cut-probability gauge. */}
+      <ul className={cn("grid gap-3", bands.length > 1 && "sm:grid-cols-3")}>
+        {bands.map((band) => (
+          <li
+            key={band.key}
+            className={cn(
+              "flex flex-col gap-2 rounded-xl border p-3.5",
+              band.isAnchor
+                ? "border-2 border-[var(--cb-ember)]/50 bg-[var(--cb-tint)]/40"
+                : "border-border bg-secondary/30",
+            )}
+          >
+            <div className="flex items-center gap-2">
+              <span
+                aria-hidden
+                className="h-2 w-2 shrink-0 rounded-full"
+                style={{ backgroundColor: modelMarkerColor(band) }}
+              />
+              <span
+                className={cn(
+                  "text-sm font-semibold",
+                  band.isAnchor ? "text-[var(--cb-ember-text)]" : "text-foreground",
+                )}
+              >
+                {band.label}
+              </span>
+              {band.isAnchor ? (
+                <span className="cb-eyebrow ml-auto text-[var(--cb-ember-text)]">Market value</span>
+              ) : null}
+            </div>
+
+            <span className="text-xs text-muted-foreground">{band.blurb}</span>
+
+            <span
+              className={cn(
+                "font-data text-xl font-medium leading-none tracking-tight",
+                band.isAnchor ? "text-[var(--cb-ember-text)]" : "text-foreground",
+              )}
+            >
+              {usd(band.price)}
+            </span>
+
+            <ModelDomLine band={band} />
+
+            {band.cutProbability != null ? (
+              <CutRiskGauge probability={band.cutProbability} />
+            ) : null}
+          </li>
+        ))}
+      </ul>
+
+      {/* Price-to-sell-by-date — dom_model.recommend_price_for_target_dom. */}
+      {targets.length ? (
+        <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs">
+          <span className="font-medium text-foreground">Need to sell by a date?</span>
+          {targets.map((t, i) => (
+            <span key={t.days} className="inline-flex items-baseline gap-x-3 font-data text-muted-foreground">
+              {i > 0 ? (
+                <span aria-hidden className="text-border">
+                  ·
+                </span>
+              ) : null}
+              <span>
+                {t.days}d: <span className="text-foreground">{usdCompact(t.price)}</span>
+              </span>
+            </span>
+          ))}
+        </p>
+      ) : null}
+
+      {/* Overpricing cost — Maximize vs Market, one derived sentence. */}
+      {overpricing ? (
+        <p className="flex items-start gap-1.5 text-xs leading-snug text-muted-foreground">
+          <span className="text-[var(--negative-foreground)]/90">
+            <RiskGlyph />
+          </span>
+          {overpricing}
+        </p>
+      ) : null}
+
+      {/* Honest disclosure — names the model and its scope. */}
+      <p className="text-[0.7rem] leading-relaxed text-muted-foreground">
+        Days on market and price-cut odds are modeled from {area}&rsquo;s recent sales,
+        evaluated at each list price. A directional estimate, not a guarantee.
+      </p>
+    </div>
+  );
+}
+
+/* ── SYNTHETIC fallback path (no pricing.bands on the wire) ────────────────── */
+
+function SyntheticPricingStrategy({
   valuation,
   marketContext,
   areaName,
@@ -248,7 +603,51 @@ function PricingStrategyImpl({
   );
 }
 
-/** Memoized: valuation + marketContext are stable across comp-tuning re-renders. */
+/* ── Dispatcher ────────────────────────────────────────────────────────────── */
+
+function PricingStrategyImpl({
+  valuation,
+  marketContext,
+  pricing = null,
+  areaName,
+  areaCounty,
+}: {
+  valuation: Valuation | null;
+  marketContext: MarketContext | null;
+  /**
+   * Engine pricing-model surface (CMA_PRICING_SURFACE=1). Absent/invalid ⇒
+   * the synthetic path renders EXACTLY as before — the model UI is a
+   * graceful no-op until the engine flag ships.
+   */
+  pricing?: PricingSurface | null;
+  /** Neighborhood/scope name for the disclosure line ("Walnut Creek"). */
+  areaName?: string | null;
+  /** County, so the disclosure can fall back to a place label. */
+  areaCounty?: string | null;
+}) {
+  const bands = buildModelBands(pricing);
+  if (bands) {
+    return (
+      <ModelPricingStrategy
+        bands={bands}
+        targets={buildTargetDom(pricing)}
+        marketContext={marketContext}
+        areaName={areaName}
+        areaCounty={areaCounty}
+      />
+    );
+  }
+  return (
+    <SyntheticPricingStrategy
+      valuation={valuation}
+      marketContext={marketContext}
+      areaName={areaName}
+      areaCounty={areaCounty}
+    />
+  );
+}
+
+/** Memoized: valuation + marketContext + pricing are stable across comp-tuning re-renders. */
 export const PricingStrategy = memo(PricingStrategyImpl);
 
 export default PricingStrategy;

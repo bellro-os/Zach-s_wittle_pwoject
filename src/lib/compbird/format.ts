@@ -17,6 +17,17 @@ export function ppsf(n: number | null | undefined, fallback = "—"): string {
   return `$${Math.round(n)}`;
 }
 
+/** "$455K" / "$1.45M" — compact currency for dense readouts (equity card, target-DOM chips). */
+export function usdCompact(n: number | null | undefined, fallback = "—"): string {
+  if (n == null || !Number.isFinite(n)) return fallback;
+  return n.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    notation: "compact",
+    maximumFractionDigits: Math.abs(n) >= 1_000_000 ? 2 : 0,
+  });
+}
+
 export function num(n: number | null | undefined, fallback = "—"): string {
   if (n == null || !Number.isFinite(n)) return fallback;
   return Math.round(n).toLocaleString("en-US");
