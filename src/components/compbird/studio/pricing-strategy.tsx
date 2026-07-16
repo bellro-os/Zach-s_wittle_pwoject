@@ -154,11 +154,23 @@ export function buildModelBands(pricing: PricingSurface | null | undefined): Mod
   return out;
 }
 
-/** Validated target-DOM points ("price to sell by a date"), ascending by days. */
-export function buildTargetDom(pricing: PricingSurface | null | undefined): PricingTargetDom[] {
+/**
+ * Validated target-DOM points ("price to sell by a date"), ascending by days.
+ * SATURATION GUARDS (observed live on hot markets): the engine solver sweeps a
+ * bounded price grid, and when even the grid ceiling clears every horizon it
+ * returns the same max-grid price for 30/45/60d — a technically-correct but
+ * useless "price to sell by any date: $1.02M" row. So: (a) drop points priced
+ * >5% above the Maximize band (beyond the strategy rail = extrapolation, not
+ * advice), (b) suppress the row entirely when every remaining point carries
+ * one identical price (no information).
+ */
+export function buildTargetDom(
+  pricing: PricingSurface | null | undefined,
+  bands?: ModelBand[],
+): PricingTargetDom[] {
   const raw = pricing?.target_dom;
   if (!Array.isArray(raw)) return [];
-  return raw
+  let out = raw
     .filter(
       (t): t is PricingTargetDom =>
         t != null &&
@@ -171,6 +183,12 @@ export function buildTargetDom(pricing: PricingSurface | null | undefined): Pric
         t.price > 0,
     )
     .sort((a, b) => a.days - b.days);
+  const ceiling = bands?.find((b) => b.key === "maximize")?.price;
+  if (ceiling != null && ceiling > 0) {
+    out = out.filter((t) => t.price <= ceiling * 1.05);
+  }
+  if (out.length > 1 && out.every((t) => t.price === out[0].price)) return [];
+  return out;
 }
 
 /**
@@ -188,7 +206,15 @@ export function overpricingSentence(bands: ModelBand[]): string | null {
   if (maximize.domQ50 != null && market.domQ50 != null && maximize.domQ50 > market.domQ50) {
     clauses.push(`costs ~${Math.round(maximize.domQ50 - market.domQ50)} extra days`);
   }
-  if (maximize.cutProbability != null && market.cutProbability != null) {
+  // Cut model uses features beyond price, so its band curve can be
+  // non-monotonic (observed live: maximize 41% < sell_fast 45%). Only voice the
+  // clause when the ceiling genuinely raises the risk — "raises ... from 47% to
+  // 41%" reads as a bug.
+  if (
+    maximize.cutProbability != null &&
+    market.cutProbability != null &&
+    maximize.cutProbability > market.cutProbability
+  ) {
     clauses.push(
       `raises the chance of a price cut from ${Math.round(market.cutProbability * 100)}% to ${Math.round(maximize.cutProbability * 100)}%`,
     );
@@ -630,7 +656,7 @@ function PricingStrategyImpl({
     return (
       <ModelPricingStrategy
         bands={bands}
-        targets={buildTargetDom(pricing)}
+        targets={buildTargetDom(pricing, bands)}
         marketContext={marketContext}
         areaName={areaName}
         areaCounty={areaCounty}

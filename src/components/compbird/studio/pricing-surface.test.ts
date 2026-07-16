@@ -202,3 +202,41 @@ test("redactEvidence: strips pricing + active_model, keeps confidence_signals", 
   assert.deepEqual(body.pricing, WIRE_PRICING);
   assert.equal(body.subject.active_model.expected_dom_q50, 19);
 });
+
+/* ── live-data edge cases (observed 2026-07-16 on 509 Jefferson) ────────────── */
+
+test("buildTargetDom: suppresses the row when the solver saturated (all prices identical)", () => {
+  // Hot market: recommend_price_for_target_dom returned the grid max for every horizon.
+  const saturated = {
+    target_dom: [
+      { days: 30, price: 1025000 },
+      { days: 45, price: 1025000 },
+      { days: 60, price: 1025000 },
+    ],
+  };
+  assert.deepEqual(buildTargetDom(saturated), []);
+});
+
+test("buildTargetDom: drops points priced beyond the Maximize rail (+5%)", () => {
+  const bands = buildModelBands(WIRE_PRICING)!;
+  const ceiling = bands.find((b) => b.key === "maximize")!.price;
+  const mixed = {
+    target_dom: [
+      { days: 30, price: Math.round(ceiling * 1.2) }, // extrapolated — dropped
+      { days: 45, price: Math.round(ceiling * 0.98) },
+      { days: 60, price: Math.round(ceiling * 0.9) },
+    ],
+  };
+  const out = buildTargetDom(mixed, bands);
+  assert.deepEqual(out.map((t) => t.days), [45, 60]);
+});
+
+test("overpricingSentence: omits the cut clause when the model is non-monotonic (maximize < market)", () => {
+  const bands = buildModelBands(WIRE_PRICING)!;
+  const market = bands.find((b) => b.key === "market")!;
+  const maximize = bands.find((b) => b.key === "maximize")!;
+  market.cutProbability = 0.47;
+  maximize.cutProbability = 0.41; // observed live — must NOT print "raises ... from 47% to 41%"
+  const s = overpricingSentence(bands);
+  assert.ok(s === null || !s.includes("price cut"), `unexpected cut clause: ${s}`);
+});
