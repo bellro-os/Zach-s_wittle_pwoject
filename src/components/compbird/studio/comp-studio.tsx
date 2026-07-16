@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Eyebrow, Pill } from "@/components/compbird/ui";
 import { Reveal } from "@/components/compbird/motion";
-import { fetchProfile, previewComps } from "@/lib/compbird/api";
+import { fetchProfile, previewComps, startSubscription } from "@/lib/compbird/api";
 import type { SubjectOverrides, ReportConfig } from "@/lib/cma/overrides";
 import { pruneOverrides } from "@/lib/cma/overrides";
 import { SAMPLE_PROFILE, SAMPLE_PRESETS } from "@/lib/compbird/sample";
@@ -20,7 +20,7 @@ import type {
 } from "@/lib/compbird/types";
 import { SearchBar } from "./search-bar";
 import { FirstRun } from "./first-run";
-import { Recents, pushRecent } from "./recents";
+import { Recents, pushRecent, readTuning, saveTuning } from "./recents";
 import { ReportView } from "./report-view";
 import { ReportSkeleton } from "./report-skeleton";
 import {
@@ -69,6 +69,12 @@ import {
 
 /** Debounce window for a tuning recompute — matches the search bar's cadence. */
 const TUNE_DEBOUNCE_MS = 300;
+
+/** Debounce window for persisting per-subject tuning to localStorage. */
+const TUNING_SAVE_DEBOUNCE_MS = 500;
+
+/** sessionStorage flag: the ?intent=pro "Finish upgrading" banner was dismissed. */
+const PRO_INTENT_DISMISSED_KEY = "cb-pro-intent-dismissed";
 
 /** The retryable warm-up state the engine reports while the worker spins up. */
 const RETRYABLE_503 =
@@ -441,6 +447,20 @@ export function CompStudio() {
   // useState's lazy initializer gives one stable instance per mounted studio.
   const [session] = useState(createSubjectSession);
 
+  // Sticky intent params: ?intent=pro (pricing-page Pro intent carried through
+  // signup) and ?from=portfolio (same-tab arrival from a portfolio run). Both
+  // are latched into state the first time they're seen — select()'s
+  // replaceState mirror rewrites the query to the canonical
+  // ?parcelId=&address=, so reading the live params alone would drop the
+  // intent the moment a lookup resolves.
+  const [proIntent, setProIntent] = useState(false);
+  const [fromPortfolio, setFromPortfolio] = useState(false);
+  // Session-scoped dismissal for the pro-intent banner. Starts true (hidden)
+  // until the mount effect reads sessionStorage, so the banner appears after
+  // hydration rather than flashing for an already-dismissed session.
+  const [proIntentDismissed, setProIntentDismissed] = useState(true);
+  const [checkoutBusy, setCheckoutBusy] = useState(false);
+
   // Live search params (fix: deep links while ALREADY mounted). The page wraps
   // the studio in <Suspense> for this hook, per Next's useSearchParams contract.
   const searchParams = useSearchParams();
@@ -488,252 +508,13 @@ export function CompStudio() {
     return epoch;
   }, [session, cancelPreview]);
 
-  // Accepts the full search-result PropertyMatch as well as the minimal
-  // {address, parcel_id} seed the deep-link branch builds (LookupSelection =
-  // identity required, every other match fact optional). Facts beyond identity
-  // feed the progressive first paint; identity is all the fetch needs.
-  const select = useCallback(
-    async (match: LookupSelection) => {
-      // Shared reset (see beginSubjectChange): a new subject invalidates any
-      // in-progress tuning AND drops what-if overrides + narrative edits —
-      // they were keyed to the previous subject's record facts.
-      const epoch = beginSubjectChange();
-
-      // First paint: whatever this selection already knows, stamped with the
-      // new epoch. null preview (identity-only pick) ⇒ the skeleton path,
-      // which still names the address being looked up.
-      const preview = buildSubjectPreview(match);
-      dispatchPreview({
-        type: "start",
-        epoch,
-        data: preview,
-        address: match.address.trim() || null,
-      });
-
-      const ctrl = new AbortController();
-      abortRef.current = ctrl;
-      lastAttemptRef.current = { address: match.address, parcel_id: match.parcel_id };
-
-      setLoading(true);
-      setPendingLabel(match.address || match.parcel_id || null);
-      setLiveError(null);
-      try {
-        const input = match.parcel_id
-          ? { parcelId: match.parcel_id, address: match.address }
-          : { address: match.address };
-        const result = await fetchProfile(input, ctrl.signal);
-
-        // Stale-response guard — the leak's root: the abort SHOULD reject a
-        // superseded fetch, but a response that has already settled when the
-        // user switches subjects resolves anyway. It must be discarded here,
-        // never applied over the newer subject (where it would sit beneath —
-        // or bring along — another subject's override state).
-        if (ctrl.signal.aborted || session.isStale(epoch)) return;
-
-        if (result?.ok && result.facts) {
-          // Arm tuning against this resolved subject (epoch-checked in the
-          // session too, so a stale arm is structurally impossible).
-          session.armSubject(
-            epoch,
-            {
-              address: result.facts.address,
-              parcelId: result.facts.parcel_id || undefined,
-            },
-            result,
-          );
-          setProfile(result);
-          setIsSample(false);
-          // A preview held this exact subject header on screen — swap the real
-          // report in with a fade only, so the header geometry doesn't jump.
-          setSoftSwap(preview != null);
-          // Session recents: record the RESOLVED subject (canonical address +
-          // parcel) plus a facts snapshot from the profile — the truth source,
-          // richer than the search match — so a chip / Cmd-K re-pick hits the
-          // same record AND paints the instant fact preview (recents.tsx
-          // toSelection → buildSubjectPreview).
-          pushRecent({
-            address: result.facts.address,
-            parcel_id: result.facts.parcel_id,
-            facts: {
-              sqft: result.facts.sqft,
-              bedrooms: result.facts.beds, // ProfileFacts names it `beds`
-              full_baths: result.facts.full_baths,
-              half_baths: result.facts.half_baths,
-              acres: result.facts.acres,
-              year_built: result.facts.year_built,
-              status: result.facts.status,
-              city: result.facts.city,
-              county: result.facts.county,
-              subdivision: result.facts.subdivision,
-            },
-          });
-          // Reflect the RESOLVED subject in the URL bar — no navigation, just
-          // replaceState — so the report is linkable/refresh-safe and matches
-          // the recents deep-link hrefs. Safe against the deep-link effect:
-          // these are the exact identifiers armSubject just recorded, so
-          // planDeepLink reads them as "subject already on the board" → none.
-          if (typeof window !== "undefined") {
-            const qs = new URLSearchParams();
-            if (result.facts.parcel_id) qs.set("parcelId", result.facts.parcel_id);
-            if (result.facts.address) qs.set("address", result.facts.address);
-            const query = qs.toString();
-            if (query) window.history.replaceState(null, "", `?${query}`);
-          }
-        } else {
-          throw new Error(result?.error || "no profile");
-        }
-      } catch (err) {
-        if (ctrl.signal.aborted || session.isStale(epoch)) return; // superseded by a newer selection
-        // Surface the engine's specific retryable warm-up message verbatim so a
-        // user knows to retry; otherwise the generic outage line.
-        const msg = err instanceof Error ? err.message : "";
-        const retryable = msg.includes("warming up") || msg.includes("503");
-        const notice = retryable
-          ? RETRYABLE_503
-          : "Couldn't reach live records — showing a sample report.";
-        toast.error(notice);
-        setLiveError(notice);
-        // Keep the canonical 509 Jefferson demo — never re-key the sample to the
-        // searched address, so a real address never sits atop fabricated comps.
-        setProfile(SAMPLE_PROFILE);
-        setIsSample(true);
-        // The failure banner + sample arrive with the normal reveal, not the
-        // preview's in-place fade (the preview header is being replaced).
-        setSoftSwap(false);
-        // No live subject — tuning/override callbacks stay hard no-ops.
-        session.disarm(epoch);
-      } finally {
-        // This lookup is settled either way — clear ITS first-paint preview.
-        // Deliberately unguarded: the reducer's epoch check is the guard, so a
-        // superseded lookup's settle can't blank the newer lookup's preview.
-        dispatchPreview({ type: "settled", epoch });
-        // A superseded selection owns `loading` itself — only the CURRENT
-        // lookup may clear it (and its pending-subject label).
-        if (!ctrl.signal.aborted && !session.isStale(epoch)) {
-          setLoading(false);
-          setPendingLabel(null);
-        }
-      }
-    },
-    [session, beginSubjectChange],
-  );
-
-  /**
-   * The Escape hatch for the busy-gated selection surfaces: abort the
-   * in-flight profile lookup (the session's existing AbortController), drop
-   * the skeleton, and re-enable every chip/row/palette entry. The aborted
-   * fetch's own catch/finally see `ctrl.signal.aborted` and stand down, so
-   * this owns the loading flags. The previously-rendered report (sample or
-   * prior subject) is still on the board and simply shows again.
-   */
-  const cancelLookup = useCallback(() => {
-    abortRef.current?.abort();
-    abortRef.current = null;
-    setLoading(false);
-    setPendingLabel(null);
-    // The cancelled lookup's first paint goes with it — the previously
-    // rendered report (sample or prior subject) simply shows again.
-    dispatchPreview({ type: "reset" });
-  }, []);
-
-  // Progress honesty: after ~6s of one still-pending lookup, both loading
-  // surfaces (preview + skeleton) append the quiet first-analysis line. Keyed
-  // on the preview epoch too, so a NEW selection made while a lookup is
-  // already in flight (loading never flips false) restarts the clock.
-  useEffect(() => {
-    if (!loading) {
-      setSlowLookup(false);
-      return;
-    }
-    setSlowLookup(false);
-    const id = window.setTimeout(() => setSlowLookup(true), SLOW_LOOKUP_MS);
-    return () => window.clearTimeout(id);
-  }, [loading, previewState.epoch]);
-
-  // Escape cancels the in-flight lookup — listener alive ONLY while one is.
-  // Plain bubble listener: a dropdown/palette Escape (which closes that
-  // surface) reaches here too, so one keypress both dismisses and cancels.
-  useEffect(() => {
-    if (!loading) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") cancelLookup();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [loading, cancelLookup]);
-
-  // Demo kill-switch (rule b): the first real user interaction — any keydown
-  // or pointerdown, or focusing the search combobox — permanently disqualifies
-  // this browser from ever auto-running a demo. Capture phase, so no surface
-  // can swallow it first; detaches the moment it has nothing left to do.
-  useEffect(() => {
-    if (demoAlreadyDone(browserDemoStore)) return;
-    const kill = () => {
-      killDemo(browserDemoStore);
-      detach();
-    };
-    const onFocusIn = (e: FocusEvent) => {
-      const el = e.target instanceof HTMLElement ? e.target : null;
-      if (el?.getAttribute("role") === "combobox") kill();
-    };
-    const detach = () => {
-      window.removeEventListener("keydown", kill, true);
-      window.removeEventListener("pointerdown", kill, true);
-      window.removeEventListener("focusin", onFocusIn, true);
-    };
-    window.addEventListener("keydown", kill, true);
-    window.addEventListener("pointerdown", kill, true);
-    window.addEventListener("focusin", onFocusIn, true);
-    return detach;
-  }, []);
-
-  // Deep links — LIVE, not mount-only. ?demo=1 forces the sample demo
-  // (intentional, rule d); ?address= / ?parcelId= resolve a subject via the
-  // same select() flow a search result uses — i.e. through beginSubjectChange,
-  // never a parallel path. useSearchParams (not a one-shot
-  // window.location read) so a param CHANGE while the studio is already
-  // mounted — a same-tab client nav from the portfolio, back/forward — loads
-  // that subject. planDeepLink guards the mount double-render (signature
-  // dedupe) and skips params naming the subject already on the board — which
-  // also makes select()'s replaceState mirror of the resolved subject a no-op
-  // here, never a second lookup.
-  useEffect(() => {
-    const plan = planDeepLink(
-      {
-        demo: searchParams.get("demo"),
-        address: searchParams.get("address"),
-        parcelId: searchParams.get("parcelId"),
-      },
-      appliedParamsRef.current,
-      session.subject(),
-    );
-    appliedParamsRef.current = plan.sig;
-    if (plan.action === "demo") {
-      // Rule (a): even the forced path stamps the once-per-browser flag the
-      // moment it starts.
-      markDemoStarted(browserDemoStore);
-      // Same shared reset as every other subject-change path — the sample must
-      // start clean even when this branch runs with state on the board. A
-      // lookup in flight was just aborted by the reset, so this branch owns
-      // clearing its loading flags (the aborted fetch stands down).
-      beginSubjectChange();
-      setLoading(false);
-      setPendingLabel(null);
-      setLiveError(null);
-      setProfile(SAMPLE_PROFILE);
-      setIsSample(true);
-      setSoftSwap(false);
-    } else if (plan.action === "select") {
-      // Minimal, correctly-typed seed — only the fields select() reads. No cast.
-      void select({ address: plan.address, parcel_id: plan.parcelId });
-    }
-  }, [searchParams, select, beginSubjectChange, session]);
-
   /**
    * Run a tuning recompute for the current excluded/forced sets, merging the
    * preview result onto the live base. Debounced + aborted like the search,
    * and epoch-stamped: a recompute scheduled (or resolving) for a subject the
    * user has since left is dropped, never merged onto the new subject.
+   * Declared before select() so the saved-tuning rehydrate (select's success
+   * path) can re-drive it.
    */
   const runPreview = useCallback(
     (nextExcluded: string[], nextForced: string[]) => {
@@ -855,6 +636,275 @@ export function CompStudio() {
     [session, cancelPreview],
   );
 
+  // Accepts the full search-result PropertyMatch as well as the minimal
+  // {address, parcel_id} seed the deep-link branch builds (LookupSelection =
+  // identity required, every other match fact optional). Facts beyond identity
+  // feed the progressive first paint; identity is all the fetch needs.
+  const select = useCallback(
+    async (match: LookupSelection) => {
+      // Shared reset (see beginSubjectChange): a new subject invalidates any
+      // in-progress tuning AND drops what-if overrides + narrative edits —
+      // they were keyed to the previous subject's record facts.
+      const epoch = beginSubjectChange();
+
+      // First paint: whatever this selection already knows, stamped with the
+      // new epoch. null preview (identity-only pick) ⇒ the skeleton path,
+      // which still names the address being looked up.
+      const preview = buildSubjectPreview(match);
+      dispatchPreview({
+        type: "start",
+        epoch,
+        data: preview,
+        address: match.address.trim() || null,
+      });
+
+      const ctrl = new AbortController();
+      abortRef.current = ctrl;
+      lastAttemptRef.current = { address: match.address, parcel_id: match.parcel_id };
+
+      setLoading(true);
+      setPendingLabel(match.address || match.parcel_id || null);
+      setLiveError(null);
+      try {
+        const input = match.parcel_id
+          ? { parcelId: match.parcel_id, address: match.address }
+          : { address: match.address };
+        const result = await fetchProfile(input, ctrl.signal);
+
+        // Stale-response guard — the leak's root: the abort SHOULD reject a
+        // superseded fetch, but a response that has already settled when the
+        // user switches subjects resolves anyway. It must be discarded here,
+        // never applied over the newer subject (where it would sit beneath —
+        // or bring along — another subject's override state).
+        if (ctrl.signal.aborted || session.isStale(epoch)) return;
+
+        if (result?.ok && result.facts) {
+          // Arm tuning against this resolved subject (epoch-checked in the
+          // session too, so a stale arm is structurally impossible).
+          session.armSubject(
+            epoch,
+            {
+              address: result.facts.address,
+              parcelId: result.facts.parcel_id || undefined,
+            },
+            result,
+          );
+          setProfile(result);
+          setIsSample(false);
+          // A preview held this exact subject header on screen — swap the real
+          // report in with a fade only, so the header geometry doesn't jump.
+          setSoftSwap(preview != null);
+          // Session recents: record the RESOLVED subject (canonical address +
+          // parcel) plus a facts snapshot from the profile — the truth source,
+          // richer than the search match — so a chip / Cmd-K re-pick hits the
+          // same record AND paints the instant fact preview (recents.tsx
+          // toSelection → buildSubjectPreview).
+          pushRecent({
+            address: result.facts.address,
+            parcel_id: result.facts.parcel_id,
+            facts: {
+              sqft: result.facts.sqft,
+              bedrooms: result.facts.beds, // ProfileFacts names it `beds`
+              full_baths: result.facts.full_baths,
+              half_baths: result.facts.half_baths,
+              acres: result.facts.acres,
+              year_built: result.facts.year_built,
+              status: result.facts.status,
+              city: result.facts.city,
+              county: result.facts.county,
+              subdivision: result.facts.subdivision,
+            },
+          });
+          // Reflect the RESOLVED subject in the URL bar — no navigation, just
+          // replaceState — so the report is linkable/refresh-safe and matches
+          // the recents deep-link hrefs. Safe against the deep-link effect:
+          // these are the exact identifiers armSubject just recorded, so
+          // planDeepLink reads them as "subject already on the board" → none.
+          if (typeof window !== "undefined") {
+            const qs = new URLSearchParams();
+            if (result.facts.parcel_id) qs.set("parcelId", result.facts.parcel_id);
+            if (result.facts.address) qs.set("address", result.facts.address);
+            const query = qs.toString();
+            if (query) window.history.replaceState(null, "", `?${query}`);
+          }
+          // Rehydrate this subject's SAVED tuning (localStorage, written by the
+          // debounced persistence effect below) into the exact state paths the
+          // live editors use — session copies first (they are the wire truth),
+          // render mirrors second — and then re-drive the normal preview
+          // recompute so the tuned numbers come back. Everything is stamped
+          // with this lookup's epoch, so a subject switch mid-rehydrate stales
+          // it exactly like any other async work. Not reached on an
+          // evidence-locked (FREE) profile in practice: locked reports never
+          // arm tuning callbacks, so nothing was ever saved for them.
+          const saved = readTuning({
+            address: result.facts.address,
+            parcel_id: result.facts.parcel_id,
+          });
+          if (saved && !session.isStale(epoch)) {
+            const savedOverrides = saved.overrides ?? {};
+            const savedConfig = saved.reportConfig ?? {};
+            session.setOverrides(epoch, savedOverrides);
+            session.setReportConfig(epoch, savedConfig);
+            setOverrides(savedOverrides);
+            setReportConfig(savedConfig);
+            setExcluded(saved.excluded);
+            setForced(saved.forced);
+            // Narrative-only records (just an exec-summary edit) don't move the
+            // valuation — skip the round-trip exactly like the live editors do.
+            if (saved.excluded.length || saved.forced.length || saved.overrides) {
+              runPreview(saved.excluded, saved.forced);
+            }
+          }
+        } else {
+          throw new Error(result?.error || "no profile");
+        }
+      } catch (err) {
+        if (ctrl.signal.aborted || session.isStale(epoch)) return; // superseded by a newer selection
+        // Surface the engine's specific retryable warm-up message verbatim so a
+        // user knows to retry; otherwise the generic outage line.
+        const msg = err instanceof Error ? err.message : "";
+        const retryable = msg.includes("warming up") || msg.includes("503");
+        const notice = retryable
+          ? RETRYABLE_503
+          : "Couldn't reach live records — showing a sample report.";
+        toast.error(notice);
+        setLiveError(notice);
+        // Keep the canonical 509 Jefferson demo — never re-key the sample to the
+        // searched address, so a real address never sits atop fabricated comps.
+        setProfile(SAMPLE_PROFILE);
+        setIsSample(true);
+        // The failure banner + sample arrive with the normal reveal, not the
+        // preview's in-place fade (the preview header is being replaced).
+        setSoftSwap(false);
+        // No live subject — tuning/override callbacks stay hard no-ops.
+        session.disarm(epoch);
+      } finally {
+        // This lookup is settled either way — clear ITS first-paint preview.
+        // Deliberately unguarded: the reducer's epoch check is the guard, so a
+        // superseded lookup's settle can't blank the newer lookup's preview.
+        dispatchPreview({ type: "settled", epoch });
+        // A superseded selection owns `loading` itself — only the CURRENT
+        // lookup may clear it (and its pending-subject label).
+        if (!ctrl.signal.aborted && !session.isStale(epoch)) {
+          setLoading(false);
+          setPendingLabel(null);
+        }
+      }
+    },
+    [session, beginSubjectChange, runPreview],
+  );
+
+  /**
+   * The Escape hatch for the busy-gated selection surfaces: abort the
+   * in-flight profile lookup (the session's existing AbortController), drop
+   * the skeleton, and re-enable every chip/row/palette entry. The aborted
+   * fetch's own catch/finally see `ctrl.signal.aborted` and stand down, so
+   * this owns the loading flags. The previously-rendered report (sample or
+   * prior subject) is still on the board and simply shows again.
+   */
+  const cancelLookup = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setLoading(false);
+    setPendingLabel(null);
+    // The cancelled lookup's first paint goes with it — the previously
+    // rendered report (sample or prior subject) simply shows again.
+    dispatchPreview({ type: "reset" });
+  }, []);
+
+  // Progress honesty: after ~6s of one still-pending lookup, both loading
+  // surfaces (preview + skeleton) append the quiet first-analysis line. Keyed
+  // on the preview epoch too, so a NEW selection made while a lookup is
+  // already in flight (loading never flips false) restarts the clock.
+  useEffect(() => {
+    if (!loading) {
+      setSlowLookup(false);
+      return;
+    }
+    setSlowLookup(false);
+    const id = window.setTimeout(() => setSlowLookup(true), SLOW_LOOKUP_MS);
+    return () => window.clearTimeout(id);
+  }, [loading, previewState.epoch]);
+
+  // Escape cancels the in-flight lookup — listener alive ONLY while one is.
+  // Plain bubble listener: a dropdown/palette Escape (which closes that
+  // surface) reaches here too, so one keypress both dismisses and cancels.
+  useEffect(() => {
+    if (!loading) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") cancelLookup();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [loading, cancelLookup]);
+
+  // Demo kill-switch (rule b): the first real user interaction — any keydown
+  // or pointerdown, or focusing the search combobox — permanently disqualifies
+  // this browser from ever auto-running a demo. Capture phase, so no surface
+  // can swallow it first; detaches the moment it has nothing left to do.
+  useEffect(() => {
+    if (demoAlreadyDone(browserDemoStore)) return;
+    const kill = () => {
+      killDemo(browserDemoStore);
+      detach();
+    };
+    const onFocusIn = (e: FocusEvent) => {
+      const el = e.target instanceof HTMLElement ? e.target : null;
+      if (el?.getAttribute("role") === "combobox") kill();
+    };
+    const detach = () => {
+      window.removeEventListener("keydown", kill, true);
+      window.removeEventListener("pointerdown", kill, true);
+      window.removeEventListener("focusin", onFocusIn, true);
+    };
+    window.addEventListener("keydown", kill, true);
+    window.addEventListener("pointerdown", kill, true);
+    window.addEventListener("focusin", onFocusIn, true);
+    return detach;
+  }, []);
+
+  // Deep links — LIVE, not mount-only. ?demo=1 forces the sample demo
+  // (intentional, rule d); ?address= / ?parcelId= resolve a subject via the
+  // same select() flow a search result uses — i.e. through beginSubjectChange,
+  // never a parallel path. useSearchParams (not a one-shot
+  // window.location read) so a param CHANGE while the studio is already
+  // mounted — a same-tab client nav from the portfolio, back/forward — loads
+  // that subject. planDeepLink guards the mount double-render (signature
+  // dedupe) and skips params naming the subject already on the board — which
+  // also makes select()'s replaceState mirror of the resolved subject a no-op
+  // here, never a second lookup.
+  useEffect(() => {
+    const plan = planDeepLink(
+      {
+        demo: searchParams.get("demo"),
+        address: searchParams.get("address"),
+        parcelId: searchParams.get("parcelId"),
+      },
+      appliedParamsRef.current,
+      session.subject(),
+    );
+    appliedParamsRef.current = plan.sig;
+    if (plan.action === "demo") {
+      // Rule (a): even the forced path stamps the once-per-browser flag the
+      // moment it starts.
+      markDemoStarted(browserDemoStore);
+      // Same shared reset as every other subject-change path — the sample must
+      // start clean even when this branch runs with state on the board. A
+      // lookup in flight was just aborted by the reset, so this branch owns
+      // clearing its loading flags (the aborted fetch stands down).
+      beginSubjectChange();
+      setLoading(false);
+      setPendingLabel(null);
+      setLiveError(null);
+      setProfile(SAMPLE_PROFILE);
+      setIsSample(true);
+      setSoftSwap(false);
+    } else if (plan.action === "select") {
+      // Minimal, correctly-typed seed — only the fields select() reads. No cast.
+      void select({ address: plan.address, parcel_id: plan.parcelId });
+    }
+  }, [searchParams, select, beginSubjectChange, session]);
+
   // Toggle one comp in/out of the valuation and recompute. No-op on sample.
   const toggleComp = useCallback(
     (key: string, exclude: boolean) => {
@@ -945,6 +995,66 @@ export function CompStudio() {
   // Tear down any pending preview on unmount.
   useEffect(() => cancelPreview, [cancelPreview]);
 
+  // Latch the sticky intent params (see the state declarations above).
+  useEffect(() => {
+    if (searchParams.get("intent") === "pro") setProIntent(true);
+    if (searchParams.get("from") === "portfolio") setFromPortfolio(true);
+  }, [searchParams]);
+
+  // Read the pro-intent banner's session-scoped dismissal once on mount.
+  useEffect(() => {
+    try {
+      setProIntentDismissed(
+        window.sessionStorage.getItem(PRO_INTENT_DISMISSED_KEY) === "1",
+      );
+    } catch {
+      setProIntentDismissed(false); // unreadable storage ⇒ show; dismiss holds in state
+    }
+  }, []);
+
+  const dismissProIntent = useCallback(() => {
+    setProIntentDismissed(true);
+    try {
+      window.sessionStorage.setItem(PRO_INTENT_DISMISSED_KEY, "1");
+    } catch {
+      /* unwritable storage — the in-state dismissal still holds this mount */
+    }
+  }, []);
+
+  // Same go/error pattern as the account menu's Upgrade button: Stripe
+  // Checkout navigates away on success; a failure toasts and re-enables.
+  const startProCheckout = useCallback(() => {
+    if (checkoutBusy) return;
+    setCheckoutBusy(true);
+    startSubscription().catch((e) => {
+      toast.error(e instanceof Error ? e.message : "Could not start checkout.");
+      setCheckoutBusy(false);
+    });
+  }, [checkoutBusy]);
+
+  // Persist the live subject's tuning (excluded/pinned comps, what-if
+  // overrides, exec-summary edit) to localStorage, debounced — the return-loop
+  // half is the rehydrate in select()'s success path. Skipped for the sample,
+  // an evidence-locked (FREE) profile (its tuning callbacks are withheld, so
+  // this state can only be empty), and while no live subject is armed — which
+  // also means a subject change can never clear the OUTGOING subject's record:
+  // by the time the reset state lands here, session.subject() is already null.
+  // An intentional reset on an armed subject DOES remove the record (saveTuning
+  // treats empty tuning as a delete), keeping the recents "tuned" badge honest.
+  useEffect(() => {
+    const subject = session.subject();
+    if (isSample || profile.locked || !subject) return;
+    const identity = {
+      address: subject.address ?? "",
+      parcel_id: subject.parcelId ?? "",
+    };
+    if (!identity.address && !identity.parcel_id) return;
+    const id = window.setTimeout(() => {
+      saveTuning(identity, { excluded, forced, overrides, reportConfig });
+    }, TUNING_SAVE_DEBOUNCE_MS);
+    return () => window.clearTimeout(id);
+  }, [excluded, forced, overrides, reportConfig, isSample, profile, session]);
+
   const subjectAddress = profile.facts?.address ?? "";
   // Evidence-locked live profile (server-redacted for a FREE viewer): the comp
   // set is empty, so every tuning affordance is moot — withhold the callbacks
@@ -968,9 +1078,61 @@ export function CompStudio() {
       {/* first-run onboarding — an overlay; the studio paints beneath it */}
       <FirstRun />
 
+      {/* pro-intent banner — ?intent=pro rode through signup, so this viewer
+          explicitly chose the $20 tier; one confident "finish the upgrade"
+          ask. Never shown once the viewer is provably Pro (a live profile
+          resolved unlocked); dismiss hides it for the session. */}
+      {proIntent && !proIntentDismissed && (isSample || locked) ? (
+        <div
+          role="status"
+          className="-mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--cb-ember)]/30 bg-[var(--cb-tint)] px-4 py-2.5"
+        >
+          <p className="text-sm text-foreground">
+            Finish upgrading{" "}
+            <span className="text-muted-foreground">
+              — unlock every comp, analytics, and branded PDFs · $20/mo
+            </span>
+          </p>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              disabled={checkoutBusy}
+              onClick={startProCheckout}
+              className="inline-flex items-center whitespace-nowrap rounded-full bg-[var(--cb-ember)] px-4 py-1.5 text-xs font-semibold text-[var(--cb-on-ember)] transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              Finish upgrading
+            </button>
+            <button
+              type="button"
+              onClick={dismissProIntent}
+              aria-label="Dismiss upgrade reminder"
+              className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]"
+            >
+              <svg viewBox="0 0 16 16" fill="none" className="h-3.5 w-3.5" aria-hidden>
+                <path
+                  d="m4 4 8 8m0-8-8 8"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {/* search console */}
       <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-3">
+          {/* same-tab arrival from a portfolio run — the labeled route back */}
+          {fromPortfolio ? (
+            <a
+              href="/portfolio"
+              className="inline-flex w-fit items-center gap-1.5 rounded-full border border-border bg-card/60 px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-[var(--cb-ember)]/40 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]"
+            >
+              <span aria-hidden>←</span> Back to portfolio
+            </a>
+          ) : null}
           <Eyebrow>The comp studio</Eyebrow>
           <div className="flex flex-wrap items-end justify-between gap-4">
             <h1 className="font-display max-w-2xl text-3xl font-bold leading-[1.05] tracking-tight text-foreground text-balance sm:text-4xl">

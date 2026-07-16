@@ -1,5 +1,7 @@
 import { SectionShell, Eyebrow } from "@/components/compbird/ui";
 import { Reveal, SpotlightCard } from "@/components/compbird/motion";
+import { AerialMap, pointsFromProfile } from "@/components/compbird/graphics";
+import { SAMPLE_PROFILE } from "@/lib/compbird/sample";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -238,11 +240,22 @@ function Tile({ feature, index }: { feature: Feature; index: number }) {
         </p>
 
         {lead ? (
-          <span className="relative mt-auto pt-7">
-            <span className="cb-eyebrow text-[var(--cb-ember-text)]">
-              Similarity-ranked, recency-weighted
+          <>
+            {/* the claim, pictured: subject + six ranked comps on the brand's
+                aerial motif — static and purely decorative */}
+            <div aria-hidden className="pointer-events-none relative mt-auto pt-7">
+              <AerialMap
+                points={pointsFromProfile(SAMPLE_PROFILE)}
+                height={216}
+                animate={false}
+              />
+            </div>
+            <span className="relative mt-5 block">
+              <span className="cb-eyebrow text-[var(--cb-ember-text)]">
+                Similarity-ranked, recency-weighted
+              </span>
             </span>
-          </span>
+          </>
         ) : null}
       </SpotlightCard>
     </Reveal>

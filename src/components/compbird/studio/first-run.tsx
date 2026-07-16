@@ -47,8 +47,16 @@ export function FirstRun() {
   const restoreRef = useRef<HTMLElement | null>(null);
 
   // Client-only check — the flag lives in localStorage, so first paint (and
-  // SSR) is always closed and there's no hydration mismatch.
+  // SSR) is always closed and there's no hydration mismatch. A URL carrying
+  // arrival intent (?demo=1 / ?address= / ?parcelId=) suppresses the card for
+  // THIS visit without writing the flag: that user came to see the priced
+  // report, not an onboarding modal — they still get the tour on a plain
+  // visit later.
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const hasIntent =
+      params.get("demo") === "1" || !!params.get("address") || !!params.get("parcelId");
+    if (hasIntent) return;
     try {
       if (window.localStorage.getItem(ONBOARDED_KEY) !== "1") setOpen(true);
     } catch {

@@ -87,7 +87,7 @@ const STEPS: Step[] = [
 
 export function HowItWorks() {
   return (
-    <SectionShell id="how" className="py-24 sm:py-32">
+    <SectionShell id="how" className="py-16 sm:py-24">
       <Reveal>
         <Eyebrow>How it works</Eyebrow>
       </Reveal>
@@ -97,7 +97,7 @@ export function HowItWorks() {
         </h2>
       </Reveal>
 
-      <ol className="mt-14 grid gap-5 sm:mt-16 md:grid-cols-3">
+      <ol className="mt-10 grid gap-5 sm:mt-12 md:grid-cols-3">
         {STEPS.map((step, i) => (
           <li key={step.index} className="h-full">
             <Reveal delay={0.1 + i * 0.08} className="h-full">

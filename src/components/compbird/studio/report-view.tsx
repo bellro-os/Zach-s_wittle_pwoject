@@ -1,14 +1,21 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { Pill } from "@/components/compbird/ui";
 import { LeafletMap, type GeoMapPoint } from "@/components/geo/leaflet-map";
 import { AerialMap } from "@/components/compbird/graphics";
 import { dateLong, usd } from "@/lib/compbird/format";
 import { readFreshness } from "@/lib/compbird/freshness";
+import {
+  computeConfidenceFromSignals,
+  type ConfidenceResult,
+} from "@/lib/compbird/confidence";
+import { buildCompsCsv, compsCsvFilename } from "@/lib/compbird/comps-csv";
 import type { ProfileResult, ProfileComp } from "@/lib/compbird/types";
 import { SubjectCard } from "./subject-card";
+import { SubjectFactsEditor } from "./subject-facts-editor";
 import { DataFreshness } from "./data-freshness";
 import {
   ValuationPanel,
@@ -18,7 +25,13 @@ import {
   largestMoverSentence,
   type MethodSnapshot,
 } from "./valuation-panel";
-import { CompsTable, compKey, retainExcludedComps, type CachedComp } from "./comps-table";
+import {
+  CompsTable,
+  compKey,
+  retainExcludedComps,
+  type CachedComp,
+  type CompsTableSubject,
+} from "./comps-table";
 import { AddCompSearch } from "./add-comp-search";
 import { PpsfBars } from "./ppsf-bars";
 import { LiveAnalytics, hasAnalytics } from "./live-analytics";
@@ -43,18 +56,41 @@ import type { SubjectOverrides, ReportConfig } from "@/lib/cma/overrides";
  * A client component: it mounts the real Leaflet map, and on LIVE reports the
  * what-if subject editor + "add a comparable" search so the comp set is fully
  * user-controllable. The studio swaps this in once a profile resolves.
+ *
+ * REPORT HIERARCHY PASS (2026-07): a slim sticky toolbar (address · estimate ·
+ * confidence · jump chips · Download PDF) appears once ZONE 1 scrolls away;
+ * the what-if editor collapses to a one-line affordance (auto-open while
+ * overrides are active); major sections carry small mono numerals; the comps
+ * grid pins a Subject reference row; and the comp set exports as CSV.
  */
 
-/** Build map points from the subject facts + every comp that carries coords. */
+/** Build map points from the subject facts + every comp that carries coords.
+ *  Pin tooltips answer "which", not just "where": comp labels carry the sold
+ *  price + engine match score alongside the address, the subject carries its
+ *  estimate — so six near-identical dots stop needing a table round-trip. */
 function mapPoints(profile: ProfileResult): GeoMapPoint[] {
   const pts: GeoMapPoint[] = [];
   const f = profile.facts;
+  const mid = profile.valuation?.mid;
   if (f && f.lat != null && f.lng != null) {
-    pts.push({ lat: f.lat, lng: f.lng, kind: "subject", label: f.address || "Subject" });
+    const address = f.address || "Subject";
+    pts.push({
+      lat: f.lat,
+      lng: f.lng,
+      kind: "subject",
+      label: mid != null ? `${address} · est ${usd(mid)}` : address,
+    });
   }
   for (const c of profile.comps ?? []) {
     if (c.lat != null && c.lng != null) {
-      pts.push({ lat: c.lat, lng: c.lng, kind: "comp", label: c.address, atypical: c.atypical });
+      const label = [
+        c.address,
+        c.sold_price != null ? usd(c.sold_price) : null,
+        typeof c.similarity === "number" ? `match ${Math.round(c.similarity)}` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      pts.push({ lat: c.lat, lng: c.lng, kind: "comp", label, atypical: c.atypical });
     }
   }
   return pts;
@@ -77,12 +113,17 @@ function MapLegend() {
   );
 }
 
-/** ZONE section header — eyebrow + heading, used to open ZONE 2 / ZONE 3. */
+/** ZONE section header — eyebrow + heading, used to open ZONE 2 / ZONE 3.
+ *  `index` prefixes the eyebrow with a small mono numeral in muted ember — the
+ *  brand's instrument idiom (how-it-works 01→03) — as report wayfinding. It is
+ *  aria-hidden so the heading text AT reads stays unchanged. */
 function ZoneHeading({
+  index,
   eyebrow,
   title,
   aside,
 }: {
+  index?: string;
   eyebrow: string;
   title: string;
   aside?: React.ReactNode;
@@ -90,7 +131,14 @@ function ZoneHeading({
   return (
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div className="flex flex-col gap-1">
-        <span className="cb-eyebrow text-muted-foreground">{eyebrow}</span>
+        <span className="cb-eyebrow text-muted-foreground">
+          {index ? (
+            <span aria-hidden className="mr-2 font-data text-[var(--cb-ember-text)]/70">
+              {index}
+            </span>
+          ) : null}
+          {eyebrow}
+        </span>
         <h3 className="font-display text-xl font-semibold text-foreground">{title}</h3>
       </div>
       {aside}
@@ -98,8 +146,30 @@ function ZoneHeading({
   );
 }
 
-/** Anchor id on the ZONE-3 report actions — the ZONE-1 "Download PDF" pill jumps here. */
+/** Anchor id on the ZONE-3 report actions — the "Download PDF" affordances jump
+ *  here. On a LOCKED report the id moves onto the single locked evidence band
+ *  (ReportActions' upgrade stand-in is skipped — one unlock ask, not three). */
 const REPORT_ACTIONS_SECTION_ID = "cb-report-actions";
+/** Anchor ids the sticky toolbar's section jump chips target (COMPS_SECTION_ID
+ *  and ADD_COMP_SECTION_ID come from valuation-panel; these two are local). */
+const ANALYTICS_SECTION_ID = "cb-analytics";
+const MARKET_SECTION_ID = "cb-market";
+
+/** The small bordered-chip recipe shared by the report's inline action pills
+ *  (Download PDF, comps CSV, the sticky toolbar's jump chips). */
+const chipButtonClass =
+  "inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-xs font-medium text-foreground transition-colors hover:border-[var(--cb-ember)]/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]";
+
+/** Reduced-motion-safe smooth scroll to an in-report anchor. */
+function jumpToSection(id: string): void {
+  if (typeof document === "undefined") return;
+  const el = document.getElementById(id);
+  if (!el) return;
+  const reduceMotion =
+    typeof window !== "undefined" &&
+    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  el.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+}
 
 /**
  * Smooth-scroll to the report actions (the download button — or, for an
@@ -114,6 +184,130 @@ function scrollToReportActions(): void {
     typeof window !== "undefined" &&
     window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   el.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
+}
+
+/** The chips' small ember down-arrow glyph. */
+function ChipArrow() {
+  return (
+    <svg viewBox="0 0 16 16" className="h-3 w-3 text-[var(--cb-ember)]" fill="none" aria-hidden>
+      <path
+        d="M8 3v10m0 0 4-4m-4 4-4-4"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/**
+ * Slim sticky report toolbar — appears once ZONE 1 (subject + value) scrolls
+ * out of view, so the answer and the deliverable stay one glance/one click
+ * away through a ~5-viewport report: subject address, the mid estimate in
+ * mono, the confidence tier, section jump chips, and a Download-PDF chip that
+ * jumps to the report actions (or, locked, the unlock band standing in for
+ * them). Visibility is IntersectionObserver-driven (a sentinel at the end of
+ * ZONE 1 — no scroll listeners), and every jump respects reduced motion.
+ *
+ * Rendered through a portal onto document.body: the studio shell wraps the
+ * report in a Reveal whose persistent `will-change: transform` would turn a
+ * `position: fixed` descendant into a Reveal-relative box, and the page's
+ * `overflow-hidden` main kills `sticky` — the portal escapes both. The
+ * wrapper re-declares the page's token scope (`cb-dark cb-shell-night`,
+ * matching /comps) because the compbird tokens are scoped, not on :root.
+ * `top-16` clears the studio's h-16 sticky header (z-40, above this bar).
+ */
+function StickyReportBar({
+  address,
+  mid,
+  confidence,
+  isSample,
+  locked,
+  showAnalyticsChip,
+  showMarketChip,
+}: {
+  address: string;
+  mid: number | null;
+  confidence: ConfidenceResult | null;
+  isSample: boolean;
+  locked: boolean;
+  showAnalyticsChip: boolean;
+  showMarketChip: boolean;
+}) {
+  return (
+    <div
+      role="region"
+      aria-label="Report summary toolbar"
+      className="cb-dark cb-shell-night fixed inset-x-0 top-16 z-30 border-b border-border bg-background/90 backdrop-blur"
+    >
+      <div className="mx-auto flex h-11 w-full max-w-6xl items-center gap-3 px-5 sm:px-8">
+        <span
+          className="min-w-0 flex-1 truncate text-sm font-medium text-foreground"
+          title={address}
+        >
+          {isSample ? (
+            <span className="mr-2 text-xs uppercase tracking-wide text-muted-foreground">
+              Sample
+            </span>
+          ) : null}
+          {address}
+        </span>
+        {mid != null ? (
+          <span className="shrink-0 font-data text-sm font-semibold text-[var(--cb-ember-text)]">
+            {usd(mid)}
+          </span>
+        ) : null}
+        {confidence && mid != null ? (
+          <Pill
+            tone={confidence.tier === "high" ? "ember" : "neutral"}
+            className="hidden shrink-0 sm:inline-flex"
+          >
+            {confidence.tier === "high" ? "High confidence" : "Standard"}
+          </Pill>
+        ) : null}
+        {/* section jump chips — the anchors don't exist on a locked report
+            (the evidence zone is the single unlock band there) */}
+        {!locked ? (
+          <span className="hidden shrink-0 items-center gap-2 md:inline-flex">
+            <button
+              type="button"
+              onClick={() => jumpToSection(COMPS_SECTION_ID)}
+              className={chipButtonClass}
+            >
+              Comps
+            </button>
+            {showAnalyticsChip ? (
+              <button
+                type="button"
+                onClick={() => jumpToSection(ANALYTICS_SECTION_ID)}
+                className={chipButtonClass}
+              >
+                Analytics
+              </button>
+            ) : null}
+            {showMarketChip ? (
+              <button
+                type="button"
+                onClick={() => jumpToSection(MARKET_SECTION_ID)}
+                className={chipButtonClass}
+              >
+                Market
+              </button>
+            ) : null}
+          </span>
+        ) : null}
+        <button
+          type="button"
+          onClick={scrollToReportActions}
+          className={`shrink-0 ${chipButtonClass}`}
+        >
+          Download PDF
+          <ChipArrow />
+        </button>
+      </div>
+    </div>
+  );
 }
 
 const OVERRIDE_DIFF_LABELS: Record<string, string> = {
@@ -276,6 +470,80 @@ export function ReportView({
   const excludedCount = excluded?.size ?? 0;
   const forcedSet = forced ?? EMPTY_SET;
 
+  // What-if collapse: the occasional-use editor no longer claims the primary
+  // column on every lookup — it opens from a one-line affordance, and is
+  // FORCED open whenever overrides are active (an applied what-if must never
+  // hide its own controls; the disclosure below the value stays regardless).
+  const [whatIfOpenState, setWhatIfOpenState] = useState(false);
+  const whatIfRegionId = useId();
+  const hasOverrides = useMemo(
+    () => overrides != null && Object.keys(overrides).length > 0,
+    [overrides],
+  );
+
+  // Sticky report toolbar: visible once the ZONE-1 sentinel scrolls above the
+  // studio's h-16 sticky header. IntersectionObserver only — no scroll
+  // listeners. Callback-ref state (not a ref) so the observer attaches even
+  // when the sentinel mounts on a later render.
+  const [zone1Sentinel, setZone1Sentinel] = useState<HTMLDivElement | null>(null);
+  const [toolbarVisible, setToolbarVisible] = useState(false);
+  useEffect(() => {
+    if (!zone1Sentinel || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        // Above the header (not merely below the viewport) ⇒ ZONE 1 is gone.
+        setToolbarVisible(!entry.isIntersecting && entry.boundingClientRect.top < 64);
+      },
+      { rootMargin: "-64px 0px 0px 0px" },
+    );
+    io.observe(zone1Sentinel);
+    return () => io.disconnect();
+  }, [zone1Sentinel]);
+
+  // Toolbar confidence pill — same signals, same authority order as the
+  // ValuationPanel badge (engine tier wins when shipped), computed from the
+  // redaction-surviving fields so it renders for locked viewers too.
+  const toolbarConf = useMemo<ConfidenceResult | null>(() => {
+    const v = profile.valuation;
+    if (!v) return null;
+    const methodValues = profile.locked
+      ? null
+      : (v.methods ?? [])
+          .map((m) => m.value)
+          .filter((x): x is number => typeof x === "number" && Number.isFinite(x) && x > 0);
+    return computeConfidenceFromSignals({
+      compCount: profile.locked ? profile.compsSummary?.count ?? null : comps.length,
+      nearestMi: profile.locked ? profile.compsSummary?.nearest_mi ?? null : nearestMi,
+      farthestMi: profile.locked ? profile.compsSummary?.farthest_mi ?? null : farthestMi,
+      methodValues,
+      divergencePct: v.divergence_pct ?? null,
+      mid: v.mid ?? null,
+      aiBlind: v.ai_blind ?? null,
+      aiEnsemble: v.ai_ensemble ?? null,
+      supplementalShare,
+      engineTier: v.confidence_tier ?? null,
+    });
+  }, [profile, comps.length, nearestMi, farthestMi, supplementalShare]);
+
+  // Subject reference row for the comps grid — record facts overlaid with the
+  // live what-if overrides, so an agent-adjusted sqft reads back into the
+  // comparison every comp is judged against. Memoized: CompsTable is memo'd.
+  const subjectRow = useMemo<CompsTableSubject | null>(() => {
+    const f = profile.facts;
+    if (!f) return null;
+    const o = overrides ?? {};
+    const full = o.full_baths ?? f.full_baths;
+    const half = o.half_baths ?? f.half_baths;
+    return {
+      address: f.address,
+      subdivision: f.subdivision,
+      sqft: o.sqft ?? f.sqft,
+      beds: o.bedrooms ?? f.beds,
+      baths: full == null && half == null ? null : (full ?? 0) + (half ?? 0) * 0.5,
+      yearBuilt: o.year_built ?? f.year_built,
+    };
+  }, [profile.facts, overrides]);
+
   // Excluded-row retention: a recompute response DROPS excluded comps (the
   // engine filters + backfills — they aren't down-weighted rows), so the table
   // would silently lose the row the user just excluded. Cache every comp seen
@@ -300,6 +568,9 @@ export function ReportView({
     methodSnapRef.current = null;
     narratedValuationRef.current = null;
     moverRef.current = null;
+    // New subject ⇒ the what-if editor starts collapsed again (the standard
+    // render-phase state adjustment — the guard above is false next pass).
+    setWhatIfOpenState(false);
   }
   if (narratedValuationRef.current !== (valuation ?? null)) {
     const snap: MethodSnapshot[] = (valuation?.methods ?? []).map((m) => ({
@@ -353,6 +624,27 @@ export function ReportView({
   }
 
   const asOf = meta?.as_of ?? meta?.generated ?? null;
+  // Open by user intent OR forced open while any override is applied.
+  const whatIfOpen = whatIfOpenState || hasOverrides;
+  // Gates the analytics heading/divider AND the toolbar's Analytics chip.
+  const analyticsVisible = hasAnalytics(comps, valuation ?? null);
+
+  /** Client-side comps CSV download — the tuned set the value rests on. */
+  function downloadCompsCsvFile(): void {
+    // `facts` is already narrowed non-null by the render guard above; the
+    // re-check keeps the closure self-sufficient for tsc.
+    if (!comps.length || !facts) return;
+    const blob = new Blob([buildCompsCsv(comps)], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = compsCsvFilename(facts.address);
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast.success("Comps CSV downloaded");
+  }
 
   return (
     <div className="flex flex-col gap-10">
@@ -385,16 +677,88 @@ export function ReportView({
 
         {/* identity (+ editable what-if) beside the value focal point */}
         <div className="grid gap-x-10 gap-y-8 lg:grid-cols-[1.05fr_0.95fr]">
-          {/* LEFT — subject identity + the what-if editor anchored to the facts */}
-          <SubjectCard
-            facts={facts}
-            estimateMid={valuation?.mid ?? null}
-            valuation={valuation ?? null}
-            marketContext={marketContext ?? null}
-            canEdit={canEdit}
-            overrides={overrides}
-            onOverridesChange={canEdit ? onOverridesChange : undefined}
-          />
+          {/* LEFT — subject identity, pricing strategy, and the what-if editor
+              COLLAPSED to a one-line affordance (report hierarchy pass 2026-07:
+              the occasional-use editor was claiming the primary column on
+              every lookup). The editor mounts here — not inside SubjectCard
+              (canEdit={false}) — so the disclosure controls stay adjacent, and
+              it stays mounted-but-hidden when collapsed so all editor behavior
+              is preserved. Auto-expands while any override is active. */}
+          <div className="flex flex-col gap-6">
+            <SubjectCard
+              facts={facts}
+              estimateMid={valuation?.mid ?? null}
+              valuation={valuation ?? null}
+              marketContext={marketContext ?? null}
+              canEdit={false}
+            />
+            {canEdit ? (
+              <div className="flex flex-col gap-2">
+                {!whatIfOpen ? (
+                  <button
+                    type="button"
+                    aria-expanded={false}
+                    aria-controls={whatIfRegionId}
+                    onClick={() => setWhatIfOpenState(true)}
+                    className="flex w-full items-center justify-between gap-3 rounded-xl border border-border/70 bg-secondary/30 px-3.5 py-2.5 text-left transition-colors hover:border-[var(--cb-ember)]/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]"
+                  >
+                    <span className="min-w-0 truncate text-sm">
+                      <span className="font-medium text-foreground">Correct the record</span>{" "}
+                      <span className="text-muted-foreground">
+                        — adjust facts to test the estimate
+                      </span>
+                    </span>
+                    <svg
+                      viewBox="0 0 16 16"
+                      className="h-3.5 w-3.5 shrink-0 text-[var(--cb-ember)]"
+                      fill="none"
+                      aria-hidden
+                    >
+                      <path
+                        d="M4 6l4 4 4-4"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
+                ) : null}
+                <div
+                  id={whatIfRegionId}
+                  className={whatIfOpen ? "flex flex-col gap-2" : "hidden"}
+                >
+                  <SubjectFactsEditor
+                    facts={facts}
+                    value={overrides ?? EMPTY_OVERRIDES}
+                    onChange={onOverridesChange!}
+                  />
+                  {/* An active override pins the editor open — the collapse
+                      control only exists once everything is back on record. */}
+                  {!hasOverrides ? (
+                    <button
+                      type="button"
+                      aria-expanded={true}
+                      aria-controls={whatIfRegionId}
+                      onClick={() => setWhatIfOpenState(false)}
+                      className="inline-flex items-center gap-1.5 self-start text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]"
+                    >
+                      Hide the what-if editor
+                      <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" aria-hidden>
+                        <path
+                          d="M4 10l4-4 4 4"
+                          stroke="currentColor"
+                          strokeWidth="1.7"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+          </div>
 
           {/* RIGHT — the HERO: the value, its freshness stamp, disclosure, map */}
           <div className="flex flex-col gap-6">
@@ -426,21 +790,9 @@ export function ReportView({
                 upgrade CTA standing in for it). No generate logic here. */}
             {valuation ? (
               <div className="-mt-2">
-                <button
-                  type="button"
-                  onClick={scrollToReportActions}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-xs font-medium text-foreground transition-colors hover:border-[var(--cb-ember)]/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]"
-                >
+                <button type="button" onClick={scrollToReportActions} className={chipButtonClass}>
                   Download PDF
-                  <svg viewBox="0 0 16 16" className="h-3 w-3 text-[var(--cb-ember)]" fill="none" aria-hidden>
-                    <path
-                      d="M8 3v10m0 0 4-4m-4 4-4-4"
-                      stroke="currentColor"
-                      strokeWidth="1.7"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
+                  <ChipArrow />
                 </button>
               </div>
             ) : null}
@@ -455,14 +807,20 @@ export function ReportView({
             {/* Map of the subject + comps. Sample reports draw the pure-SVG
                 aerial (fabricated comps must not sit on a real OSM basemap, and
                 it skips the Leaflet runtime + tile fetches on first paint); live
-                reports get the real OSM map. */}
-            <div className="relative flex min-h-[18rem] flex-1 flex-col">
+                reports get the real OSM map. `isolate` contains Leaflet's
+                internal z-400+ panes (and the z-[500] legend) in a local
+                stacking context so they can never paint over the z-30 sticky
+                report toolbar or the z-40 studio header. */}
+            <div className="relative isolate flex min-h-[18rem] flex-1 flex-col">
               {/* Locked: the comps array is redacted, so only the subject pin
                   renders — say so instead of showing a legend for pins that
                   aren't there. */}
               <div className="absolute right-4 top-4 z-[500]">
                 {locked ? (
-                  <Pill tone="ember" className="bg-card/85 backdrop-blur">
+                  // Neutral tone on purpose (conversion pass 2026-07): it
+                  // explains the lone pin — the ember unlock ask lives once,
+                  // in the locked evidence band below.
+                  <Pill tone="neutral" className="bg-card/85 backdrop-blur">
                     Comp locations — Pro
                   </Pill>
                 ) : (
@@ -488,21 +846,30 @@ export function ReportView({
         </div>
       </section>
 
+      {/* sticky-toolbar sentinel — the toolbar shows while this hairline sits
+          above the studio header (i.e. ZONE 1 has scrolled out of view). */}
+      <div ref={setZone1Sentinel} aria-hidden className="pointer-events-none -my-5 h-px" />
+
       {/* ══ ZONE 2 — EVIDENCE ═════════════════════════════════════════════════
           Comps, $/sqft spread, live analytics and the neighborhood market read
           as ONE connected panel divided by hairline rules — not four sibling
           cards. On a locked live report the server stripped every comp/market
-          row, so LockedPanel stand-ins take the whole zone. */}
+          row, so ONE locked evidence band takes the zone (conversion pass
+          2026-07: a single confident unlock ask instead of three stacked
+          panels — the header Upgrade is the report's only other Stripe entry;
+          ReportActions' upgrade stand-in is skipped below and the Download-PDF
+          wayfinding pill jumps here instead via the shared anchor id). */}
       {locked ? (
         <section aria-label="Evidence" className="flex flex-col gap-6">
-          <LockedPanel title="Comparable sales" teaser={lockedCompsTeaser(profile)} />
           <LockedPanel
-            title="Live analytics"
-            teaser="Sale-price timeline, $/sqft by distance, and the method-convergence read for this exact lookup."
-          />
-          <LockedPanel
-            title="Neighborhood market"
-            teaser="The local market read — median $/sqft, price trend, days on market, inventory."
+            id={REPORT_ACTIONS_SECTION_ID}
+            title="The evidence layer"
+            teaser={lockedCompsTeaser(profile)}
+            bullets={[
+              "Every comparable sale",
+              "Live market analytics",
+              "Branded PDF downloads",
+            ]}
           />
         </section>
       ) : (
@@ -515,9 +882,10 @@ export function ReportView({
           <div
             id={COMPS_SECTION_ID}
             tabIndex={-1}
-            className="flex scroll-mt-6 flex-col gap-5 outline-none"
+            className="flex scroll-mt-28 flex-col gap-5 outline-none"
           >
             <ZoneHeading
+              index="01"
               eyebrow="Evidence"
               title={
                 comps.length
@@ -525,16 +893,31 @@ export function ReportView({
                   : "Comparable sales"
               }
               aside={
-                tuning ? (
-                  <Pill tone="neutral" className="shrink-0">
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--cb-ember)]" aria-hidden />
-                    Recomputing…
-                  </Pill>
-                ) : asOf ? (
-                  <span className="font-data text-xs text-muted-foreground">
-                    as of {dateLong(asOf)}
-                  </span>
-                ) : null
+                <div className="flex flex-wrap items-center justify-end gap-3">
+                  {tuning ? (
+                    <Pill tone="neutral" className="shrink-0">
+                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--cb-ember)]" aria-hidden />
+                      Recomputing…
+                    </Pill>
+                  ) : asOf ? (
+                    <span className="font-data text-xs text-muted-foreground">
+                      as of {dateLong(asOf)}
+                    </span>
+                  ) : null}
+                  {/* comps CSV — gated exactly like the table's evidence: this
+                      whole branch only renders unlocked, so locked viewers
+                      never see the chip. */}
+                  {comps.length ? (
+                    <button
+                      type="button"
+                      onClick={downloadCompsCsvFile}
+                      className={`shrink-0 ${chipButtonClass}`}
+                    >
+                      Download comps (CSV)
+                      <ChipArrow />
+                    </button>
+                  ) : null}
+                </div>
               }
             />
             {onToggleComp ? (
@@ -611,6 +994,7 @@ export function ReportView({
 
             <CompsTable
               comps={displayComps}
+              subject={subjectRow}
               excluded={excluded}
               forced={forcedSet}
               onToggle={onToggleComp}
@@ -625,12 +1009,13 @@ export function ReportView({
               (comps = the tuned set, so the section disappears/reappears as
               users exclude comps); the component's own null-return stays as
               defense in depth. */}
-          {hasAnalytics(comps, valuation ?? null) ? (
+          {analyticsVisible ? (
             <>
               {/* hairline divider — the evidence reads as one movement, not cards */}
               <div className="border-t border-border" aria-hidden />
-              <div className="flex flex-col gap-5">
+              <div id={ANALYTICS_SECTION_ID} className="flex scroll-mt-28 flex-col gap-5">
                 <ZoneHeading
+                  index="02"
                   eyebrow="Live analytics"
                   title="This lookup, charted"
                   aside={tuning ? <span className="text-xs text-muted-foreground">recomputing…</span> : null}
@@ -645,11 +1030,19 @@ export function ReportView({
             </>
           ) : null}
 
-          {/* market context — redacted to null on a locked live report */}
+          {/* market context — redacted to null on a locked live report.
+              MarketPanel owns its "Neighborhood market" heading, so only the
+              section numeral (kept in sequence when analytics is absent) and
+              the jump anchor live out here. */}
           {marketContext ? (
             <>
               <div className="border-t border-border" aria-hidden />
-              <MarketPanel market={marketContext} saleHistory={saleHistory} />
+              <div id={MARKET_SECTION_ID} className="flex scroll-mt-28 flex-col gap-1.5">
+                <span aria-hidden className="cb-eyebrow font-data text-[var(--cb-ember-text)]/70">
+                  {analyticsVisible ? "03" : "02"}
+                </span>
+                <MarketPanel market={marketContext} saleHistory={saleHistory} />
+              </div>
             </>
           ) : null}
         </section>
@@ -689,20 +1082,27 @@ export function ReportView({
           <SummaryEditor value={reportConfig ?? EMPTY_CONFIG} onChange={onReportConfigChange!} />
         ) : null}
 
-        <div className="border-t border-border" aria-hidden />
+        {/* Locked reports skip the actions row entirely — its upgrade stand-in
+            was a third Stripe entry; the locked evidence band (which carries
+            the REPORT_ACTIONS_SECTION_ID anchor) is the one unlock ask. */}
+        {!locked ? (
+          <>
+            <div className="border-t border-border" aria-hidden />
 
-        <div id={REPORT_ACTIONS_SECTION_ID} className="scroll-mt-6">
-          <ReportActions
-            address={facts.address}
-            parcelId={facts.parcel_id}
-            isSample={isSample}
-            excluded={excluded ? Array.from(excluded) : undefined}
-            forced={forced ? Array.from(forced) : undefined}
-            subjectOverrides={canEdit ? overrides : undefined}
-            reportConfig={canEdit ? reportConfig : undefined}
-            evidence={!locked}
-          />
-        </div>
+            <div id={REPORT_ACTIONS_SECTION_ID} className="scroll-mt-6">
+              <ReportActions
+                address={facts.address}
+                parcelId={facts.parcel_id}
+                isSample={isSample}
+                excluded={excluded ? Array.from(excluded) : undefined}
+                forced={forced ? Array.from(forced) : undefined}
+                subjectOverrides={canEdit ? overrides : undefined}
+                reportConfig={canEdit ? reportConfig : undefined}
+                evidence={!locked}
+              />
+            </div>
+          </>
+        ) : null}
 
         {isSample ? (
           <p className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -711,11 +1111,31 @@ export function ReportView({
           </p>
         ) : null}
       </section>
+
+      {/* sticky report toolbar — portaled to <body> (see StickyReportBar for
+          why fixed/sticky can't live inside the studio's Reveal + overflow
+          shell). Client-only by construction: toolbarVisible starts false and
+          only the IntersectionObserver effect flips it. */}
+      {toolbarVisible
+        ? createPortal(
+            <StickyReportBar
+              address={facts.address}
+              mid={valuation?.mid ?? null}
+              confidence={toolbarConf}
+              isSample={isSample}
+              locked={locked}
+              showAnalyticsChip={analyticsVisible}
+              showMarketChip={marketContext != null}
+            />,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
 
 const EMPTY_SET: Set<string> = new Set();
+const EMPTY_OVERRIDES: SubjectOverrides = {};
 const EMPTY_CONFIG: ReportConfig = {};
 
 /** One-line hook for the locked comps panel, built from the redacted teaser. */

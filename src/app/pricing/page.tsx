@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Nav } from "@/components/compbird/nav";
 import { Footer } from "@/components/compbird/footer";
-import { SectionShell, Eyebrow, Button, Card, GrainOverlay } from "@/components/compbird/ui";
+import { SectionShell, Eyebrow, Button, Card, GrainOverlay, Pill } from "@/components/compbird/ui";
 import { JsonLd } from "@/components/seo/json-ld";
 import { faqSchema } from "@/lib/seo/schema";
 
@@ -14,8 +14,9 @@ export const metadata: Metadata = {
 };
 
 /* Honest split: Free is the estimate — unlimited instant valuations. Pro is
-   the evidence — every comp, the market read, and the branded PDF. The layout
-   is deliberately asymmetric — Pro carries the dark instrument slab. */
+   the evidence — every comp, the market read, and the branded PDF. Pro is the
+   featured card: this page's one true-ink instrument band, ringed in ember
+   with a tinted header band and a "Most popular" pill. */
 
 const FREE_FEATURES = [
   "Unlimited instant value estimates on any address in coverage",
@@ -100,18 +101,22 @@ export default function PricingPage() {
               </div>
             </Card>
 
-            <div className="cb-dark relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card p-8 sm:p-10">
+            <div className="cb-dark relative flex flex-col overflow-hidden rounded-2xl border-2 border-[var(--cb-ember)] bg-card">
               <GrainOverlay className="opacity-30" />
               <div
                 aria-hidden
                 className="cb-glow-ring pointer-events-none absolute -right-24 -top-24 h-64 w-64 opacity-50"
               />
-              <div className="relative flex grow flex-col">
-                <div className="flex items-center justify-between gap-4">
+              {/* slim tinted header band — the featured card's masthead */}
+              <div className="relative flex items-center justify-between gap-4 border-b border-border bg-[var(--cb-tint-band)] px-8 py-4 sm:px-10">
+                <span className="inline-flex items-center gap-3">
                   <span className="cb-eyebrow text-[var(--cb-ember-text)]">Pro</span>
-                  <span className="text-xs text-muted-foreground">the evidence layer</span>
-                </div>
-                <div className="mt-5 flex items-baseline gap-2">
+                  <Pill tone="ember">Most popular</Pill>
+                </span>
+                <span className="text-xs text-muted-foreground">the evidence layer</span>
+              </div>
+              <div className="relative flex grow flex-col p-8 pt-6 sm:p-10 sm:pt-7">
+                <div className="flex items-baseline gap-2">
                   <span className="font-data text-5xl font-semibold tracking-tight text-foreground">$20</span>
                   <span className="text-sm text-muted-foreground">per month</span>
                 </div>
@@ -120,13 +125,19 @@ export default function PricingPage() {
                 </p>
                 <FeatureList items={PRO_FEATURES} />
                 <div className="mt-auto pt-9">
-                  <Button href="/join?redirect=%2Fcomps" className="w-full justify-center" arrow>
-                    Start free — upgrade anytime
+                  {/* ?intent=pro rides the redirect through signup so the studio
+                      can offer one-click checkout on arrival. */}
+                  <Button
+                    href="/join?redirect=%2Fcomps%3Fintent%3Dpro"
+                    className="w-full justify-center"
+                    arrow
+                  >
+                    Unlock the evidence — $20/mo
                   </Button>
                   <p className="mt-3.5 text-xs leading-relaxed text-muted-foreground">
-                    Try the full studio free first. When you need the evidence,
-                    upgrade from the account menu inside the studio. Billing by
-                    Stripe · cancel anytime.
+                    Start free and upgrade in one click inside the studio — or
+                    anytime later from the account menu. Billing by Stripe ·
+                    cancel anytime.
                   </p>
                 </div>
               </div>

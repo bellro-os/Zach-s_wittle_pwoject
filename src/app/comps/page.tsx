@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { Wordmark } from "@/components/compbird/brand";
 import { GrainOverlay } from "@/components/compbird/ui";
 import { CompStudio } from "@/components/compbird/studio/comp-studio";
-import { StudioAccountMenu, ProPitchBanner } from "@/components/compbird/studio/account-menu";
+import { StudioAccountMenu } from "@/components/compbird/studio/account-menu";
 import { SubscribeToast } from "@/components/compbird/studio/subscribe-toast";
 import { getActiveContext } from "@/lib/session";
 import { can as canFeature } from "@/lib/entitlements";
@@ -107,11 +107,9 @@ export default async function CompStudioPage() {
           className="cb-glow-ring pointer-events-none absolute -right-48 -top-56 h-[36rem] w-[36rem] opacity-50"
         />
         <div className="relative mx-auto w-full max-w-6xl px-5 py-12 sm:px-8 sm:py-16">
-          {!evidence ? (
-            <div className="mb-8">
-              <ProPitchBanner />
-            </div>
-          ) : null}
+          {/* ProPitchBanner removed 2026-07-16 (UI/UX audit one-confident-ask
+              rule): the report's single locked evidence band + the header
+              Upgrade are this page's only Stripe entry points. */}
           {/* Suspense: the studio reads useSearchParams so LIVE ?address= /
               ?parcelId= / ?demo=1 changes load a subject while mounted — Next
               requires the boundary. The page is force-dynamic, so the fallback

@@ -10,7 +10,8 @@ import type { NeighborhoodMarket } from "@/lib/compbird/types";
 import { usd, ppsf, num, num1, pctDelta } from "@/lib/compbird/format";
 
 /**
- * Neighborhood market reports — a dark "instrument" band on the paper page.
+ * Neighborhood market reports — a tinted band on the paper page (the landing's
+ * one true-dark slab lives in Coverage; rhythm rule in compbird.css).
  * Each card reads like a desk's tear-sheet: median, momentum, a 12-month
  * trend line, then the supply/velocity figures that explain the headline.
  *
@@ -41,8 +42,13 @@ export function MarketReports() {
 
   return (
     <SectionShell id="markets" width="wide" className="py-24 sm:py-32">
-      <div className="cb-dark relative overflow-hidden rounded-3xl bg-background px-5 py-20 sm:px-12 sm:py-24">
-        {/* ember bleed, top-left — keeps the charcoal from going flat */}
+      <div className="relative overflow-hidden rounded-3xl border border-border bg-card px-5 py-20 sm:px-12 sm:py-24">
+        {/* faint ember band wash — the light-system surface for accent bands */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[var(--cb-tint-band)]"
+        />
+        {/* ember bleed, top-left — keeps the slab from going flat */}
         <div
           aria-hidden
           className="cb-glow-ring pointer-events-none absolute -left-32 -top-40 h-[28rem] w-[28rem] opacity-50"

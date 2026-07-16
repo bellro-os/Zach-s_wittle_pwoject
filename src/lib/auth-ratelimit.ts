@@ -41,7 +41,7 @@ interface Bucket {
 const buckets = new Map<string, Bucket>();
 
 /** Identifies a login surface for separate counters. */
-export type AuthSurface = "login" | "portal" | "signup";
+export type AuthSurface = "login" | "portal" | "signup" | "waitlist";
 
 /**
  * Hash the client IP so we never persist or key on a raw address. Cheap,
@@ -265,6 +265,52 @@ export function recordGlobalSignupAttempt(): void {
   if (!b || now - b.windowStart > SIGNUP_GLOBAL_WINDOW_MS) {
     b = { failures: 0, windowStart: now, lockedUntil: 0 };
     buckets.set(SIGNUP_GLOBAL_KEY, b);
+  }
+  b.failures += 1;
+}
+
+// --- Per-IP waitlist cap -----------------------------------------------------
+//
+// The coverage-waitlist endpoint has no credential to fail, so the
+// failure-then-lockout model above doesn't fit: EVERY submission counts.
+// Flat rolling counter per IP (same shape as the global signup cap, keyed
+// per-IP via the "waitlist" surface): a legitimate visitor signs up once,
+// maybe twice; 5/hour/IP stops scripted line-noise from growing the JSONL
+// file unboundedly while never touching a real user.
+
+/** Waitlist submissions permitted per IP inside the rolling window. */
+const WAITLIST_MAX = 5;
+/** Rolling window for the per-IP waitlist counter (ms). */
+const WAITLIST_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+
+/**
+ * Check the per-IP waitlist cap WITHOUT incrementing. Returns limited=true once
+ * the rolling window is full. Call before accepting a submission.
+ */
+export function checkWaitlist(ip: string): ThrottleState {
+  const key = bucketKey("waitlist", ip);
+  const b = buckets.get(key);
+  const now = Date.now();
+  if (!b) return { limited: false, retryAfterSeconds: 0 };
+  if (now - b.windowStart > WAITLIST_WINDOW_MS) {
+    buckets.delete(key);
+    return { limited: false, retryAfterSeconds: 0 };
+  }
+  if (b.failures >= WAITLIST_MAX) {
+    const retryAfter = Math.ceil((b.windowStart + WAITLIST_WINDOW_MS - now) / 1000);
+    return { limited: true, retryAfterSeconds: Math.max(1, retryAfter) };
+  }
+  return { limited: false, retryAfterSeconds: 0 };
+}
+
+/** Increment the per-IP waitlist counter (call on every submission attempt). */
+export function recordWaitlistAttempt(ip: string): void {
+  const key = bucketKey("waitlist", ip);
+  const now = Date.now();
+  let b = buckets.get(key);
+  if (!b || now - b.windowStart > WAITLIST_WINDOW_MS) {
+    b = { failures: 0, windowStart: now, lockedUntil: 0 };
+    buckets.set(key, b);
   }
   b.failures += 1;
 }

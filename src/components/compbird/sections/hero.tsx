@@ -1,5 +1,5 @@
 import { Eyebrow, GrainOverlay } from "@/components/compbird/ui";
-import { Reveal, MagneticButton } from "@/components/compbird/motion";
+import { Reveal } from "@/components/compbird/motion";
 import { AerialMap, pointsFromProfile } from "@/components/compbird/graphics";
 import { SAMPLE_PROFILE } from "@/lib/compbird/sample";
 import { usd, ppsf, pct } from "@/lib/compbird/format";
@@ -38,18 +38,45 @@ export function Hero() {
           </Reveal>
 
           <Reveal delay={0.18}>
-            <div className="mt-9 flex flex-wrap items-center gap-3">
-              <MagneticButton href="/comps">Price a property</MagneticButton>
+            {/* Address-first primary action — the brand's search idiom as a
+                bordered pill. Plain GET form (no typeahead): the studio reads
+                ?address= as a deep link, and the auth proxy + redirect
+                sanitizer carry it through signup end-to-end. */}
+            <form
+              action="/comps"
+              method="GET"
+              className="mt-9 flex max-w-xl items-center gap-2 rounded-full border border-border bg-card p-1.5 pl-5 transition-colors duration-300 focus-within:border-[var(--cb-ember)]/50"
+            >
+              <input
+                type="text"
+                name="address"
+                required
+                autoComplete="street-address"
+                placeholder="Enter any Virginia or D.C. address"
+                aria-label="Property address"
+                className="min-w-0 flex-1 bg-transparent text-[0.95rem] text-foreground placeholder:text-muted-foreground focus:outline-none"
+              />
+              <button
+                type="submit"
+                className="shrink-0 rounded-full bg-[var(--cb-ember)] px-5 py-2.5 text-sm font-semibold text-[var(--cb-on-ember)] shadow-[0_8px_30px_-8px_var(--cb-glow)] transition-colors duration-300 hover:bg-[var(--cb-ember-deep)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]"
+              >
+                Price it
+              </button>
+            </form>
+          </Reveal>
+
+          <Reveal delay={0.22}>
+            <div className="mt-5 flex flex-wrap items-center gap-3">
               <a
                 href="/comps?demo=1"
-                className="inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-6 py-3 text-[0.95rem] font-semibold text-foreground backdrop-blur transition-all duration-300 hover:border-[var(--cb-ember)]/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]"
+                className="inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-5 py-2.5 text-sm font-semibold text-foreground backdrop-blur transition-all duration-300 hover:border-[var(--cb-ember)]/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]"
               >
                 See a sample report
               </a>
             </div>
           </Reveal>
 
-          <Reveal delay={0.22}>
+          <Reveal delay={0.24}>
             <p className="mt-4 text-sm text-muted-foreground">
               Free account · instant value estimates · no card required.{" "}
               <span className="text-muted-foreground">

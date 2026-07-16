@@ -101,8 +101,45 @@ export function SearchBar({
   const [failed, setFailed] = useState(false);
   const [rateLimited, setRateLimited] = useState(false);
 
+  // Out-of-coverage re-engagement: the no-results panel carries a one-field
+  // "tell me when you reach my state" capture (POST /api/compbird/waitlist).
+  // `done` survives further searches — once on the list, always on the list.
+  const [wlEmail, setWlEmail] = useState("");
+  const [wlState, setWlState] = useState<"idle" | "sending" | "done">("idle");
+  const [wlError, setWlError] = useState<string | null>(null);
+
   const rootRef = useRef<HTMLDivElement>(null);
   const listId = useId();
+
+  /** Submit the waitlist capture with the query that came up empty. */
+  async function submitWaitlist(e: React.FormEvent) {
+    e.preventDefault();
+    const email = wlEmail.trim();
+    if (!email || wlState !== "idle") return;
+    setWlState("sending");
+    setWlError(null);
+    try {
+      const res = await fetch("/api/compbird/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, q: q.trim() }),
+        cache: "no-store",
+      });
+      if (res.ok) {
+        setWlState("done");
+        return;
+      }
+      setWlState("idle");
+      setWlError(
+        res.status === 429
+          ? "Too many tries — give it a minute."
+          : "That didn't go through — check the email and try again.",
+      );
+    } catch {
+      setWlState("idle");
+      setWlError("That didn't go through — try again in a moment.");
+    }
+  }
 
   // Debounced search.
   useEffect(() => {
@@ -326,6 +363,47 @@ export function SearchBar({
               <span className="mt-1.5 block text-xs text-muted-foreground">
                 compbird covers Virginia + D.C. today — more states coming.
               </span>
+              {/* waitlist capture — turns an out-of-coverage dead end into the
+                  launch list. The failed query rides along for coverage triage. */}
+              {wlState === "done" ? (
+                <span className="mt-2.5 block text-xs font-medium text-foreground">
+                  You’re on the list.
+                </span>
+              ) : (
+                <>
+                  <form
+                    onSubmit={submitWaitlist}
+                    className="mt-2.5 flex items-center gap-2"
+                  >
+                    <input
+                      type="email"
+                      required
+                      value={wlEmail}
+                      onChange={(e) => {
+                        setWlEmail(e.target.value);
+                        setWlError(null);
+                      }}
+                      placeholder="you@brokerage.com"
+                      aria-label="Email me when coverage reaches my state"
+                      autoComplete="email"
+                      spellCheck={false}
+                      className="min-w-0 flex-1 rounded-lg border border-border bg-card/80 px-3 py-1.5 text-xs text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-[var(--cb-ember)]"
+                    />
+                    <button
+                      type="submit"
+                      disabled={wlState === "sending"}
+                      className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-[var(--cb-ember)]/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)] disabled:opacity-50"
+                    >
+                      Notify me
+                    </button>
+                  </form>
+                  {wlError ? (
+                    <span className="mt-1.5 block text-xs text-muted-foreground">
+                      {wlError}
+                    </span>
+                  ) : null}
+                </>
+              )}
             </>
           )}
         </div>

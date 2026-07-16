@@ -9,6 +9,12 @@ import {
   useState,
 } from "react";
 import { cn } from "@/lib/utils/cn";
+import type { SubjectOverrides, ReportConfig } from "@/lib/cma/overrides";
+import {
+  pruneOverrides,
+  sanitizeSubjectOverrides,
+  sanitizeReportConfig,
+} from "@/lib/cma/overrides";
 import { pickBlocked } from "./search-bar";
 import type { LookupSelection } from "./subject-preview";
 
@@ -31,6 +37,11 @@ import type { LookupSelection } from "./subject-preview";
  * Same-tab writers announce themselves on a custom window event; the "storage"
  * event covers other tabs. All storage access is wrapped — a blocked
  * localStorage degrades to "no recents", never a crash.
+ *
+ * This module also owns the sibling PER-SUBJECT TUNING store
+ * ("cb-tuning:<parcel_id||address>", see saveTuning/readTuning below) — the
+ * studio persists live-report tuning there and both recents surfaces badge
+ * entries that carry a saved record.
  */
 
 const RECENTS_KEY = "cb-recents";
@@ -231,6 +242,182 @@ function entryHref(e: Pick<RecentEntry, "address" | "parcel_id">): string {
   return `/comps?${qs.toString()}`;
 }
 
+/* ── Per-subject tuning persistence ─────────────────────────────────────────
+ *
+ * Everything an agent tunes on a live report (excluded/pinned comps, subject
+ * what-if overrides, the exec-summary edit) persists to
+ * localStorage["cb-tuning:<parcel_id||address>"] — same identity rule as the
+ * recents dedupe (keyOf), so the chips' "tuned" badge and the studio's
+ * save/rehydrate can never disagree about which subject a record belongs to.
+ * The studio (comp-studio.tsx) debounce-saves via saveTuning and rehydrates
+ * via readTuning on select() success; this module owns the storage shape.
+ *
+ * Storage contract: JSON, versioned (`v: 1`), capped at TUNING_CAP entries
+ * with oldest-`at` (LRU) eviction. All access is wrapped — a blocked or full
+ * localStorage (quota) degrades to "tuning doesn't persist", never a crash.
+ * Reads re-sanitize through the shared overrides sanitizers, so a tampered
+ * blob can't push junk onto the preview wire (the server clamps again anyway).
+ */
+
+const TUNING_PREFIX = "cb-tuning:";
+const TUNING_CAP = 50;
+const TUNING_CHANGED_EVENT = "cb-tuning-changed";
+
+/** Subject identity for the tuning store — mirrors keyOf's dedupe rule. */
+export interface TuningIdentity {
+  address: string;
+  parcel_id: string;
+}
+
+/** The persisted per-subject tuning record (schema v1). */
+export interface SavedTuning {
+  v: 1;
+  at: number;
+  excluded: string[];
+  forced: string[];
+  overrides?: SubjectOverrides;
+  reportConfig?: ReportConfig;
+}
+
+function tuningStorageKey(identity: TuningIdentity): string | null {
+  const key = identity.parcel_id.trim() || identity.address.trim();
+  return key ? `${TUNING_PREFIX}${key}` : null;
+}
+
+/** Junk-tolerant string-array read for the stored excluded/forced lists. */
+function tuningStrings(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .filter((s): s is string => typeof s === "string" && s.trim() !== "")
+    .slice(0, TUNING_CAP);
+}
+
+/**
+ * Evict oldest-`at` records beyond TUNING_CAP. Called inside saveTuning's
+ * try, after a successful write — enumeration stays cheap (≤ cap + 1 keys).
+ */
+function pruneTuningLru(): void {
+  const entries: { key: string; at: number }[] = [];
+  for (let i = 0; i < window.localStorage.length; i++) {
+    const key = window.localStorage.key(i);
+    if (!key || !key.startsWith(TUNING_PREFIX)) continue;
+    let at = 0;
+    try {
+      const parsed: unknown = JSON.parse(window.localStorage.getItem(key) ?? "");
+      const t = (parsed as { at?: unknown } | null)?.at;
+      if (typeof t === "number" && Number.isFinite(t)) at = t;
+    } catch {
+      /* unparseable record — treat as oldest (at = 0) so it evicts first */
+    }
+    entries.push({ key, at });
+  }
+  if (entries.length <= TUNING_CAP) return;
+  entries.sort((a, b) => a.at - b.at);
+  for (const { key } of entries.slice(0, entries.length - TUNING_CAP)) {
+    window.localStorage.removeItem(key);
+  }
+}
+
+/**
+ * Persist one subject's tuning. Empty tuning (nothing excluded/pinned, no
+ * pruned overrides, no report-config content) REMOVES the record instead —
+ * so "tuned" badges and future rehydrates track reality, and a reset clears
+ * the saved state too. Quota/blocked storage is swallowed: persistence is
+ * strictly best-effort.
+ */
+export function saveTuning(
+  identity: TuningIdentity,
+  data: {
+    excluded: string[];
+    forced: string[];
+    overrides?: SubjectOverrides;
+    reportConfig?: ReportConfig;
+  },
+): void {
+  const storageKey = tuningStorageKey(identity);
+  if (!storageKey) return;
+  const excluded = data.excluded.filter((s) => s.trim() !== "");
+  const forced = data.forced.filter((s) => s.trim() !== "");
+  const overrides = data.overrides ? pruneOverrides(data.overrides) : undefined;
+  const reportConfig = sanitizeReportConfig(data.reportConfig);
+  try {
+    if (!excluded.length && !forced.length && !overrides && !reportConfig) {
+      window.localStorage.removeItem(storageKey);
+    } else {
+      const record: SavedTuning = {
+        v: 1,
+        at: Date.now(),
+        excluded,
+        forced,
+        ...(overrides ? { overrides } : {}),
+        ...(reportConfig ? { reportConfig } : {}),
+      };
+      window.localStorage.setItem(storageKey, JSON.stringify(record));
+      pruneTuningLru();
+    }
+  } catch {
+    /* storage unavailable or over quota — tuning just doesn't persist */
+  }
+  try {
+    window.dispatchEvent(new Event(TUNING_CHANGED_EVENT));
+  } catch {
+    /* no window event — badges refresh on the next recents change */
+  }
+}
+
+/**
+ * Read + sanitize one subject's saved tuning. Unknown versions, malformed
+ * blobs, and effectively-empty records all read as null (nothing to
+ * rehydrate). Overrides/report-config re-run the shared sanitizers, so the
+ * studio can hand the result straight to its state paths / the preview wire.
+ */
+export function readTuning(identity: TuningIdentity): SavedTuning | null {
+  const storageKey = tuningStorageKey(identity);
+  if (!storageKey) return null;
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    const o = parsed as Record<string, unknown>;
+    if (o.v !== 1) return null;
+    const excluded = tuningStrings(o.excluded);
+    const forced = tuningStrings(o.forced);
+    const ovRaw = o.overrides;
+    const overrides =
+      ovRaw && typeof ovRaw === "object" && !Array.isArray(ovRaw)
+        ? sanitizeSubjectOverrides(ovRaw as SubjectOverrides)
+        : undefined;
+    const rcRaw = o.reportConfig;
+    const reportConfig =
+      rcRaw && typeof rcRaw === "object" && !Array.isArray(rcRaw)
+        ? sanitizeReportConfig(rcRaw as ReportConfig)
+        : undefined;
+    if (!excluded.length && !forced.length && !overrides && !reportConfig) return null;
+    return {
+      v: 1,
+      at: typeof o.at === "number" && Number.isFinite(o.at) ? o.at : 0,
+      excluded,
+      forced,
+      ...(overrides ? { overrides } : {}),
+      ...(reportConfig ? { reportConfig } : {}),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Key-presence check — powers the recents "tuned" badge, no parse needed. */
+export function hasTuning(identity: TuningIdentity): boolean {
+  const storageKey = tuningStorageKey(identity);
+  if (!storageKey) return false;
+  try {
+    return window.localStorage.getItem(storageKey) != null;
+  } catch {
+    return false;
+  }
+}
+
 /** True for a click that should keep native anchor behavior (new tab/window). */
 function isModifiedClick(e: React.MouseEvent): boolean {
   return e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0;
@@ -280,24 +467,43 @@ export function Recents({
   const [q, setQ] = useState("");
   const [active, setActive] = useState(0);
   const [mac, setMac] = useState(false);
+  // Bumped whenever the tuning store changes (studio saves are debounced, so
+  // they land after the recents write) — recomputes the "tuned" badges below.
+  const [tuningVersion, setTuningVersion] = useState(0);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
   const listId = useId();
 
   // Load once on mount, then stay in sync: same-tab writes announce on the
-  // custom event, other tabs arrive via the storage event.
+  // custom events (recents AND tuning saves), other tabs arrive via the
+  // storage event.
   useEffect(() => {
-    const refresh = () => setRecents(readRecents());
+    const refresh = () => {
+      setRecents(readRecents());
+      setTuningVersion((v) => v + 1);
+    };
     refresh();
     setMac(/Mac|iPhone|iPad/i.test(window.navigator.userAgent));
     window.addEventListener(CHANGED_EVENT, refresh);
+    window.addEventListener(TUNING_CHANGED_EVENT, refresh);
     window.addEventListener("storage", refresh);
     return () => {
       window.removeEventListener(CHANGED_EVENT, refresh);
+      window.removeEventListener(TUNING_CHANGED_EVENT, refresh);
       window.removeEventListener("storage", refresh);
     };
   }, []);
+
+  // Which recents carry saved tuning (key presence only — cheap, ≤ ten reads).
+  // Client-only by construction: `recents` is empty until the mount effect
+  // above fills it, so there is no SSR/hydration divergence to worry about.
+  const tunedKeys = useMemo(() => {
+    void tuningVersion; // recompute when the tuning store announces a change
+    const s = new Set<string>();
+    for (const r of recents) if (hasTuning(r)) s.add(keyOf(r));
+    return s;
+  }, [recents, tuningVersion]);
 
   // Global Cmd/Ctrl-K — alive only while the studio is mounted. Ignored while
   // typing in inputs/textareas/contenteditable, EXCEPT the main search input
@@ -418,6 +624,11 @@ export function Recents({
                 aria-hidden
               />
               {r.address.split(",")[0]}
+              {tunedKeys.has(keyOf(r)) ? (
+                <span className="font-data rounded border border-[var(--cb-ember)]/30 bg-[var(--cb-tint)] px-1 py-px text-[9px] uppercase tracking-[0.1em] text-[var(--cb-ember-text)]">
+                  tuned
+                </span>
+              ) : null}
             </a>
           ))}
           <button
@@ -524,6 +735,11 @@ export function Recents({
                       <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
                         {r.address}
                       </span>
+                      {tunedKeys.has(keyOf(r)) ? (
+                        <span className="font-data shrink-0 rounded border border-[var(--cb-ember)]/30 bg-[var(--cb-tint)] px-1 py-px text-[9px] uppercase tracking-[0.1em] text-[var(--cb-ember-text)]">
+                          tuned
+                        </span>
+                      ) : null}
                       <span className="shrink-0 text-xs text-muted-foreground">
                         {ago(r.at)}
                       </span>

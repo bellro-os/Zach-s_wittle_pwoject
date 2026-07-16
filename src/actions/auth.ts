@@ -9,7 +9,7 @@ import {
   createAppSessionToken,
   type AppRole,
 } from "@/lib/auth";
-import { safeAuthRedirect } from "@/lib/auth-redirect";
+import { safeAuthRedirect, withAuthRedirectParam } from "@/lib/auth-redirect";
 import { hashPassword, verifyPassword } from "@/lib/auth-server";
 import {
   consumeResetToken,
@@ -183,8 +183,10 @@ export async function signup(formData: FormData): Promise<void> {
   await setSessionCookie({ userId: user.id, accountId, role: "OWNER", isSuperAdmin: false });
   // ?signedup=1 lets the client fire the ad-conversion event (CompleteRegistration)
   // exactly once — <MarketingPixels/> consumes and strips it, mirroring the
-  // ?subscribed=1 toast pattern. safeAuthRedirect guarantees a query-less path.
-  redirect(`${redirectTo}?signedup=1`);
+  // ?subscribed=1 toast pattern. redirectTo may now legitimately CARRY a query
+  // (?address=/?demo=1/?intent=pro survive the auth wall), so append via the
+  // shared helper instead of a blind "?".
+  redirect(withAuthRedirectParam(redirectTo, "signedup", "1"));
 }
 
 export async function logout(): Promise<void> {

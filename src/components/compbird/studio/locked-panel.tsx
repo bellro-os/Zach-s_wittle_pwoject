@@ -69,7 +69,9 @@ function PlaceholderShapes() {
 export function LockedPanel({
   title,
   teaser,
+  bullets,
   subscribed = false,
+  id,
   children,
 }: {
   /** Panel identity, e.g. "Comparable sales". */
@@ -77,10 +79,18 @@ export function LockedPanel({
   /** One-line hook built from the redacted summary, e.g. "6 comparable sales found · nearest 0.8 mi". */
   teaser: string;
   /**
+   * What Pro unlocks, as short dot-separated items ("Every comparable sale").
+   * Used by the report's SINGLE locked evidence band (conversion pass 2026-07:
+   * one confident ask instead of three stacked panels × two CTAs each).
+   */
+  bullets?: string[];
+  /**
    * True when the viewer already has an active subscription (a locked payload
    * should then never occur — webhook lag at worst); hides the checkout CTA.
    */
   subscribed?: boolean;
+  /** Anchor id — the report's "Download PDF" wayfinding pill jumps here when locked. */
+  id?: string;
   /** Optional custom placeholder skeleton; defaults to generic rows + bars. */
   children?: React.ReactNode;
 }) {
@@ -99,7 +109,10 @@ export function LockedPanel({
   }
 
   return (
-    <div className="relative min-h-[16rem] overflow-hidden rounded-2xl border border-border bg-card/70 p-5 sm:p-7">
+    <div
+      id={id}
+      className="relative min-h-[16rem] scroll-mt-28 overflow-hidden rounded-2xl border border-border bg-card/70 p-5 sm:p-7"
+    >
       {/* blurred placeholder — inert, invisible to AT, generic shapes only */}
       <div aria-hidden className="pointer-events-none select-none blur-sm">
         <span className="cb-eyebrow text-muted-foreground">{title}</span>
@@ -118,6 +131,20 @@ export function LockedPanel({
           <span className="cb-eyebrow text-muted-foreground">{title}</span>
           <p className="text-sm font-medium text-foreground">{teaser}</p>
         </div>
+        {bullets?.length ? (
+          <ul className="flex max-w-lg flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground">
+            {bullets.map((b, i) => (
+              <li key={b} className="inline-flex items-center gap-2.5">
+                {i > 0 ? (
+                  <span aria-hidden className="text-border">
+                    ·
+                  </span>
+                ) : null}
+                <span>{b}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
         {!subscribed ? (
           <>
             <Button size="sm" onClick={onUnlock} disabled={busy}>

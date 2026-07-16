@@ -3,8 +3,9 @@ import { Reveal, MagneticButton } from "@/components/compbird/motion";
 import { ContourField } from "@/components/compbird/graphics";
 
 /**
- * FinalCTA — the closing band. Deliberately NOT a second hero: a dark "instrument"
- * panel with a left-aligned, declarative finale paired with topographic terrain
+ * FinalCTA — the closing band. Deliberately NOT a second hero: a tinted
+ * "instrument" panel (the landing's one dark slab lives in Coverage) with a
+ * left-aligned, declarative finale paired with topographic terrain
  * (no ember headline word, no glow-ring + grain echo) that sends people straight
  * into the comp studio.
  */
@@ -12,9 +13,14 @@ export function FinalCTA() {
   return (
     <SectionShell className="py-24 sm:py-32" width="wide">
       <Reveal y={32}>
-        <div className="cb-dark relative isolate overflow-hidden rounded-3xl border border-border bg-background px-6 py-20 sm:px-12 sm:py-24">
-          {/* sole background treatment: topographic terrain, bled to the right —
-              distinct from the glow-ring + grain on the other dark panels */}
+        <div className="relative isolate overflow-hidden rounded-3xl border border-border bg-card px-6 py-20 sm:px-12 sm:py-24">
+          {/* faint ember band wash under the terrain */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 bg-[var(--cb-tint-band)]"
+          />
+          {/* topographic terrain, bled to the right — distinct from the
+              glow-ring + grain on the other accent panels */}
           <ContourField className="opacity-[0.22] [mask-image:linear-gradient(to_left,black,transparent_72%)]" />
 
           {/* a single ember sightline rule — the accent, used as a fill, not a word */}

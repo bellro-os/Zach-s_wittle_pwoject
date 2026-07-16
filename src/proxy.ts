@@ -8,7 +8,10 @@ import { SESSION_COOKIE, verifyAppSessionToken } from "@/lib/auth";
  * OWN auth + usage metering per-route (the paid artifact stream and the
  * metered generate both check the session server-side). Gated: the STUDIO
  * (/comps) requires a free account; anonymous visitors are sent to /join with
- * a redirect back.
+ * a redirect back. The redirect carries the ORIGINAL query string too, so
+ * arrival intent (?demo=1 / ?address= / ?parcelId= / ?intent=) survives the
+ * auth wall — safeAuthRedirect re-sanitizes it down to the whitelisted keys
+ * on the way back out.
  */
 export async function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;
@@ -18,7 +21,8 @@ export async function proxy(req: NextRequest) {
     if (!session) {
       const url = req.nextUrl.clone();
       url.pathname = "/join";
-      url.search = new URLSearchParams({ redirect: path }).toString();
+      // `search` is "" or "?…", so this concatenation round-trips exactly.
+      url.search = new URLSearchParams({ redirect: path + req.nextUrl.search }).toString();
       return NextResponse.redirect(url);
     }
   }

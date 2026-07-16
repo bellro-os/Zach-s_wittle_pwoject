@@ -18,16 +18,27 @@ import { portfolioTotals } from "./csv";
  * Row semantics:
  *   pending/running → shimmer bars in the figure cells;
  *   error           → muted row, the terse engine message, no link;
- *   done            → click-through to the comp studio for that address
- *                     (new tab — the run stays where it is).
+ *   done            → the ADDRESS is a real same-tab link into the comp studio
+ *                     (ctrl/cmd/middle-click still new-tabs natively). The row
+ *                     itself is NOT clickable, so selecting text is safe. The
+ *                     href carries ?from=portfolio, which the studio renders
+ *                     as a "Back to portfolio" chip — the return leg.
  */
 
 export type EstimateSort = "none" | "desc" | "asc";
 
-/** Comp-studio deep link for a comped row. */
+/**
+ * Comp-studio deep link for a comped row — the same ?parcelId=&address=
+ * contract the studio's planDeepLink consumes, plus from=portfolio for the
+ * studio's "Back to portfolio" chip.
+ */
 function studioHref(it: PortfolioItem): string | null {
   if (it.status !== "done" || !it.resolvedAddress) return null;
-  return `/comps?address=${encodeURIComponent(it.resolvedAddress)}`;
+  const qs = new URLSearchParams();
+  if (it.parcelId) qs.set("parcelId", it.parcelId);
+  qs.set("address", it.resolvedAddress);
+  qs.set("from", "portfolio");
+  return `/comps?${qs.toString()}`;
 }
 
 /** Display identity: label when given, address otherwise. */
@@ -189,18 +200,9 @@ export function PortfolioResultsTable({
               return (
                 <tr
                   key={it.id}
-                  onClick={
-                    href
-                      ? (e) => {
-                          // The address anchor handles itself — don't double-open.
-                          if ((e.target as HTMLElement).closest("a")) return;
-                          window.open(href, "_blank", "noopener");
-                        }
-                      : undefined
-                  }
                   className={cn(
                     "border-b border-border/60 transition-colors last:border-0",
-                    href && "cursor-pointer hover:bg-secondary/40",
+                    href && "hover:bg-secondary/40",
                     failed && "opacity-55",
                   )}
                 >
@@ -214,8 +216,6 @@ export function PortfolioResultsTable({
                       {href ? (
                         <a
                           href={href}
-                          target="_blank"
-                          rel="noopener"
                           title={`Open ${displayAddress(it)} in the comp studio`}
                           className="truncate font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]"
                         >
@@ -349,8 +349,6 @@ export function PortfolioResultsTable({
               {href ? (
                 <a
                   href={href}
-                  target="_blank"
-                  rel="noopener"
                   className={cn(
                     cardCls,
                     "transition-colors hover:border-[var(--cb-ember)]/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cb-ember)]",

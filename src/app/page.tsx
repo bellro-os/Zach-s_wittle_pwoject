@@ -8,6 +8,7 @@ import { HowItWorks } from "@/components/compbird/sections/how-it-works";
 import { MarketReports } from "@/components/compbird/sections/market-reports";
 import { FeaturesBento } from "@/components/compbird/sections/features-bento";
 import { Coverage } from "@/components/compbird/sections/coverage";
+import { PricingBeat } from "@/components/compbird/sections/pricing-beat";
 import { FinalCTA } from "@/components/compbird/sections/cta";
 
 // Title/description come from the root layout default; add a self-canonical so
@@ -32,6 +33,7 @@ export default function CompbirdLanding() {
             live with instant signup + a paid plan, so lead capture leaked
             visitors out of the real funnel. waitlist.tsx is kept for a future
             "notify me when we reach your market" use. */}
+        <PricingBeat />
         <FinalCTA />
       </main>
       <Footer />

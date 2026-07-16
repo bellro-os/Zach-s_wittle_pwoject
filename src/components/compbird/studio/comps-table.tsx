@@ -32,6 +32,11 @@ import { MatchPopover } from "./match-popover";
  * CMA_COMP_SCORE_SURFACE=1), a Match column appears after Address — integer +
  * tier word + hairline ember bar, opening the six-axis breakdown popover
  * (match-popover.tsx). Unscored responses never grow the column.
+ *
+ * SUBJECT ROW: when the caller passes `subject`, a visually-distinct reference
+ * row pins to the TOP of the grid — the appraisal-grid anchor every comp is
+ * judged against. Its figures ride the same columns; fields a subject cannot
+ * have (sold price, $/sqft, close date, DOM, distance) render as em-dashes.
  */
 
 function baths(n: number | null): string {
@@ -220,8 +225,24 @@ export function MatchHintLine() {
 /** Hidden below sm for `mobile: false` columns (headers + cells in lockstep). */
 const desktopOnly = "hidden sm:table-cell";
 
+/**
+ * The subject reference row pinned atop the grid. Built by the caller
+ * (report-view) from ProfileFacts + the live what-if overrides, so an
+ * agent-adjusted sqft/bed count reads back into the comparison grid.
+ */
+export interface CompsTableSubject {
+  address: string;
+  subdivision?: string | null;
+  sqft: number | null;
+  beds: number | null;
+  /** Combined baths (full + 0.5 × half) — matches the comps' single figure. */
+  baths: number | null;
+  yearBuilt: number | null;
+}
+
 export const CompsTable = memo(function CompsTable({
   comps,
+  subject,
   excluded,
   forced,
   onToggle,
@@ -230,6 +251,8 @@ export const CompsTable = memo(function CompsTable({
   busy = false,
 }: {
   comps: ProfileComp[];
+  /** Subject reference row pinned at the top — absent hides the row entirely. */
+  subject?: CompsTableSubject | null;
   /** Keys (compKey) the user has dropped from the set. Live reports only. */
   excluded?: Set<string>;
   /** Keys (compKey) the user pinned IN via search — wear a "Pinned" badge. */
@@ -362,6 +385,62 @@ export const CompsTable = memo(function CompsTable({
           </tr>
         </thead>
         <tbody>
+          {/* SUBJECT reference row — non-interactive, tinted, always first.
+              Em-dashes where a subject can't have a figure (sold, $/sqft,
+              closed, DOM, distance); the trailing Use slot stays empty so the
+              columns line up with tunable comp rows. */}
+          {subject ? (
+            <tr className="border-b border-[var(--cb-ember)]/25 bg-[var(--cb-tint)]/40">
+              <td className="max-w-[9rem] py-3 pr-4 align-middle sm:max-w-[16rem]">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="truncate font-medium text-foreground"
+                    title={subject.address}
+                  >
+                    {subject.address}
+                  </span>
+                  <Pill tone="ember" className="shrink-0">
+                    Subject
+                  </Pill>
+                </div>
+                {subject.subdivision ? (
+                  <span className="text-xs text-muted-foreground">{subject.subdivision}</span>
+                ) : null}
+              </td>
+              {hasMatch ? (
+                <td className="whitespace-nowrap py-3 pl-4 text-right align-middle font-data text-muted-foreground">
+                  —
+                </td>
+              ) : null}
+              <td className="whitespace-nowrap py-3 pl-4 text-right align-middle font-data text-muted-foreground">
+                —
+              </td>
+              <td className="whitespace-nowrap py-3 pl-4 text-right align-middle font-data text-muted-foreground">
+                —
+              </td>
+              <td className={`whitespace-nowrap py-3 pl-4 text-right align-middle font-data text-foreground ${desktopOnly}`}>
+                {num(subject.sqft)}
+              </td>
+              <td className="whitespace-nowrap py-3 pl-4 text-right align-middle font-data text-foreground">
+                {subject.beds ?? "—"} / {baths(subject.baths)}
+              </td>
+              <td className={`whitespace-nowrap py-3 pl-4 text-right align-middle font-data text-foreground ${desktopOnly}`}>
+                {subject.yearBuilt ?? "—"}
+              </td>
+              <td className={`whitespace-nowrap py-3 pl-4 text-right align-middle font-data text-muted-foreground ${desktopOnly}`}>
+                —
+              </td>
+              <td className={`whitespace-nowrap py-3 pl-4 text-right align-middle font-data text-muted-foreground ${desktopOnly}`}>
+                —
+              </td>
+              <td className="whitespace-nowrap py-3 pl-4 text-right align-middle font-data text-muted-foreground">
+                —
+              </td>
+              {tunable ? (
+                <td className="py-3 pl-4 align-middle max-sm:sticky max-sm:right-0 max-sm:z-10 max-sm:bg-card" />
+              ) : null}
+            </tr>
+          ) : null}
           {comps.map((c, i) => {
             const key = compKey(c);
             const isExcluded = excludedSet.has(key);
